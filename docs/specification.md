@@ -317,6 +317,10 @@ interface PatternStop {
 | R-05 | 各 `directionId` に `isDefault: true` かつ `isDeadhead: false` のパターンがちょうど 1 つ存在すること |
 | R-06 | すべてのパターンの `stopSequence` が 2 要素以上であること |
 | R-07 | `isDepot: true` の停留所を含むパターンは `isDeadhead: true` であること（およびその逆） |
+| R-08 | `stops` に `stopId` の重複がないこと |
+| R-09 | `patterns` に `patternId` の重複がないこと |
+
+> R-08 と R-09 は実装時（T-06）に追加した規則である。ID が重複すると検索が先勝ちになり、参照の意味が静かに壊れる。スキーマ検証（[§7.4](#74-検証)）は配列の要素数を見るだけで重複を検出できないため、ここで検査する必要がある。
 
 ### 5.6 Trip（便）
 
