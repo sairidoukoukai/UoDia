@@ -1,0 +1,112 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+
+# 同一ブランチで新しい実行が始まったら古い実行を打ち切る。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # PR とマージの双方で必ず走る軽量ジョブ。品質ゲートの本体。
+  # ---------------------------------------------------------------------------
+  check:
+    name: 型チェック・Lint・テスト
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: 依存のインストール
+        run: npm ci
+
+      - name: 型チェック
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: 整形の確認
+        run: npm run format:check
+
+      - name: テスト（カバレッジ付き）
+        run: npm run test:coverage
+
+      - name: Web 版のビルド
+        run: npm run build:web
+
+      - name: カバレッジレポートの保存
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage/
+          retention-days: 14
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------
+  # デスクトップ版のビルド。Rust のコンパイルを伴い時間がかかるため、
+  # PR では実行せず develop / main へのマージ時のみ実行する。
+  # 公開リポジトリのため実行分数の費用は発生しない（実装計画書 T-02）。
+  # ---------------------------------------------------------------------------
+  desktop:
+    name: デスクトップビルド (${{ matrix.label }})
+    if: github.event_name == 'push'
+    needs: check
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            label: Linux
+          - os: windows-latest
+            label: Windows
+          - os: macos-latest
+            label: macOS
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Linux の依存パッケージ
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            build-essential \
+            libssl-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust のキャッシュ
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ./src-tauri -> target
+
+      - name: 依存のインストール
+        run: npm ci
+
+      - name: ビルド
+        run: npm run build:desktop
