@@ -1,0 +1,66 @@
+/*
+ * 最小限のベーススタイル。
+ * テーマ（ライト／ダーク）の本実装は T-39 で行う（仕様書 §9.4）。
+ */
+
+:root {
+  --color-bg: #ffffff;
+  --color-fg: #1a1a1a;
+  --color-fg-muted: #666666;
+
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    'Hiragino Sans',
+    'Noto Sans JP',
+    sans-serif;
+  line-height: 1.6;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #1a1a1a;
+    --color-fg: #f0f0f0;
+    --color-fg-muted: #999999;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-fg);
+}
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: 100%;
+  padding: 2rem;
+}
+
+.app-shell h1 {
+  margin: 0 0 0.5rem;
+  font-size: 2rem;
+}
+
+.app-shell p {
+  margin: 0.25rem 0;
+}
+
+.app-shell__note {
+  color: var(--color-fg-muted);
+  font-size: 0.875rem;
+}

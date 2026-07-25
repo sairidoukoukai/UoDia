@@ -1,0 +1,29 @@
+[package]
+name = "uodia"
+version = "0.1.0"
+description = "大阪大学 学内連絡バス（再履バス）ダイヤグラム設計ソフトウェア"
+authors = ["sairidoukoukai"]
+edition = "2021"
+rust-version = "1.77.2"
+
+# Rust 側の責務はファイル I/O のみに限定する（仕様書 §10.3）。
+# ドメインロジックは TypeScript 側で完結させ、Web 版と共通化する。
+
+[lib]
+name = "uodia_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true
