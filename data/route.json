@@ -1,0 +1,289 @@
+{
+  "version": 1,
+  "name": "大阪大学 学内連絡バス",
+  "timeGrain": 300,
+  "stops": [
+    {
+      "stopId": "1_0",
+      "stopName": "豊中学舎",
+      "shortName": "豊中",
+      "area": "豊中地区",
+      "axisPosition": 0,
+      "gridStyle": "bold",
+      "hiddenInEditor": false,
+      "isDepot": false
+    },
+    {
+      "stopId": "2_0",
+      "stopName": "箕面学舎",
+      "shortName": "箕面",
+      "area": "箕面地区",
+      "axisPosition": 20,
+      "gridStyle": "bold",
+      "hiddenInEditor": false,
+      "isDepot": false
+    },
+    {
+      "stopId": "3_0",
+      "stopName": "コンベンションセンター前",
+      "shortName": "コンベ",
+      "area": "吹田地区",
+      "axisPosition": 33,
+      "gridStyle": "normal",
+      "hiddenInEditor": false,
+      "isDepot": false
+    },
+    {
+      "stopId": "5_0",
+      "stopName": "人間科学部前",
+      "shortName": "人科",
+      "area": "吹田地区",
+      "axisPosition": 37,
+      "gridStyle": "normal",
+      "hiddenInEditor": false,
+      "isDepot": false
+    },
+    {
+      "stopId": "6_0",
+      "stopName": "微生物研究所前",
+      "shortName": "微研",
+      "area": "吹田地区",
+      "axisPosition": 39,
+      "gridStyle": "dashed",
+      "hiddenInEditor": true,
+      "isDepot": false
+    },
+    {
+      "stopId": "4_0",
+      "stopName": "工学部前",
+      "shortName": "工学部",
+      "area": "吹田地区",
+      "axisPosition": 40,
+      "gridStyle": "bold",
+      "hiddenInEditor": false,
+      "isDepot": false
+    },
+    {
+      "stopId": "9_0",
+      "stopName": "千里営業所",
+      "shortName": "車庫",
+      "area": "",
+      "axisPosition": 52,
+      "gridStyle": "dashed",
+      "hiddenInEditor": false,
+      "isDepot": true
+    }
+  ],
+  "segments": [
+    { "fromStopId": "1_0", "toStopId": "3_0", "runMinutes": 25 },
+    { "fromStopId": "1_0", "toStopId": "2_0", "runMinutes": 20 },
+    { "fromStopId": "2_0", "toStopId": "3_0", "runMinutes": 15 },
+    { "fromStopId": "3_0", "toStopId": "6_0", "runMinutes": 5 },
+    { "fromStopId": "6_0", "toStopId": "4_0", "runMinutes": 0 },
+    { "fromStopId": "4_0", "toStopId": "5_0", "runMinutes": 5 },
+    { "fromStopId": "5_0", "toStopId": "1_0", "runMinutes": 25 },
+    { "fromStopId": "5_0", "toStopId": "2_0", "runMinutes": 20 },
+    { "fromStopId": "2_0", "toStopId": "1_0", "runMinutes": 20 },
+    { "fromStopId": "9_0", "toStopId": "4_0", "runMinutes": 20 },
+    { "fromStopId": "9_0", "toStopId": "1_0", "runMinutes": 20 },
+    { "fromStopId": "9_0", "toStopId": "2_0", "runMinutes": 20 },
+    { "fromStopId": "4_0", "toStopId": "9_0", "runMinutes": 20 },
+    { "fromStopId": "1_0", "toStopId": "9_0", "runMinutes": 20 },
+    { "fromStopId": "2_0", "toStopId": "9_0", "runMinutes": 20 }
+  ],
+  "patterns": [
+    {
+      "patternId": "S1",
+      "patternName": "直行吹田",
+      "routeName": "豊中吹田線",
+      "directionId": 0,
+      "color": "#1a4f8a",
+      "isDefault": false,
+      "isDeadhead": false,
+      "stopSequence": [
+        { "stopId": "1_0", "handling": "boardOnly" },
+        { "stopId": "3_0", "handling": "stop" },
+        { "stopId": "6_0", "handling": "alightOnly" },
+        { "stopId": "4_0", "handling": "alightOnly" }
+      ]
+    },
+    {
+      "patternId": "S3",
+      "patternName": "箕面経由吹田",
+      "routeName": "三点間",
+      "directionId": 0,
+      "color": "#2e6fb5",
+      "isDefault": true,
+      "isDeadhead": false,
+      "stopSequence": [
+        { "stopId": "1_0", "handling": "boardOnly" },
+        { "stopId": "2_0", "handling": "stop" },
+        { "stopId": "3_0", "handling": "stop" },
+        { "stopId": "6_0", "handling": "alightOnly" },
+        { "stopId": "4_0", "handling": "alightOnly" }
+      ]
+    },
+    {
+      "patternId": "S2",
+      "patternName": "吹田",
+      "routeName": "箕面吹田線",
+      "directionId": 0,
+      "color": "#5490cc",
+      "isDefault": false,
+      "isDeadhead": false,
+      "stopSequence": [
+        { "stopId": "2_0", "handling": "boardOnly" },
+        { "stopId": "3_0", "handling": "stop" },
+        { "stopId": "6_0", "handling": "alightOnly" },
+        { "stopId": "4_0", "handling": "alightOnly" }
+      ]
+    },
+    {
+      "patternId": "M2",
+      "patternName": "箕面",
+      "routeName": "豊中箕面線",
+      "directionId": 0,
+      "color": "#7fb0dd",
+      "isDefault": false,
+      "isDeadhead": false,
+      "stopSequence": [
+        { "stopId": "1_0", "handling": "boardOnly" },
+        { "stopId": "2_0", "handling": "alightOnly" }
+      ]
+    },
+    {
+      "patternId": "T1",
+      "patternName": "直行豊中",
+      "routeName": "吹田豊中線",
+      "directionId": 1,
+      "color": "#a63a2e",
+      "isDefault": false,
+      "isDeadhead": false,
+      "stopSequence": [
+        { "stopId": "4_0", "handling": "boardOnly" },
+        { "stopId": "5_0", "handling": "stop" },
+        { "stopId": "1_0", "handling": "alightOnly" }
+      ]
+    },
+    {
+      "patternId": "T3",
+      "patternName": "箕面経由豊中",
+      "routeName": "三点間",
+      "directionId": 1,
+      "color": "#c9553f",
+      "isDefault": true,
+      "isDeadhead": false,
+      "stopSequence": [
+        { "stopId": "4_0", "handling": "boardOnly" },
+        { "stopId": "5_0", "handling": "stop" },
+        { "stopId": "2_0", "handling": "stop" },
+        { "stopId": "1_0", "handling": "alightOnly" }
+      ]
+    },
+    {
+      "patternId": "T2",
+      "patternName": "豊中",
+      "routeName": "箕面豊中線",
+      "directionId": 1,
+      "color": "#d97a63",
+      "isDefault": false,
+      "isDeadhead": false,
+      "stopSequence": [
+        { "stopId": "2_0", "handling": "boardOnly" },
+        { "stopId": "1_0", "handling": "alightOnly" }
+      ]
+    },
+    {
+      "patternId": "M4",
+      "patternName": "箕面",
+      "routeName": "吹田箕面線",
+      "directionId": 1,
+      "color": "#e5a08c",
+      "isDefault": false,
+      "isDeadhead": false,
+      "stopSequence": [
+        { "stopId": "4_0", "handling": "boardOnly" },
+        { "stopId": "5_0", "handling": "stop" },
+        { "stopId": "2_0", "handling": "alightOnly" }
+      ]
+    },
+    {
+      "patternId": "DS-out",
+      "patternName": "車庫発吹田",
+      "routeName": "回送",
+      "directionId": 0,
+      "color": "#8a8a8a",
+      "isDefault": false,
+      "isDeadhead": true,
+      "stopSequence": [
+        { "stopId": "9_0", "handling": "boardOnly" },
+        { "stopId": "4_0", "handling": "alightOnly" }
+      ]
+    },
+    {
+      "patternId": "DT-out",
+      "patternName": "車庫発豊中",
+      "routeName": "回送",
+      "directionId": 1,
+      "color": "#8a8a8a",
+      "isDefault": false,
+      "isDeadhead": true,
+      "stopSequence": [
+        { "stopId": "9_0", "handling": "boardOnly" },
+        { "stopId": "1_0", "handling": "alightOnly" }
+      ]
+    },
+    {
+      "patternId": "DM-out",
+      "patternName": "車庫発箕面",
+      "routeName": "回送",
+      "directionId": 0,
+      "color": "#8a8a8a",
+      "isDefault": false,
+      "isDeadhead": true,
+      "stopSequence": [
+        { "stopId": "9_0", "handling": "boardOnly" },
+        { "stopId": "2_0", "handling": "alightOnly" }
+      ]
+    },
+    {
+      "patternId": "DS-in",
+      "patternName": "吹田発車庫",
+      "routeName": "回送",
+      "directionId": 1,
+      "color": "#8a8a8a",
+      "isDefault": false,
+      "isDeadhead": true,
+      "stopSequence": [
+        { "stopId": "4_0", "handling": "boardOnly" },
+        { "stopId": "9_0", "handling": "alightOnly" }
+      ]
+    },
+    {
+      "patternId": "DT-in",
+      "patternName": "豊中発車庫",
+      "routeName": "回送",
+      "directionId": 0,
+      "color": "#8a8a8a",
+      "isDefault": false,
+      "isDeadhead": true,
+      "stopSequence": [
+        { "stopId": "1_0", "handling": "boardOnly" },
+        { "stopId": "9_0", "handling": "alightOnly" }
+      ]
+    },
+    {
+      "patternId": "DM-in",
+      "patternName": "箕面発車庫",
+      "routeName": "回送",
+      "directionId": 1,
+      "color": "#8a8a8a",
+      "isDefault": false,
+      "isDeadhead": true,
+      "stopSequence": [
+        { "stopId": "2_0", "handling": "boardOnly" },
+        { "stopId": "9_0", "handling": "alightOnly" }
+      ]
+    }
+  ]
+}
