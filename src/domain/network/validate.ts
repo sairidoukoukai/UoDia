@@ -1,0 +1,259 @@
+/**
+ * ネットワーク定義の意味的な検証（仕様書 §5.5.2）。
+ *
+ * スキーマ検証（T-04）が「JSON の形」を見るのに対し、本モジュールは
+ * 「データの内容が矛盾していないか」を見る。両者を分けることで、エラーの
+ * 原因がどちらなのかを利用者に切り分けて示せる。
+ *
+ * 検証結果は規則 ID と対象要素を持つ構造化エラーとして返す。UI から該当箇所へ
+ * ジャンプできるようにするため、文字列メッセージだけにはしない。
+ */
+
+import type { DirectionId, NetworkDef, PatternStop, StopPattern } from '@/domain/model';
+
+/** 検証規則の識別子。仕様書 §5.5.2 の表に対応する。 */
+export type NetworkRule =
+  'R-01' | 'R-02' | 'R-03' | 'R-04' | 'R-05' | 'R-06' | 'R-07' | 'R-08' | 'R-09';
+
+/** 問題のある要素への参照。 */
+export type NetworkIssueTarget =
+  | { readonly kind: 'stop'; readonly stopId: string }
+  | { readonly kind: 'segment'; readonly fromStopId: string; readonly toStopId: string }
+  | { readonly kind: 'pattern'; readonly patternId: string }
+  | { readonly kind: 'patternStop'; readonly patternId: string; readonly index: number }
+  | { readonly kind: 'direction'; readonly directionId: DirectionId };
+
+export interface NetworkIssue {
+  readonly rule: NetworkRule;
+  readonly message: string;
+  readonly target: NetworkIssueTarget;
+}
+
+/** 区間表を引くためのキー。有向であることを明示するため矢印を用いる。 */
+export function segmentKey(fromStopId: string, toStopId: string): string {
+  return `${fromStopId}→${toStopId}`;
+}
+
+/**
+ * ネットワーク定義を検証する。
+ *
+ * 問題が無ければ空配列を返す。1 つ目の違反で打ち切らず、すべての問題を集めて
+ * 返す。`route.json` を手で直す際、1 件ずつ直しては再実行する手間を避けるため。
+ */
+export function validateNetwork(network: NetworkDef): NetworkIssue[] {
+  return [
+    ...checkRunMinutes(network),
+    ...checkStopReferences(network),
+    ...checkDuplicateStopIds(network),
+    ...checkSegmentsCoverPatterns(network),
+    ...checkDuplicateSegments(network),
+    ...checkDefaultPatterns(network),
+    ...checkPatternLength(network),
+    ...checkDepotPatterns(network),
+    ...checkDuplicatePatternIds(network),
+  ];
+}
+
+/**
+ * R-01: すべての `runMinutes` が 5 の倍数であること。
+ *
+ * スキーマ（`runMinutesSchema`）でも検証しているため、`loadNetworkDef` 経由では
+ * 発火しない。隠し設定（T-36）が編集中のデータを保存前に検証する経路では
+ * スキーマを通らないため、ここでも確認する。
+ */
+function checkRunMinutes(network: NetworkDef): NetworkIssue[] {
+  return network.segments
+    .filter((s) => s.runMinutes % 5 !== 0)
+    .map((s) => ({
+      rule: 'R-01' as const,
+      message: `区間 ${segmentKey(s.fromStopId, s.toStopId)} の所要時間 ${String(s.runMinutes)} 分が 5 の倍数ではありません`,
+      target: { kind: 'segment' as const, fromStopId: s.fromStopId, toStopId: s.toStopId },
+    }));
+}
+
+/** R-02: 停留所への参照がすべて実在すること。 */
+function checkStopReferences(network: NetworkDef): NetworkIssue[] {
+  const stopIds = new Set(network.stops.map((s) => s.stopId));
+  const issues: NetworkIssue[] = [];
+
+  for (const pattern of network.patterns) {
+    pattern.stopSequence.forEach((patternStop, index) => {
+      if (!stopIds.has(patternStop.stopId)) {
+        issues.push({
+          rule: 'R-02',
+          message: `パターン ${pattern.patternId} の ${String(index + 1)} 番目が参照する停留所 ${patternStop.stopId} は存在しません`,
+          target: { kind: 'patternStop', patternId: pattern.patternId, index },
+        });
+      }
+    });
+  }
+
+  for (const segment of network.segments) {
+    for (const [role, stopId] of [
+      ['始点', segment.fromStopId],
+      ['終点', segment.toStopId],
+    ] as const) {
+      if (!stopIds.has(stopId)) {
+        issues.push({
+          rule: 'R-02',
+          message: `区間 ${segmentKey(segment.fromStopId, segment.toStopId)} の${role}が参照する停留所 ${stopId} は存在しません`,
+          target: {
+            kind: 'segment',
+            fromStopId: segment.fromStopId,
+            toStopId: segment.toStopId,
+          },
+        });
+      }
+    }
+  }
+
+  return issues;
+}
+
+/**
+ * R-08: `stopId` が重複しないこと。
+ *
+ * 仕様書 §5.5.2 には無かった規則。重複すると停留所の検索が先勝ちになり、
+ * 参照の意味が静かに壊れるため追加した。
+ */
+function checkDuplicateStopIds(network: NetworkDef): NetworkIssue[] {
+  return findDuplicates(network.stops.map((s) => s.stopId)).map((stopId) => ({
+    rule: 'R-08' as const,
+    message: `停留所 ${stopId} が重複して定義されています`,
+    target: { kind: 'stop' as const, stopId },
+  }));
+}
+
+/**
+ * R-03: すべてのパターンの隣接停留所対が `segments` に存在すること。
+ *
+ * **最も重要な規則。** 欠けていると、そのパターンを使う便の時刻が計算できない。
+ * どの区間が足りないかをメッセージに明示する（T-36 の受入条件）。
+ */
+function checkSegmentsCoverPatterns(network: NetworkDef): NetworkIssue[] {
+  const known = new Set(network.segments.map((s) => segmentKey(s.fromStopId, s.toStopId)));
+  const issues: NetworkIssue[] = [];
+
+  for (const pattern of network.patterns) {
+    // 添字ではなく直前の要素を持ち回る。添字アクセスは
+    // noUncheckedIndexedAccess のもとで undefined を含み、到達し得ない
+    // 分岐を書く羽目になるため。
+    let previous: PatternStop | undefined;
+    let index = 0;
+    for (const current of pattern.stopSequence) {
+      if (previous !== undefined) {
+        const key = segmentKey(previous.stopId, current.stopId);
+        if (!known.has(key)) {
+          issues.push({
+            rule: 'R-03',
+            message: `パターン ${pattern.patternId} が使う区間 ${key} が区間表にありません`,
+            target: { kind: 'patternStop', patternId: pattern.patternId, index },
+          });
+        }
+      }
+      previous = current;
+      index++;
+    }
+  }
+
+  return issues;
+}
+
+/** R-04: `segments` に同じ `(fromStopId, toStopId)` の重複がないこと。 */
+function checkDuplicateSegments(network: NetworkDef): NetworkIssue[] {
+  const keys = network.segments.map((s) => segmentKey(s.fromStopId, s.toStopId));
+  return findDuplicates(keys).map((key) => {
+    const [fromStopId = '', toStopId = ''] = key.split('→');
+    return {
+      rule: 'R-04' as const,
+      message: `区間 ${key} が重複して定義されています`,
+      target: { kind: 'segment' as const, fromStopId, toStopId },
+    };
+  });
+}
+
+/** R-05: 各方向に `isDefault` かつ営業のパターンがちょうど 1 つあること。 */
+function checkDefaultPatterns(network: NetworkDef): NetworkIssue[] {
+  const issues: NetworkIssue[] = [];
+
+  for (const directionId of [0, 1] as const) {
+    const defaults = network.patterns.filter(
+      (p) => p.directionId === directionId && p.isDefault && !p.isDeadhead,
+    );
+    if (defaults.length !== 1) {
+      issues.push({
+        rule: 'R-05',
+        message: `方向 ${String(directionId)} の既定パターンが ${String(defaults.length)} 件あります（1 件でなければなりません）`,
+        target: { kind: 'direction', directionId },
+      });
+    }
+  }
+
+  return issues;
+}
+
+/** R-06: すべてのパターンの `stopSequence` が 2 要素以上であること。 */
+function checkPatternLength(network: NetworkDef): NetworkIssue[] {
+  return network.patterns
+    .filter((p) => p.stopSequence.length < 2)
+    .map((p) => ({
+      rule: 'R-06' as const,
+      message: `パターン ${p.patternId} の停留所が ${String(p.stopSequence.length)} 件しかありません（2 件以上必要です）`,
+      target: { kind: 'pattern' as const, patternId: p.patternId },
+    }));
+}
+
+/**
+ * R-07: 営業所を含むパターンは回送であり、回送は営業所を含むこと。
+ *
+ * 営業所に営業便が発着したり、営業所を通らない回送が定義されたりすると、
+ * 運用の入出庫判定（T-09）が成り立たなくなる。
+ */
+function checkDepotPatterns(network: NetworkDef): NetworkIssue[] {
+  const depotIds = new Set(network.stops.filter((s) => s.isDepot).map((s) => s.stopId));
+
+  const includesDepot = (pattern: StopPattern): boolean =>
+    pattern.stopSequence.some((ps) => depotIds.has(ps.stopId));
+
+  return network.patterns
+    .filter((p) => includesDepot(p) !== p.isDeadhead)
+    .map((p) => ({
+      rule: 'R-07' as const,
+      message: p.isDeadhead
+        ? `回送パターン ${p.patternId} が営業所を含んでいません`
+        : `営業パターン ${p.patternId} が営業所を含んでいます`,
+      target: { kind: 'pattern' as const, patternId: p.patternId },
+    }));
+}
+
+/**
+ * R-09: `patternId` が重複しないこと。
+ *
+ * R-08 と同じ理由で追加した規則。便は `patternId` でパターンを参照するため、
+ * 重複すると便の経路が定まらない。
+ */
+function checkDuplicatePatternIds(network: NetworkDef): NetworkIssue[] {
+  return findDuplicates(network.patterns.map((p) => p.patternId)).map((patternId) => ({
+    rule: 'R-09' as const,
+    message: `パターン ${patternId} が重複して定義されています`,
+    target: { kind: 'pattern' as const, patternId },
+  }));
+}
+
+/** 重複している値を、最初に重複が判明した順で返す。 */
+function findDuplicates(values: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const duplicated = new Set<string>();
+  for (const value of values) {
+    if (seen.has(value)) {
+      duplicated.add(value);
+    }
+    seen.add(value);
+  }
+  return [...duplicated];
+}
+
+/** 問題の一覧を人が読める複数行の文にする。 */
+export function formatNetworkIssues(issues: readonly NetworkIssue[]): string {
+  return issues.map((i) => `[${i.rule}] ${i.message}`).join('\n');
+}

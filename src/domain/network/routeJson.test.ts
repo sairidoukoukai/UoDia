@@ -14,9 +14,24 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { networkDefSchema, parseWithSchema, type NetworkDef } from '@/domain/model';
+import { loadNetworkDef, type LoadNetworkResult } from './load';
+import { formatNetworkIssues, validateNetwork } from './validate';
 
 const routeJsonPath = fileURLToPath(new URL('../../../data/route.json', import.meta.url));
 const rawJson = readFileSync(routeJsonPath, 'utf8');
+
+/** 読込に失敗した理由を、段階ごとに読める形にする。 */
+function formatLoadFailure(result: LoadNetworkResult): string {
+  if (result.ok) return '';
+  switch (result.stage) {
+    case 'json':
+      return `JSON 構文エラー: ${result.message}`;
+    case 'schema':
+      return `スキーマ違反:\n${result.issues.map((i) => `${i.path}: ${i.message}`).join('\n')}`;
+    case 'rules':
+      return `規則違反:\n${formatNetworkIssues(result.issues)}`;
+  }
+}
 
 function loadNetwork(): NetworkDef {
   const result = parseWithSchema(networkDefSchema, JSON.parse(rawJson));
@@ -100,59 +115,17 @@ describe('route.json — 停留所（仕様書 付録 A.1）', () => {
   });
 });
 
-describe('route.json — ネットワーク定義の検証（仕様書 §5.5.2 R-01〜R-07）', () => {
-  it('R-01: すべての runMinutes が 5 の倍数', () => {
-    for (const s of network.segments) {
-      expect(s.runMinutes % 5, segmentKey(s.fromStopId, s.toStopId)).toBe(0);
-    }
+describe('route.json — ネットワーク定義の検証（仕様書 §5.5.2）', () => {
+  // 各規則そのものの振る舞いは validate.test.ts が網羅する。ここでは実データが
+  // すべての規則を満たすことだけを確認する（T-06 で検証器を切り出した）。
+  it('R-01〜R-09 のすべてを満たす', () => {
+    const issues = validateNetwork(network);
+    expect(formatNetworkIssues(issues)).toBe('');
   });
 
-  it('R-02: すべての stopSequence の stopId が実在する', () => {
-    for (const p of network.patterns) {
-      for (const ps of p.stopSequence) {
-        expect(stopIds.has(ps.stopId), `${p.patternId} の ${ps.stopId}`).toBe(true);
-      }
-    }
-    for (const s of network.segments) {
-      expect(stopIds.has(s.fromStopId), s.fromStopId).toBe(true);
-      expect(stopIds.has(s.toStopId), s.toStopId).toBe(true);
-    }
-  });
-
-  it('R-03: すべてのパターンの隣接停留所対が segments に存在する', () => {
-    for (const p of network.patterns) {
-      for (let i = 1; i < p.stopSequence.length; i++) {
-        const from = p.stopSequence[i - 1]?.stopId ?? '';
-        const to = p.stopSequence[i]?.stopId ?? '';
-        expect(segmentMap.has(segmentKey(from, to)), `${p.patternId}: ${from}→${to}`).toBe(true);
-      }
-    }
-  });
-
-  it('R-04: segments に (from, to) の重複がない', () => {
-    expect(segmentMap.size).toBe(network.segments.length);
-  });
-
-  it('R-05: 各方向に既定の営業パターンがちょうど 1 つある', () => {
-    for (const direction of [0, 1] as const) {
-      const defaults = network.patterns.filter(
-        (p) => p.directionId === direction && p.isDefault && !p.isDeadhead,
-      );
-      expect(defaults, `方向 ${String(direction)}`).toHaveLength(1);
-    }
-  });
-
-  it('R-06: すべてのパターンの stopSequence が 2 要素以上', () => {
-    for (const p of network.patterns) {
-      expect(p.stopSequence.length, p.patternId).toBeGreaterThanOrEqual(2);
-    }
-  });
-
-  it('R-07: 営業所を含むパターンは回送であり、回送は営業所を含む', () => {
-    for (const p of network.patterns) {
-      const hasDepot = p.stopSequence.some((ps) => ps.stopId === '9_0');
-      expect(hasDepot, `${p.patternId} の営業所有無と isDeadhead が一致しない`).toBe(p.isDeadhead);
-    }
+  it('loadNetworkDef が段階を通過して読み込める', () => {
+    const result = loadNetworkDef(rawJson);
+    expect(result.ok, result.ok ? '' : formatLoadFailure(result)).toBe(true);
   });
 
   it('使われていない区間が存在しない', () => {
