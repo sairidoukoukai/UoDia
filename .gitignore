@@ -1,0 +1,38 @@
+# 依存
+node_modules/
+
+# ビルド成果物
+dist/
+dist-ssr/
+src-tauri/target/
+src-tauri/gen/
+
+# テスト
+coverage/
+
+# エディタ・OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ログ
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# 環境変数
+.env
+.env.local
+.env.*.local
+
+# UoDia のバックアップファイル
+*.uodia.bak
