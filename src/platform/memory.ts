@@ -11,6 +11,7 @@
 
 import {
   MAX_RECENT_FILES,
+  foreignHandleError,
   type CloseHandler,
   type FileHandle,
   type OpenedProject,
@@ -83,11 +84,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions = {}): Memor
 
     readProject(handle: FileHandle): Promise<string> {
       const name = nameOf(handle);
-      if (name === null) {
-        return Promise.reject(
-          new TypeError(`このアダプタが作ったハンドルではありません: ${handle.kind}`),
-        );
-      }
+      if (name === null) return Promise.reject(foreignHandleError(handle));
       const content = platform.files.get(name);
       return content === undefined
         ? Promise.reject(new Error(`ファイルがありません: ${name}`))
@@ -96,11 +93,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions = {}): Memor
 
     saveProject(handle: FileHandle, content: string): Promise<void> {
       const name = nameOf(handle);
-      if (name === null) {
-        return Promise.reject(
-          new TypeError(`このアダプタが作ったハンドルではありません: ${handle.kind}`),
-        );
-      }
+      if (name === null) return Promise.reject(foreignHandleError(handle));
       platform.files.set(name, content);
       return Promise.resolve();
     },
@@ -173,13 +166,11 @@ function makeHandle(name: string): FileHandle {
 }
 
 /**
- * ハンドルからファイル名を取り出す。解釈できなければ `null`。
+ * ハンドルからファイル名を取り出す。解釈できなければ `null`
+ * （呼び出し側が {@link foreignHandleError} で断る）。
  *
- * 他の環境で作られたハンドルは解釈できない。黙って `name` で代用すると、
- * 別のファイルを上書きしかねないため、はっきり失敗させる。
- *
- * 例外を投げずに `null` を返すのは、呼び出し側が `Promise` を返す約束をして
- * いるためである。同期的に投げると `.catch()` で受けられない。
+ * ここで例外を投げずに `null` を返すのは、呼び出し側が `Promise` を返す約束を
+ * しているためである。同期的に投げると `.catch()` で受けられない。
  */
 function nameOf(handle: FileHandle): string | null {
   return handle.kind === 'memory' && typeof handle.ref === 'string' ? handle.ref : null;

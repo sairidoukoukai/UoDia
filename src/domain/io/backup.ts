@@ -19,6 +19,7 @@
 
 import { z } from 'zod';
 import { isoDateTimeSchema, type Project } from '@/domain/model';
+import { parseJson } from '@/domain/util';
 
 /** バックアップであることの目印。他の JSON を読み違えないために置く。 */
 export const BACKUP_FORMAT = 'uodia-backup';
@@ -66,14 +67,12 @@ export type ParseBackupResult =
  * ならず、「復元できるものは無かった」として先へ進めばよい。
  */
 export function parseBackup(json: string): ParseBackupResult {
-  let raw: unknown;
-  try {
-    raw = JSON.parse(json);
-  } catch (error) {
-    return { ok: false, message: `バックアップを読めません: ${String(error)}` };
+  const raw = parseJson(json);
+  if (!raw.ok) {
+    return { ok: false, message: `バックアップを読めません: ${raw.message}` };
   }
 
-  const parsed = backupEnvelopeSchema.safeParse(raw);
+  const parsed = backupEnvelopeSchema.safeParse(raw.value);
   return parsed.success
     ? { ok: true, envelope: parsed.data }
     : { ok: false, message: 'バックアップの形式が違います' };

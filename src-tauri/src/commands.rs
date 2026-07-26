@@ -115,10 +115,7 @@ pub fn add_recent_file(app: AppHandle, path: String, opened_at: String) -> Resul
 /// 未保存を示す `[*]` を題名に出すため、ここで橋渡しする。
 #[tauri::command]
 pub fn set_window_title(app: AppHandle, title: String) -> Result<(), String> {
-    let window = app
-        .get_webview_window(MAIN_WINDOW)
-        .ok_or_else(|| format!("ウィンドウがありません: {MAIN_WINDOW}"))?;
-    window
+    main_window(&app)?
         .set_title(&title)
         .map_err(|e| format!("題名を変えられません: {e}"))
 }
@@ -130,14 +127,17 @@ pub fn set_window_title(app: AppHandle, title: String) -> Result<(), String> {
 /// 知っているのはフロントエンドだけであり、Rust 側で判断できない。
 #[tauri::command]
 pub fn close_window(app: AppHandle) -> Result<(), String> {
-    let window = app
-        .get_webview_window(MAIN_WINDOW)
-        .ok_or_else(|| format!("ウィンドウがありません: {MAIN_WINDOW}"))?;
     // close() ではなく destroy() を使う。close() は再び CloseRequested を起こし、
     // 止める側と閉じる側が延々と押し合うことになる。
-    window
+    main_window(&app)?
         .destroy()
         .map_err(|e| format!("ウィンドウを閉じられません: {e}"))
+}
+
+/// 唯一のウィンドウを取得する。
+fn main_window(app: &AppHandle) -> Result<tauri::WebviewWindow, String> {
+    app.get_webview_window(MAIN_WINDOW)
+        .ok_or_else(|| format!("ウィンドウがありません: {MAIN_WINDOW}"))
 }
 
 /// 履歴を読む。壊れていれば空として扱う。

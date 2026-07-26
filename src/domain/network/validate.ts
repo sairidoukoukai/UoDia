@@ -9,7 +9,8 @@
  * ジャンプできるようにするため、文字列メッセージだけにはしない。
  */
 
-import type { DirectionId, NetworkDef, PatternStop, StopPattern } from '@/domain/model';
+import type { DirectionId, NetworkDef, StopPattern } from '@/domain/model';
+import { adjacentPairs } from '@/domain/util';
 
 /** 検証規則の識別子。仕様書 §5.5.2 の表に対応する。 */
 export type NetworkRule =
@@ -136,24 +137,15 @@ function checkSegmentsCoverPatterns(network: NetworkDef): NetworkIssue[] {
   const issues: NetworkIssue[] = [];
 
   for (const pattern of network.patterns) {
-    // 添字ではなく直前の要素を持ち回る。添字アクセスは
-    // noUncheckedIndexedAccess のもとで undefined を含み、到達し得ない
-    // 分岐を書く羽目になるため。
-    let previous: PatternStop | undefined;
-    let index = 0;
-    for (const current of pattern.stopSequence) {
-      if (previous !== undefined) {
-        const key = segmentKey(previous.stopId, current.stopId);
-        if (!known.has(key)) {
-          issues.push({
-            rule: 'R-03',
-            message: `パターン ${pattern.patternId} が使う区間 ${key} が区間表にありません`,
-            target: { kind: 'patternStop', patternId: pattern.patternId, index },
-          });
-        }
+    for (const [from, to, index] of adjacentPairs(pattern.stopSequence)) {
+      const key = segmentKey(from.stopId, to.stopId);
+      if (!known.has(key)) {
+        issues.push({
+          rule: 'R-03',
+          message: `パターン ${pattern.patternId} が使う区間 ${key} が区間表にありません`,
+          target: { kind: 'patternStop', patternId: pattern.patternId, index },
+        });
       }
-      previous = current;
-      index++;
     }
   }
 

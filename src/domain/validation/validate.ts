@@ -11,9 +11,10 @@
 
 import type { Trip } from '@/domain/model';
 import type { NetworkIndex, PatternIndex } from '@/domain/network';
-import { deriveBlocks, type Block, type BlockTrip } from '@/domain/block';
+import { deriveBlocks, type Block } from '@/domain/block';
 import { diffMinutes, formatTime, type Seconds } from '@/domain/time';
 import { allTimes } from '@/domain/trip';
+import { adjacentPairs } from '@/domain/util';
 import {
   DEFAULT_THRESHOLDS,
   SEVERITY_OF,
@@ -68,30 +69,26 @@ function issue(id: ValidationId, message: string, target: ValidationTarget): Val
  */
 function checkBlockConnection(block: Block): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
-  let previous: BlockTrip | undefined;
 
-  for (const current of block.trips) {
-    if (previous !== undefined) {
-      if (previous.terminalStopId !== current.originStopId) {
-        issues.push(
-          issue(
-            'V-01',
-            `前の便は ${previous.terminalStopId} 着ですが、この便は ${current.originStopId} 発です`,
-            { blockId: block.blockId, tripId: current.trip.tripId },
-          ),
-        );
-      }
-      if (current.layoverMinutes !== null && current.layoverMinutes < 0) {
-        issues.push(
-          issue(
-            'V-02',
-            `前の便の終着 ${formatTime(previous.terminalTime)} より前に発車します（${formatTime(current.originTime)}）`,
-            { blockId: block.blockId, tripId: current.trip.tripId },
-          ),
-        );
-      }
+  for (const [previous, current] of adjacentPairs(block.trips)) {
+    if (previous.terminalStopId !== current.originStopId) {
+      issues.push(
+        issue(
+          'V-01',
+          `前の便は ${previous.terminalStopId} 着ですが、この便は ${current.originStopId} 発です`,
+          { blockId: block.blockId, tripId: current.trip.tripId },
+        ),
+      );
     }
-    previous = current;
+    if (current.layoverMinutes !== null && current.layoverMinutes < 0) {
+      issues.push(
+        issue(
+          'V-02',
+          `前の便の終着 ${formatTime(previous.terminalTime)} より前に発車します（${formatTime(current.originTime)}）`,
+          { blockId: block.blockId, tripId: current.trip.tripId },
+        ),
+      );
+    }
   }
 
   return issues;
@@ -207,25 +204,21 @@ function checkHeadway(
       (x, y) => x.time - y.time || x.tripId.localeCompare(y.tripId),
     );
 
-    let previous: Passing | undefined;
-    for (const current of sorted) {
-      if (previous !== undefined) {
-        const gap = diffMinutes(current.time, previous.time);
-        if (gap < thresholds.minHeadwayMinutes) {
-          issues.push(
-            issue('V-06', `${stopId} で前の便との間隔が ${String(gap)} 分しかありません`, {
-              tripId: current.tripId,
-            }),
-          );
-        } else if (gap > thresholds.maxHeadwayMinutes) {
-          issues.push(
-            issue('V-06', `${stopId} で前の便との間隔が ${String(gap)} 分空いています`, {
-              tripId: current.tripId,
-            }),
-          );
-        }
+    for (const [previous, current] of adjacentPairs(sorted)) {
+      const gap = diffMinutes(current.time, previous.time);
+      if (gap < thresholds.minHeadwayMinutes) {
+        issues.push(
+          issue('V-06', `${stopId} で前の便との間隔が ${String(gap)} 分しかありません`, {
+            tripId: current.tripId,
+          }),
+        );
+      } else if (gap > thresholds.maxHeadwayMinutes) {
+        issues.push(
+          issue('V-06', `${stopId} で前の便との間隔が ${String(gap)} 分空いています`, {
+            tripId: current.tripId,
+          }),
+        );
       }
-      previous = current;
     }
   }
 

@@ -48,39 +48,59 @@ export function FileDialogHost({ request, onRespond }: FileDialogHostProps): Rea
   );
 }
 
+/**
+ * 答えを 1 つ返す押しボタン。
+ *
+ * **先頭の選択肢に `focused` を付ける。** `<dialog>` は開いたときに最初の
+ * 操作可能な要素へ焦点を当てるが、それがどれかを見た目の並びから決めさせると、
+ * 選択肢を並べ替えたときに既定の答えが黙って変わる。
+ */
+function Answer({
+  answer,
+  onRespond,
+  focused = false,
+  children,
+}: {
+  readonly answer: DialogAnswer;
+  readonly onRespond: (choice: DialogAnswer) => void;
+  readonly focused?: boolean;
+  readonly children: string;
+}): ReactElement {
+  return (
+    <button
+      type="button"
+      autoFocus={focused}
+      onClick={() => {
+        onRespond(answer);
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** 保存先の名前。まだ保存していなければ「無題」と呼ぶ。 */
+function displayName(fileName: string): string {
+  return fileName === '' ? UNTITLED : fileName;
+}
+
 function renderBody(request: DialogRequest, onRespond: (choice: DialogAnswer) => void) {
   switch (request.kind) {
     case 'discard':
       return (
         <>
           <h2>保存していない変更があります</h2>
-          <p>{request.fileName === '' ? UNTITLED : request.fileName} の変更をどうしますか。</p>
+          <p>{displayName(request.fileName)} の変更をどうしますか。</p>
           <div className="file-dialog__actions">
-            <button
-              type="button"
-              autoFocus
-              onClick={() => {
-                onRespond('save');
-              }}
-            >
+            <Answer answer="save" onRespond={onRespond} focused>
               保存して続ける
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                onRespond('discard');
-              }}
-            >
+            </Answer>
+            <Answer answer="discard" onRespond={onRespond}>
               破棄して続ける
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                onRespond('cancel');
-              }}
-            >
+            </Answer>
+            <Answer answer="cancel" onRespond={onRespond}>
               やめる
-            </button>
+            </Answer>
           </div>
         </>
       );
@@ -90,30 +110,19 @@ function renderBody(request: DialogRequest, onRespond: (choice: DialogAnswer) =>
         <>
           <h2>前回の編集内容が残っています</h2>
           <p>
-            {request.fileName === '' ? UNTITLED : request.fileName} の編集内容が
-            {formatSavedAt(request.savedAt)} の時点で残っています。復元しますか。
+            {displayName(request.fileName)} の編集内容が{formatSavedAt(request.savedAt)}{' '}
+            の時点で残っています。復元しますか。
           </p>
           <p className="file-dialog__note">
             復元した内容は未保存の状態になります。保存先を選び直してください。
           </p>
           <div className="file-dialog__actions">
-            <button
-              type="button"
-              autoFocus
-              onClick={() => {
-                onRespond('recover');
-              }}
-            >
+            <Answer answer="recover" onRespond={onRespond} focused>
               復元する
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                onRespond('discard');
-              }}
-            >
+            </Answer>
+            <Answer answer="discard" onRespond={onRespond}>
               破棄する
-            </button>
+            </Answer>
           </div>
         </>
       );
@@ -129,15 +138,10 @@ function renderBody(request: DialogRequest, onRespond: (choice: DialogAnswer) =>
             ))}
           </ul>
           <div className="file-dialog__actions">
-            <button
-              type="button"
-              autoFocus
-              onClick={() => {
-                onRespond('cancel');
-              }}
-            >
+            {/* 伝えるだけの問い。閉じ方が 1 つしか無いため cancel を返す。 */}
+            <Answer answer="cancel" onRespond={onRespond} focused>
               閉じる
-            </button>
+            </Answer>
           </div>
         </>
       );
@@ -148,15 +152,9 @@ function renderBody(request: DialogRequest, onRespond: (choice: DialogAnswer) =>
           <h2>できませんでした</h2>
           <p className="file-dialog__message">{request.message}</p>
           <div className="file-dialog__actions">
-            <button
-              type="button"
-              autoFocus
-              onClick={() => {
-                onRespond('cancel');
-              }}
-            >
+            <Answer answer="cancel" onRespond={onRespond} focused>
               閉じる
-            </button>
+            </Answer>
           </div>
         </>
       );

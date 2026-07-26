@@ -20,12 +20,20 @@
  * そのまま効く。取り消しに使うパッチは、その副産物として手に入る。
  */
 
-import { applyPatches, enablePatches, produceWithPatches } from 'immer';
+import { applyPatches, enablePatches, produceWithPatches, type Patch } from 'immer';
 import { create } from 'zustand';
 import type { NetworkDef, Project } from '@/domain/model';
 import { validateNetwork, type NetworkIssue } from '@/domain/network';
 import type { FileHandle } from '@/platform';
-import { createHistory, pushHistory, setHistoryLimit, takeRedo, takeUndo } from './history';
+import {
+  createHistory,
+  pushHistory,
+  setHistoryLimit,
+  takeRedo,
+  takeUndo,
+  type History,
+  type HistoryEntry,
+} from './history';
 import type { AppState, DocumentState } from './types';
 
 // パッチの記録は Immer の任意機能であり、使う前に有効化する必要がある。
@@ -142,125 +150,128 @@ const INITIAL_STATE: AppState = {
 
 /** ストアを作る。テストごとに独立したものを使えるよう、生成を関数にしている。 */
 export function createAppStore(): AppStoreHook {
-  const store = create<AppStore>()((set, get) => ({
-    ...INITIAL_STATE,
-
-    execute: (label, mutator, mergeKey): ExecuteResult => {
-      const { networkDef, project, history } = get();
-      const [next, patches, inversePatches] = produceWithPatches(
-        { networkDef, project },
-        (draft) => {
-          mutator(draft);
-        },
-      );
-      if (patches.length === 0) return { ok: true, changed: false };
-
-      // 定義に触れていないときは検査しない。便を 1 つ動かすたびに全規則を
-      // 走らせる理由が無い。
-      const changedDef = next.networkDef === networkDef ? null : next.networkDef;
-      if (changedDef !== null) {
-        const issues = validateNetwork(changedDef);
-        if (issues.length > 0) return { ok: false, issues };
-      }
-
-      set({
-        networkDef: next.networkDef,
-        project: next.project,
-        history: pushHistory(history, { label, patches, inversePatches }, mergeKey ?? null),
-      });
-      return { ok: true, changed: true };
-    },
-
-    editProject: (label, recipe, mergeKey): ExecuteResult =>
-      get().execute(
-        label,
-        (document) => {
-          if (document.project === null) return;
-          recipe(document.project);
-        },
-        mergeKey,
-      ),
-
-    editNetwork: (label, recipe, mergeKey): ExecuteResult =>
-      get().execute(
-        label,
-        (document) => {
-          if (document.networkDef === null) return;
-          recipe(document.networkDef);
-        },
-        mergeKey,
-      ),
-
-    undo: (): boolean => {
-      const { networkDef, project, history } = get();
-      const taken = takeUndo(history);
+  const store = create<AppStore>()((set, get) => {
+    /**
+     * 履歴から取り出した 1 段を状態に当てる。取り出せていなければ何もしない。
+     *
+     * 取り消しとやり直しは、どの段を取り出すか（`takeUndo` / `takeRedo`）と
+     * どちら向きのパッチを当てるか（逆パッチ / パッチ）しか違わない。同じ手順を
+     * 2 度書くと、片方だけ直した変更が「やり直しだけ壊れている」形で残る。
+     */
+    const applyStep = (
+      taken: { history: History; entry: HistoryEntry } | null,
+      patchesOf: (entry: HistoryEntry) => readonly Patch[],
+    ): boolean => {
       if (taken === null) return false;
 
+      const { networkDef, project } = get();
       set({
-        ...applyPatches({ networkDef, project }, taken.entry.inversePatches),
+        ...applyPatches({ networkDef, project }, patchesOf(taken.entry)),
         history: taken.history,
       });
       return true;
-    },
+    };
 
-    redo: (): boolean => {
-      const { networkDef, project, history } = get();
-      const taken = takeRedo(history);
-      if (taken === null) return false;
+    return {
+      ...INITIAL_STATE,
 
-      set({
-        ...applyPatches({ networkDef, project }, taken.entry.patches),
-        history: taken.history,
-      });
-      return true;
-    },
+      execute: (label, mutator, mergeKey): ExecuteResult => {
+        const { networkDef, project, history } = get();
+        const [next, patches, inversePatches] = produceWithPatches(
+          { networkDef, project },
+          (draft) => {
+            mutator(draft);
+          },
+        );
+        if (patches.length === 0) return { ok: true, changed: false };
 
-    setHistoryLimit: (limit): void => {
-      set({ history: setHistoryLimit(get().history, limit) });
-    },
+        // 定義に触れていないときは検査しない。便を 1 つ動かすたびに全規則を
+        // 走らせる理由が無い。
+        const changedDef = next.networkDef === networkDef ? null : next.networkDef;
+        if (changedDef !== null) {
+          const issues = validateNetwork(changedDef);
+          if (issues.length > 0) return { ok: false, issues };
+        }
 
-    setNetworkDef: (networkDef): void => {
-      set({ networkDef, history: createHistory(get().history.limit) });
-    },
+        set({
+          networkDef: next.networkDef,
+          project: next.project,
+          history: pushHistory(history, { label, patches, inversePatches }, mergeKey ?? null),
+        });
+        return { ok: true, changed: true };
+      },
 
-    setProject: (project, handle = null): void => {
-      set({
-        project,
-        history: createHistory(get().history.limit),
-        // 別のプロジェクトの便を選んだままにしない。
-        ui: { selectedTripIds: [] },
-        file: { handle, savedProject: project },
-      });
-    },
+      editProject: (label, recipe, mergeKey): ExecuteResult =>
+        get().execute(
+          label,
+          (document) => {
+            if (document.project === null) return;
+            recipe(document.project);
+          },
+          mergeKey,
+        ),
 
-    restoreProject: (project): void => {
-      set({
-        project,
-        history: createHistory(get().history.limit),
-        ui: { selectedTripIds: [] },
-        // savedProject を null にすることで未保存になる（`selectIsDirty`）。
-        file: { handle: null, savedProject: null },
-      });
-    },
+      editNetwork: (label, recipe, mergeKey): ExecuteResult =>
+        get().execute(
+          label,
+          (document) => {
+            if (document.networkDef === null) return;
+            recipe(document.networkDef);
+          },
+          mergeKey,
+        ),
 
-    markSaved: (project, handle): void => {
-      set({ project, file: { handle, savedProject: project } });
-    },
+      undo: (): boolean => applyStep(takeUndo(get().history), (entry) => entry.inversePatches),
 
-    selectTrips: (tripIds): void => {
-      set({ ui: { selectedTripIds: [...tripIds] } });
-    },
+      redo: (): boolean => applyStep(takeRedo(get().history), (entry) => entry.patches),
 
-    addToSelection: (tripId): void => {
-      const { selectedTripIds } = get().ui;
-      if (selectedTripIds.includes(tripId)) return;
-      set({ ui: { selectedTripIds: [...selectedTripIds, tripId] } });
-    },
+      setHistoryLimit: (limit): void => {
+        set({ history: setHistoryLimit(get().history, limit) });
+      },
 
-    clearSelection: (): void => {
-      set({ ui: { selectedTripIds: [] } });
-    },
-  }));
+      setNetworkDef: (networkDef): void => {
+        set({ networkDef, history: createHistory(get().history.limit) });
+      },
+
+      setProject: (project, handle = null): void => {
+        set({
+          project,
+          history: createHistory(get().history.limit),
+          // 別のプロジェクトの便を選んだままにしない。
+          ui: { selectedTripIds: [] },
+          file: { handle, savedProject: project },
+        });
+      },
+
+      restoreProject: (project): void => {
+        set({
+          project,
+          history: createHistory(get().history.limit),
+          ui: { selectedTripIds: [] },
+          // savedProject を null にすることで未保存になる（`selectIsDirty`）。
+          file: { handle: null, savedProject: null },
+        });
+      },
+
+      markSaved: (project, handle): void => {
+        set({ project, file: { handle, savedProject: project } });
+      },
+
+      selectTrips: (tripIds): void => {
+        set({ ui: { selectedTripIds: [...tripIds] } });
+      },
+
+      addToSelection: (tripId): void => {
+        const { selectedTripIds } = get().ui;
+        if (selectedTripIds.includes(tripId)) return;
+        set({ ui: { selectedTripIds: [...selectedTripIds, tripId] } });
+      },
+
+      clearSelection: (): void => {
+        set({ ui: { selectedTripIds: [] } });
+      },
+    };
+  });
 
   // `setState` を落とすため、必要な入口だけを持つ入れ物に詰め替える。
   const hook = <T>(selector: (state: AppStore) => T): T => store(selector);
