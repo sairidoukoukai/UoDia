@@ -11,7 +11,14 @@ import { useEffect, useState } from 'react';
 import { createProject } from '@/domain/io';
 import { loadNetworkDef } from '@/domain/network';
 import { usePlatform, type PlatformAdapter } from '@/platform';
-import { selectBlocks, selectValidation, selectVisibleStops, useAppStore } from '@/store';
+import {
+  selectBlocks,
+  selectCanRedo,
+  selectCanUndo,
+  selectValidation,
+  selectVisibleStops,
+  useAppStore,
+} from '@/store';
 
 type LoadState =
   | { readonly status: 'loading' }
@@ -38,11 +45,17 @@ export function App() {
   const [load, setLoad] = useState<LoadState>({ status: 'loading' });
   const [writable, setWritable] = useState<boolean | null>(null);
 
-  const setNetwork = useAppStore((state) => state.setNetwork);
+  const setNetworkDef = useAppStore((state) => state.setNetworkDef);
   const setProject = useAppStore((state) => state.setProject);
+  const editProject = useAppStore((state) => state.editProject);
+  const undo = useAppStore((state) => state.undo);
+  const redo = useAppStore((state) => state.redo);
   const stops = useAppStore(selectVisibleStops);
   const blocks = useAppStore(selectBlocks);
   const issues = useAppStore(selectValidation);
+  const documentName = useAppStore((state) => state.project?.document.name ?? '');
+  const canUndo = useAppStore(selectCanUndo);
+  const canRedo = useAppStore(selectCanRedo);
 
   useEffect(() => {
     // 待ち合わせをすべて済ませてから一度だけ確認する。await のたびに
@@ -61,7 +74,8 @@ export function App() {
           setLoad({ status: 'failed', message: `${result.stage} の段階で失敗しました` });
           return;
         }
-        setNetwork(result.network);
+        // 索引ではなく定義を渡す。索引はセレクタが組み立てる（`selectNetwork`）。
+        setNetworkDef(result.network.def);
         setProject(createProject(result.network));
         setLoad({ status: 'ready' });
       } catch (error) {
@@ -74,7 +88,7 @@ export function App() {
     return () => {
       controller.abort();
     };
-  }, [platform, setNetwork, setProject]);
+  }, [platform, setNetworkDef, setProject]);
 
   return (
     <div className="app-shell">
@@ -97,6 +111,47 @@ export function App() {
         履歴: {platform.capabilities.recentFiles ? '可' : '不可'}
         {' ／ '}
         route.json の書き戻し: {platform.capabilities.networkDefWritable ? '可' : '不可'}
+      </p>
+      {/*
+        Undo/Redo（T-16）を実機で確かめるための仮の入力欄。文書名を打ち替えると
+        1 文字ずつ履歴に積まれるが、mergeKey が同じため **1 回の取り消しで
+        まとめて戻る**。T-32 で本来のレイアウトに置き換える。
+      */}
+      <p className="app-shell__note">
+        <label>
+          文書名:{' '}
+          <input
+            value={documentName}
+            onChange={(event) => {
+              const name = event.target.value;
+              editProject(
+                '文書名の変更',
+                (project) => {
+                  project.document.name = name;
+                },
+                'document.name',
+              );
+            }}
+          />
+        </label>{' '}
+        <button
+          type="button"
+          disabled={!canUndo}
+          onClick={() => {
+            undo();
+          }}
+        >
+          元に戻す
+        </button>{' '}
+        <button
+          type="button"
+          disabled={!canRedo}
+          onClick={() => {
+            redo();
+          }}
+        >
+          やり直す
+        </button>
       </p>
       <p className="app-shell__note">UI は T-19 以降で実装します。</p>
     </div>

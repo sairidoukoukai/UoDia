@@ -65,7 +65,7 @@ function state(): AppStore {
 
 beforeEach(() => {
   store = createAppStore();
-  store.getState().setNetwork(network);
+  store.getState().setNetworkDef(network.def);
   store.getState().setProject(makeProject([makeTrip('S1', 8, 0), makeTrip('T1', 9, 0)]));
 });
 
@@ -83,7 +83,7 @@ describe('状態の形', () => {
 
   it('初期状態では何も読み込まれていない', () => {
     const fresh = createAppStore().getState();
-    expect(fresh.network).toBeNull();
+    expect(fresh.networkDef).toBeNull();
     expect(fresh.project).toBeNull();
     expect(fresh.ui.selectedTripIds).toEqual([]);
   });
@@ -120,7 +120,7 @@ describe('操作', () => {
   });
 
   it('プロジェクトを書き換えられる', () => {
-    state().updateProject((project) => {
+    state().editProject('書き換え', (project) => {
       project.document.name = '2026年度';
     });
     expect(state().project?.document.name).toBe('2026年度');
@@ -129,7 +129,7 @@ describe('操作', () => {
   it('プロジェクトが無ければ書き換えは何もしない', () => {
     state().setProject(null);
     expect(() => {
-      state().updateProject((project) => {
+      state().editProject('書き換え', (project) => {
         project.document.name = 'x';
       });
     }).not.toThrow();
@@ -148,7 +148,7 @@ describe('セレクタ — 取り出し', () => {
   });
 
   it('activeServiceId が指すダイヤを返す', () => {
-    state().updateProject((project) => {
+    state().editProject('書き換え', (project) => {
       project.services.push({ serviceId: 'holiday', serviceName: '休日', trips: [] });
       project.view.activeServiceId = 'holiday';
     });
@@ -156,14 +156,14 @@ describe('セレクタ — 取り出し', () => {
   });
 
   it('指す先が無ければ先頭のダイヤに倒す', () => {
-    state().updateProject((project) => {
+    state().editProject('書き換え', (project) => {
       project.view.activeServiceId = 'ない';
     });
     expect(selectActiveService(state())?.serviceId).toBe('weekday');
   });
 
   it('ダイヤが無ければ null', () => {
-    state().updateProject((project) => {
+    state().editProject('書き換え', (project) => {
       project.services = [];
     });
     expect(selectActiveService(state())).toBeNull();
@@ -183,7 +183,7 @@ describe('セレクタ — 取り出し', () => {
 
   it('表示中の方向の便を返す', () => {
     expect(selectActiveDirectionTrips(state()).map((t) => t.patternId)).toEqual(['S1']);
-    state().updateProject((project) => {
+    state().editProject('書き換え', (project) => {
       project.view.activeDirection = 1;
     });
     expect(selectActiveDirectionTrips(state()).map((t) => t.patternId)).toEqual(['T1']);
@@ -222,7 +222,7 @@ describe('セレクタ — 派生値', () => {
   });
 
   it('便を繋がらない形にすると V-01 が出る', () => {
-    state().updateProject((project) => {
+    state().editProject('書き換え', (project) => {
       const trips = project.services[0]?.trips;
       // 吹田着の次に、また豊中発の便を置く
       if (trips !== undefined) trips[1] = makeTrip('S1', 9, 0);
@@ -277,7 +277,7 @@ describe('参照の安定性（受入条件）', () => {
 
   it('関係ない項目を書き換えても便の配列の参照は変わらない（構造共有）', () => {
     const before = selectTrips(state());
-    state().updateProject((project) => {
+    state().editProject('書き換え', (project) => {
       project.document.name = '別の名前';
     });
     expect(selectTrips(state())).toBe(before);
@@ -285,7 +285,7 @@ describe('参照の安定性（受入条件）', () => {
 
   it('便を書き換えれば派生値の参照は変わる（古い値を返さない）', () => {
     const before = selectBlocks(state());
-    state().updateProject((project) => {
+    state().editProject('書き換え', (project) => {
       const trip = project.services[0]?.trips[0];
       if (trip !== undefined) trip.blockId = '2';
     });

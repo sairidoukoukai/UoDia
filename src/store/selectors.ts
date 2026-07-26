@@ -10,8 +10,8 @@
  */
 
 import { deriveBlocks, type BlockDerivation } from '@/domain/block';
-import type { DirectionId, Project, Service, Trip } from '@/domain/model';
-import type { NetworkIndex } from '@/domain/network';
+import type { DirectionId, NetworkDef, Project, Service, Trip } from '@/domain/model';
+import { buildNetworkIndex, type NetworkIndex } from '@/domain/network';
 import { allTimes } from '@/domain/trip';
 import type { Seconds } from '@/domain/time';
 import {
@@ -19,12 +19,51 @@ import {
   type ValidationIssue,
   type ValidationThresholds,
 } from '@/domain/validation';
+import { canRedo, canUndo } from './history';
 import { memoizeByIdentity } from './memo';
 import type { AppState } from './types';
 
 /** 便が 1 つも無いときに返す配列。参照を使い回して再描画を防ぐ。 */
 const NO_TRIPS: readonly Trip[] = [];
 const NO_ISSUES: readonly ValidationIssue[] = [];
+
+const networkOf = memoizeByIdentity((def: NetworkDef | null): NetworkIndex | null =>
+  def === null ? null : buildNetworkIndex(def),
+);
+
+/**
+ * ネットワーク定義の索引（T-07）。
+ *
+ * 状態が持つのは素の定義であり（`types.ts`）、索引はここで組み立てる。定義が
+ * 変わらないかぎり同じ索引を返すため、区間所要時間を編集したときだけ組み直る。
+ *
+ * 索引の構築は R-03・R-06・R-10 を前提とし、破られていれば例外を投げる。定義が
+ * 状態に入る経路は `setNetworkDef`（`loadNetworkDef` が検証済み）と `execute`
+ * （変更時に `validateNetwork` を通す）だけであり、**検証を通っていない定義は
+ * ここに届かない**。
+ */
+export function selectNetwork(state: AppState): NetworkIndex | null {
+  return networkOf(state.networkDef);
+}
+
+/** undo できるか（メニュー項目の有効・無効に使う）。 */
+export function selectCanUndo(state: AppState): boolean {
+  return canUndo(state.history);
+}
+
+export function selectCanRedo(state: AppState): boolean {
+  return canRedo(state.history);
+}
+
+/** 次に取り消される操作の名前。無ければ `null`。 */
+export function selectUndoLabel(state: AppState): string | null {
+  return state.history.past.at(-1)?.label ?? null;
+}
+
+/** 次にやり直される操作の名前。無ければ `null`。 */
+export function selectRedoLabel(state: AppState): string | null {
+  return state.history.future[0]?.label ?? null;
+}
 
 /** 編集中のダイヤ。`view.activeServiceId` が指すもの。無ければ先頭。 */
 export function selectActiveService(state: AppState): Service | null {
@@ -80,7 +119,7 @@ const tripsByDirectionOf = memoizeByIdentity(
  * 方向は便ではなく停車パターンが持つため、ネットワーク定義を引いて判定する。
  */
 export function selectTripsByDirection(state: AppState, directionId: DirectionId): readonly Trip[] {
-  return tripsByDirectionOf(selectTrips(state), state.network, directionId);
+  return tripsByDirectionOf(selectTrips(state), selectNetwork(state), directionId);
 }
 
 /** 時刻表の方向タブが指している方向。 */
@@ -100,7 +139,7 @@ const blocksOf = memoizeByIdentity(
 
 /** 運用の導出結果（仕様書 §5.8）。 */
 export function selectBlocks(state: AppState): BlockDerivation | null {
-  return blocksOf(selectTrips(state), state.network);
+  return blocksOf(selectTrips(state), selectNetwork(state));
 }
 
 const validationOf = memoizeByIdentity(
@@ -121,7 +160,7 @@ export function selectValidation(
   state: AppState,
   thresholds?: ValidationThresholds,
 ): readonly ValidationIssue[] {
-  return validationOf(selectTrips(state), state.network, thresholds);
+  return validationOf(selectTrips(state), selectNetwork(state), thresholds);
 }
 
 const timesOf = memoizeByIdentity(
@@ -145,7 +184,7 @@ const timesOf = memoizeByIdentity(
  * 1 便ずつ記憶化しても、表を組み立てる側が結局すべてを走査する。
  */
 export function selectAllTripTimes(state: AppState): ReadonlyMap<string, Map<string, Seconds>> {
-  return timesOf(selectTrips(state), state.network);
+  return timesOf(selectTrips(state), selectNetwork(state));
 }
 
 /** ダイヤグラム・時刻表の表示設定（仕様書 §5.10）。 */
@@ -162,5 +201,5 @@ const visibleStopsOf = memoizeByIdentity((network: NetworkIndex | null) => {
 });
 
 export function selectVisibleStops(state: AppState): ReturnType<typeof visibleStopsOf> {
-  return visibleStopsOf(state.network);
+  return visibleStopsOf(selectNetwork(state));
 }
