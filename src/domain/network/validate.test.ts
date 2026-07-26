@@ -330,6 +330,48 @@ describe('validateNetwork — R-09: パターン ID の重複', () => {
   });
 });
 
+describe('validateNetwork — R-10: パターン内の停留所の重複', () => {
+  it('同じ停留所が 2 回現れると検出する', () => {
+    const network = makeValidNetwork();
+    network.segments.push({ fromStopId: 'A', toStopId: 'A', runMinutes: 5 });
+    network.patterns[0] = makePattern({
+      patternId: 'P0',
+      directionId: 0,
+      isDefault: true,
+      stops: ['A', 'A', 'B'],
+    });
+    expect(rulesOf(network)).toContain('R-10');
+  });
+
+  it('始発に戻る循環経路を禁じる（アンカーが一意に定まらないため）', () => {
+    const network = makeValidNetwork();
+    network.patterns[0] = makePattern({
+      patternId: 'P0',
+      directionId: 0,
+      isDefault: true,
+      stops: ['A', 'B', 'A'],
+    });
+    expect(rulesOf(network)).toContain('R-10');
+  });
+
+  it('2 回目の出現を指し、1 回目の位置をメッセージに含める', () => {
+    const network = makeValidNetwork();
+    network.patterns[0] = makePattern({
+      patternId: 'P0',
+      directionId: 0,
+      isDefault: true,
+      stops: ['A', 'B', 'A'],
+    });
+    const issue = validateNetwork(network).find((i) => i.rule === 'R-10');
+    expect(issue?.target).toEqual({ kind: 'patternStop', patternId: 'P0', index: 2 });
+    expect(issue?.message).toContain('1 番目');
+  });
+
+  it('別のパターンに同じ停留所が現れるのは問題ない', () => {
+    expect(rulesOf(makeValidNetwork())).not.toContain('R-10');
+  });
+});
+
 describe('validateNetwork — 複数の問題', () => {
   it('1 つ目の違反で打ち切らず、すべて集めて返す', () => {
     const network = makeValidNetwork();

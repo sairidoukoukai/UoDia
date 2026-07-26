@@ -13,7 +13,7 @@ import type { DirectionId, NetworkDef, PatternStop, StopPattern } from '@/domain
 
 /** 検証規則の識別子。仕様書 §5.5.2 の表に対応する。 */
 export type NetworkRule =
-  'R-01' | 'R-02' | 'R-03' | 'R-04' | 'R-05' | 'R-06' | 'R-07' | 'R-08' | 'R-09';
+  'R-01' | 'R-02' | 'R-03' | 'R-04' | 'R-05' | 'R-06' | 'R-07' | 'R-08' | 'R-09' | 'R-10';
 
 /** 問題のある要素への参照。 */
 export type NetworkIssueTarget =
@@ -51,6 +51,7 @@ export function validateNetwork(network: NetworkDef): NetworkIssue[] {
     ...checkPatternLength(network),
     ...checkDepotPatterns(network),
     ...checkDuplicatePatternIds(network),
+    ...checkDuplicateStopsInPattern(network),
   ];
 }
 
@@ -238,6 +239,39 @@ function checkDuplicatePatternIds(network: NetworkDef): NetworkIssue[] {
     message: `パターン ${patternId} が重複して定義されています`,
     target: { kind: 'pattern' as const, patternId },
   }));
+}
+
+/**
+ * R-10: 1 つのパターン内に同じ停留所が 2 回以上現れないこと。
+ *
+ * **アンカー方式（仕様書 §5.6）の前提そのもの。** `Trip.anchor` は停留所を
+ * `stopId` だけで指すため、同じ停留所が 2 回現れるとアンカーがどちらの通過を
+ * 指すのか決まらず、時刻の導出が定義できない。始発と終着が同じ停留所になる
+ * 循環経路もこの規則で禁じられる。
+ *
+ * この規則が成り立つおかげで、T-07 の累積所要時間を `Map<stopId, minutes>` で
+ * 保持できる。
+ */
+function checkDuplicateStopsInPattern(network: NetworkDef): NetworkIssue[] {
+  const issues: NetworkIssue[] = [];
+
+  for (const pattern of network.patterns) {
+    const seen = new Map<string, number>();
+    pattern.stopSequence.forEach((patternStop, index) => {
+      const first = seen.get(patternStop.stopId);
+      if (first === undefined) {
+        seen.set(patternStop.stopId, index);
+      } else {
+        issues.push({
+          rule: 'R-10',
+          message: `パターン ${pattern.patternId} の ${String(index + 1)} 番目の停留所 ${patternStop.stopId} は ${String(first + 1)} 番目にも現れています`,
+          target: { kind: 'patternStop', patternId: pattern.patternId, index },
+        });
+      }
+    });
+  }
+
+  return issues;
 }
 
 /** 重複している値を、最初に重複が判明した順で返す。 */

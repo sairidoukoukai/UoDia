@@ -118,7 +118,7 @@ describe('route.json — 停留所（仕様書 付録 A.1）', () => {
 describe('route.json — ネットワーク定義の検証（仕様書 §5.5.2）', () => {
   // 各規則そのものの振る舞いは validate.test.ts が網羅する。ここでは実データが
   // すべての規則を満たすことだけを確認する（T-06 で検証器を切り出した）。
-  it('R-01〜R-09 のすべてを満たす', () => {
+  it('R-01〜R-10 のすべてを満たす', () => {
     const issues = validateNetwork(network);
     expect(formatNetworkIssues(issues)).toBe('');
   });
