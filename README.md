@@ -64,7 +64,9 @@ src/
 
 ## WSL でデスクトップ版を動かす場合
 
-**追加の操作は要らない。** `npm run dev:desktop` が WSL を自動判定し、必要な設定を入れて起動する（`scripts/tauri-dev.mjs`）。
+**追加の操作は要らない。** アプリ自身が WSL を判定し、必要な描画設定を入れてから起動する（`src-tauri/src/rendering.rs`）。
+
+設定を起動スクリプトで渡す方式ではなく**アプリ側に持たせている**のは、配布したバイナリ（.deb / AppImage）を直接実行したときにも効かせるためである。利用者は開発用のスクリプトなど使わない。
 
 WSLg の既定経路（Wayland）では WebKitGTK の EGL 初期化が失敗し、**ウィンドウは作られるのに何も描かれない**という分かりにくい壊れ方をする。タスクバーには項目が現れるため、起動していないのか描けていないのかも判別しにくい。
 
@@ -73,7 +75,7 @@ MESA: error: ZINK: failed to choose pdev
 libEGL warning: egl: failed to create dri2 screen
 ```
 
-`GDK_BACKEND=x11` で X11（Xwayland）経由にすると描画される。あわせてソフトウェアレンダリングに倒し、`libEGL warning: DRI3 error` が出続けないようにしている。
+`GDK_BACKEND=x11` で X11（Xwayland）経由にすると描画される。あわせてソフトウェアレンダリングに倒し、`libEGL warning: DRI3 error` が出続けないようにしている。既に設定されている環境変数は上書きしないため、意図して指定した設定は奪われない。
 
 Web 版（`npm run dev`）は WSL でもそのまま動作する。ブラウザで確認するだけなら、こちらの方が起動が速い。
 

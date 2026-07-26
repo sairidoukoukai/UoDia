@@ -10,9 +10,13 @@ mod atomic;
 mod commands;
 mod paths;
 mod recent;
+mod rendering;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // ウィンドウを作る前に行う。GTK は初期化時に GDK_BACKEND を読む。
+    rendering::configure();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![

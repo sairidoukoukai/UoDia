@@ -47,6 +47,14 @@ jobs:
       - name: Web 版のビルド
         run: npm run build:web
 
+      # デスクトップ版はより古い WebView に合わせた対象環境でビルドされる
+      # （vite.config.ts）。Web 単体のビルドだけが通って気づけない差異
+      # （トップレベル await など）を、Rust を伴わずに検出する。
+      - name: デスクトップ版と同じ対象環境でのビルド確認
+        run: npm run build:web
+        env:
+          TAURI_ENV_PLATFORM: linux
+
       - name: カバレッジレポートの保存
         if: always()
         uses: actions/upload-artifact@v4
