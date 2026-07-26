@@ -956,20 +956,39 @@ UoDia/
 
 ```typescript
 interface PlatformAdapter {
+  /** この実装の識別子。作る FileHandle の kind と一致する。 */
+  readonly kind: string;
+
   openProject(): Promise<{ handle: FileHandle; content: string } | null>;
   saveProject(handle: FileHandle, content: string): Promise<void>;
   saveProjectAs(content: string, suggestedName: string): Promise<FileHandle | null>;
 
   loadNetworkDef(): Promise<string>;
   saveNetworkDef(content: string): Promise<void>;
+  canSaveNetworkDef(): boolean;        // Web 版は false
 
   writeBackup(content: string): Promise<void>;
   readBackup(): Promise<string | null>;
+  clearBackup(): Promise<void>;        // 正常終了時に呼ぶ
 
-  listRecentFiles(): Promise<RecentFile[]>;
+  listRecentFiles(): Promise<readonly RecentFile[]>;
   addRecentFile(handle: FileHandle): Promise<void>;
 }
+
+interface FileHandle {
+  readonly kind: string;   // 実体を作ったアダプタの識別子
+  readonly name: string;   // 利用者に見せる名前
+  readonly ref: unknown;   // アダプタだけが解釈する実体
+}
 ```
+
+**取り消しは例外ではなく `null` で表す。** 利用者がダイアログを閉じるのは正常な操作であり、異常として扱うと呼び出し側が毎回 try/catch を書くことになる。例外は本当に失敗したとき（読めない・書けない）だけに残す。
+
+**`FileHandle.ref` を解釈してよいのは、その値を作ったアダプタだけである。** 別の環境のハンドルを渡されたことに気づけるよう `kind` で作り主を名乗らせ、食い違えば失敗させる。黙って `name` で代用すると、別のファイルを上書きしかねない。
+
+**アダプタは React のコンテキストで上から渡す。** import した時点で環境を判定する方式だと、テストが本物の環境を掴んでしまい、差し替えにモジュールのモックが要る。
+
+**境界は ESLint で機械的に守る。** `src/domain/` と `src/features/` からの `@tauri-apps/*` の import、および永続化・通信に関わるブラウザ API（`localStorage` / `indexedDB` / `fetch` など）の使用を禁じる。ドメイン層ではさらに DOM（`window` / `document`）も禁じる。フィーチャ層で DOM を許すのは、画面を描く以上避けられないためである。方針を文書に書くだけでは「ここだけ」の直接呼び出しが必ず入り込む。
 
 | 機能 | デスクトップ版（Tauri） | Web 版 |
 | --- | --- | --- |
