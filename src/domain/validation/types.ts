@@ -6,9 +6,15 @@
  * 状態が表現できない（仕様書 §5.6）。検証は運用の整合性と便同士の関係に絞られる。
  */
 
-/** 検証項目の識別子。仕様書 §6.6 の表に対応する。 */
-export type ValidationId =
-  'V-01' | 'V-02' | 'V-03' | 'V-04' | 'V-05' | 'V-06' | 'V-07' | 'V-08' | 'V-09';
+/**
+ * 検証項目の識別子。仕様書 §6.6 の表に対応する。
+ *
+ * **追い越しを検査する項目は存在しない。** 同一パターンの便は所要時間も同じで
+ * あり追い越し得ず、経路の違う便どうしの追い越しは正常な運行である（直行便は
+ * 箕面学舎を経由しないため、箕面学舎経由の便を追い抜いてよい）。検査すべき
+ * 条件が残らないため、仕様書 v4.3 で項目ごと削除した。
+ */
+export type ValidationId = 'V-01' | 'V-02' | 'V-03' | 'V-04' | 'V-05' | 'V-06' | 'V-07' | 'V-08';
 
 /**
  * 重大度。
@@ -39,11 +45,11 @@ export interface ValidationIssue {
  * ためである（実装計画書 T-10）。既定値は仕様書の「既定」欄に従う。
  */
 export interface ValidationThresholds {
-  /** V-06: 同方向の便間隔がこれ未満なら警告。 */
+  /** V-05: 同方向の便間隔がこれ未満なら警告。 */
   readonly minHeadwayMinutes: number;
-  /** V-06: 同方向の便間隔がこれを超えたら警告。 */
+  /** V-05: 同方向の便間隔がこれを超えたら警告。 */
   readonly maxHeadwayMinutes: number;
-  /** V-09: 営業所待機がこれ未満なら情報。 */
+  /** V-08: 営業所待機がこれ未満なら情報。 */
   readonly minStandbyMinutes: number;
 }
 
@@ -60,8 +66,7 @@ export const SEVERITY_OF: Readonly<Record<ValidationId, Severity>> = {
   'V-03': 'error',
   'V-04': 'warning',
   'V-05': 'warning',
-  'V-06': 'warning',
+  'V-06': 'info',
   'V-07': 'info',
   'V-08': 'info',
-  'V-09': 'info',
 };

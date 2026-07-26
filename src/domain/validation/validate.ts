@@ -41,11 +41,10 @@ export function validateService(
     ...blocks.flatMap((block) => checkBlockConnection(block)),
     ...blocks.flatMap((block) => checkBlockOverlap(block)),
     ...blocks.flatMap((block) => checkBlockEnds(block)),
-    ...checkOvertaking(service),
     ...checkHeadway(service, thresholds),
-    ...unassigned.map((trip) => issue('V-07', '運用番号が空欄です', { tripId: trip.tripId })),
+    ...unassigned.map((trip) => issue('V-06', '運用番号が空欄です', { tripId: trip.tripId })),
     ...unresolved.map((trip) =>
-      issue('V-08', '時刻を導出できません（アンカーが未設定か、参照が壊れています）', {
+      issue('V-07', '時刻を導出できません（アンカーが未設定か、参照が壊れています）', {
         tripId: trip.tripId,
       }),
     ),
@@ -135,13 +134,13 @@ function checkBlockEnds(block: Block): ValidationIssue[] {
   return issues;
 }
 
-/** V-09: 営業所待機が短すぎないこと。停留所で待機できる可能性がある。 */
+/** V-08: 営業所待機が短すぎないこと。停留所で待機できる可能性がある。 */
 function checkStandby(block: Block, thresholds: ValidationThresholds): ValidationIssue[] {
   return block.standbys
     .filter((standby) => standby.minutes < thresholds.minStandbyMinutes)
     .map((standby) =>
       issue(
-        'V-09',
+        'V-08',
         `営業所待機が ${String(standby.minutes)} 分です。入庫せず停留所で待機できる可能性があります`,
         { blockId: block.blockId, tripId: standby.inboundTripId },
       ),
@@ -168,51 +167,7 @@ function resolveServiceTrips(trips: readonly Trip[], network: NetworkIndex): Ser
 }
 
 /**
- * V-05: 同方向の便が追い越さないこと。
- *
- * **同一パターンの便は追い越し得ない。** 同じパターンなら区間所要時間も同じで
- * あり、先に出た便が必ず先に着く。仕様書の「同一パターンの便が追い越している」を
- * そのまま実装すると、決して成立しない条件を検査することになる。
- *
- * 実際に起こり、かつ意味があるのは**パターンをまたぐ追い越し**である。直行便が
- * 箕面学舎経由の便を追い抜く、といった状況がそれにあたる。そこで、同方向の 2 便が
- * ともに通る停留所を比べ、前後関係が入れ替わっていれば報告する。
- */
-function checkOvertaking(service: readonly ServiceTrip[]): ValidationIssue[] {
-  const issues: ValidationIssue[] = [];
-
-  for (const [index, a] of service.entries()) {
-    for (const b of service.slice(index + 1)) {
-      if (a.pattern.pattern.directionId !== b.pattern.pattern.directionId) continue;
-      if (!overtakes(a, b)) continue;
-      issues.push(
-        issue('V-05', `${b.trip.patternId} の便と追い越しが発生しています`, {
-          tripId: a.trip.tripId,
-        }),
-      );
-    }
-  }
-
-  return issues;
-}
-
-/** 2 便がともに通る停留所で、前後関係が入れ替わるか。 */
-function overtakes(a: ServiceTrip, b: ServiceTrip): boolean {
-  let sawAhead = false;
-  let sawBehind = false;
-
-  for (const [stopId, timeA] of a.times) {
-    const timeB = b.times.get(stopId);
-    if (timeB === undefined) continue;
-    if (timeA < timeB) sawAhead = true;
-    if (timeA > timeB) sawBehind = true;
-  }
-
-  return sawAhead && sawBehind;
-}
-
-/**
- * V-06: 同方向の便の間隔が極端でないこと。
+ * V-05: 同方向の便の間隔が極端でないこと。
  *
  * 間隔は**停留所ごとに**測る。便によって始発停留所が違うため（豊中学舎発・
  * 箕面学舎発・工学部前発）、始発時刻の差を間隔と呼ぶと、利用者から見た待ち時間と
@@ -253,13 +208,13 @@ function checkHeadway(
         const gap = diffMinutes(current.time, previous.time);
         if (gap < thresholds.minHeadwayMinutes) {
           issues.push(
-            issue('V-06', `${stopId} で前の便との間隔が ${String(gap)} 分しかありません`, {
+            issue('V-05', `${stopId} で前の便との間隔が ${String(gap)} 分しかありません`, {
               tripId: current.tripId,
             }),
           );
         } else if (gap > thresholds.maxHeadwayMinutes) {
           issues.push(
-            issue('V-06', `${stopId} で前の便との間隔が ${String(gap)} 分空いています`, {
+            issue('V-05', `${stopId} で前の便との間隔が ${String(gap)} 分空いています`, {
               tripId: current.tripId,
             }),
           );

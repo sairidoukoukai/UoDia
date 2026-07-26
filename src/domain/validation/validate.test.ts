@@ -1,7 +1,7 @@
 /**
  * ダイヤ検証の検証（T-10、仕様書 §6.6）。
  *
- * V-01〜V-09 のそれぞれに、検出されるケースと検出されないケースの両方を置く。
+ * V-01〜V-07 のそれぞれに、検出されるケースと検出されないケースの両方を置く。
  * 「検出される」だけを確かめると、常に発火する実装でもテストが通ってしまう。
  */
 
@@ -45,7 +45,7 @@ function idsOf(trips: readonly Trip[]): ValidationId[] {
  * 何も指摘されない運用。
  *
  * 7:00 出庫 → 豊中 7:20 → 直行吹田 7:50 → 豊中 8:30 → 8:50 入庫。
- * 便が 1 本ずつなので便間隔（V-06）も追い越し（V-05）も生じない。
+ * 便が 1 本ずつなので便間隔（V-05）の指摘も生じない。
  */
 function makeCleanBlock(): Trip[] {
   return [
@@ -154,62 +154,31 @@ describe('V-04: 運用の先頭・末尾', () => {
   });
 });
 
-describe('V-05: 追い越し', () => {
-  it('パターンをまたぐ追い越しを検出する', () => {
-    // S3（箕面経由・40 分）8:00 豊中発 → 8:40 吹田着
-    // S1（直行・30 分）  8:05 豊中発 → 8:35 吹田着 …… 追い抜く
-    expect(idsOf([trip('S3', 8, 0), trip('S1', 8, 5)])).toContain('V-05');
-  });
-
-  it('追い越さなければ検出しない', () => {
-    expect(idsOf([trip('S3', 8, 0), trip('S1', 8, 15)])).not.toContain('V-05');
-  });
-
-  it('**同一パターンの便は追い越し得ないため検出しない**', () => {
-    // 同じパターンなら所要時間も同じで、先に出た便が必ず先に着く
-    expect(idsOf([trip('S1', 8, 0), trip('S1', 8, 10)])).not.toContain('V-05');
-  });
-
-  it('方向が違えば検出しない', () => {
-    expect(idsOf([trip('S1', 8, 0), trip('T1', 8, 5)])).not.toContain('V-05');
-  });
-
-  it('共通の停留所が無ければ検出しない', () => {
-    // M2（豊中 → 箕面）と S2（箕面 → 吹田）はどちらも方向 0 だが…
-    // 箕面学舎を共有するため、時刻が交差しない組み合わせを選ぶ
-    expect(idsOf([trip('M2', 8, 0), trip('S2', 8, 30)])).not.toContain('V-05');
-  });
-
-  it('回送は対象にしない', () => {
-    expect(idsOf([trip('DM-out', 8, 0), trip('DS-out', 8, 0)])).not.toContain('V-05');
-  });
-});
-
-describe('V-06: 便間隔が極端', () => {
+describe('V-05: 便間隔が極端', () => {
   it('間隔が短すぎると検出する', () => {
-    expect(idsOf([trip('S1', 8, 0), trip('S1', 8, 0)])).toContain('V-06');
+    expect(idsOf([trip('S1', 8, 0), trip('S1', 8, 0)])).toContain('V-05');
   });
 
   it('間隔が空きすぎると検出する', () => {
-    expect(idsOf([trip('S1', 8, 0), trip('S1', 11, 0)])).toContain('V-06');
+    expect(idsOf([trip('S1', 8, 0), trip('S1', 11, 0)])).toContain('V-05');
   });
 
   it('適度な間隔なら検出しない', () => {
-    expect(idsOf([trip('S1', 8, 0), trip('S1', 8, 30)])).not.toContain('V-06');
+    expect(idsOf([trip('S1', 8, 0), trip('S1', 8, 30)])).not.toContain('V-05');
   });
 
   it('境界（5 分・120 分ちょうど）は検出しない', () => {
-    expect(idsOf([trip('S1', 8, 0), trip('S1', 8, 5)])).not.toContain('V-06');
-    expect(idsOf([trip('S1', 8, 0), trip('S1', 10, 0)])).not.toContain('V-06');
+    expect(idsOf([trip('S1', 8, 0), trip('S1', 8, 5)])).not.toContain('V-05');
+    expect(idsOf([trip('S1', 8, 0), trip('S1', 10, 0)])).not.toContain('V-05');
   });
 
   it('方向が違う便どうしは間隔を測らない', () => {
-    expect(idsOf([trip('S1', 8, 0), trip('T1', 8, 0)])).not.toContain('V-06');
+    expect(idsOf([trip('S1', 8, 0), trip('T1', 8, 0)])).not.toContain('V-05');
   });
 
   it('始発が違う便でも共通の停留所で間隔を測る', () => {
     // S3（豊中 8:00 発）は箕面学舎を 8:20 に通る。S2（箕面 8:20 発）と同時刻。
-    expect(idsOf([trip('S3', 8, 0), trip('S2', 8, 20)])).toContain('V-06');
+    expect(idsOf([trip('S3', 8, 0), trip('S2', 8, 20)])).toContain('V-05');
   });
 
   it('閾値を設定から差し替えられる', () => {
@@ -218,31 +187,31 @@ describe('V-06: 便間隔が極端', () => {
       ...DEFAULT_THRESHOLDS,
       minHeadwayMinutes: 45,
     });
-    expect(strict.map((i) => i.id)).toContain('V-06');
+    expect(strict.map((i) => i.id)).toContain('V-05');
   });
 });
 
-describe('V-07: 運用番号が空欄', () => {
+describe('V-06: 運用番号が空欄', () => {
   it('空欄の便を検出する', () => {
-    expect(idsOf([trip('S1', 8, 0, '')])).toContain('V-07');
+    expect(idsOf([trip('S1', 8, 0, '')])).toContain('V-06');
   });
 
   it('運用番号があれば検出しない', () => {
-    expect(idsOf(makeCleanBlock())).not.toContain('V-07');
+    expect(idsOf(makeCleanBlock())).not.toContain('V-06');
   });
 
   it('情報として報告し、該当の便を指す', () => {
     const trips = [trip('S1', 8, 0, '')];
-    const found = validateService(trips, network).find((i) => i.id === 'V-07');
+    const found = validateService(trips, network).find((i) => i.id === 'V-06');
     expect(found?.severity).toBe('info');
     expect(found?.target).toEqual({ tripId: trips[0]?.tripId });
   });
 });
 
-describe('V-08: 時刻を導出できない便', () => {
+describe('V-07: 時刻を導出できない便', () => {
   it('パターンが解決できない便を検出する', () => {
     const broken = { ...trip('S1', 8, 0, '1'), patternId: 'なにこれ' };
-    expect(idsOf([broken])).toContain('V-08');
+    expect(idsOf([broken])).toContain('V-07');
   });
 
   it('時刻が範囲を外れる便を検出する', () => {
@@ -250,7 +219,7 @@ describe('V-08: 時刻を導出できない便', () => {
       ...trip('T3', 8, 0, '1'),
       anchor: { stopId: TOYONAKA, time: seconds(0) },
     };
-    expect(idsOf([broken])).toContain('V-08');
+    expect(idsOf([broken])).toContain('V-07');
   });
 
   it('アンカー停留所が経路に無い便を検出する', () => {
@@ -260,30 +229,29 @@ describe('V-08: 時刻を導出できない便', () => {
       anchor: { stopId: '2_0', time: fromHM(8, 0) },
     };
     const ids = idsOf([broken]);
-    expect(ids).toContain('V-08');
-    // 時刻が無い便は便同士の関係（V-05・V-06）の対象にならない
+    expect(ids).toContain('V-07');
+    // 時刻が無い便は便間隔（V-05）の対象にならない
     expect(ids).not.toContain('V-05');
-    expect(ids).not.toContain('V-06');
   });
 
   it('導出できれば検出しない', () => {
-    expect(idsOf(makeCleanBlock())).not.toContain('V-08');
+    expect(idsOf(makeCleanBlock())).not.toContain('V-07');
   });
 });
 
-describe('V-09: 営業所待機が短い', () => {
+describe('V-08: 営業所待機が短い', () => {
   it('待機が短いと検出する', () => {
     // 8:20 入庫 → 8:40 出庫で 20 分
-    expect(idsOf([trip('DT-in', 8, 0, '1'), trip('DT-out', 8, 40, '1')])).toContain('V-09');
+    expect(idsOf([trip('DT-in', 8, 0, '1'), trip('DT-out', 8, 40, '1')])).toContain('V-08');
   });
 
   it('十分に長ければ検出しない', () => {
     // 8:20 入庫 → 9:20 出庫で 60 分
-    expect(idsOf([trip('DT-in', 8, 0, '1'), trip('DT-out', 9, 20, '1')])).not.toContain('V-09');
+    expect(idsOf([trip('DT-in', 8, 0, '1'), trip('DT-out', 9, 20, '1')])).not.toContain('V-08');
   });
 
   it('境界（30 分ちょうど）は検出しない', () => {
-    expect(idsOf([trip('DT-in', 8, 0, '1'), trip('DT-out', 8, 50, '1')])).not.toContain('V-09');
+    expect(idsOf([trip('DT-in', 8, 0, '1'), trip('DT-out', 8, 50, '1')])).not.toContain('V-08');
   });
 
   it('閾値を設定から差し替えられる', () => {
@@ -292,14 +260,14 @@ describe('V-09: 営業所待機が短い', () => {
       ...DEFAULT_THRESHOLDS,
       minStandbyMinutes: 90,
     });
-    expect(strict.map((i) => i.id)).toContain('V-09');
+    expect(strict.map((i) => i.id)).toContain('V-08');
   });
 });
 
 describe('検証項目の全体', () => {
   it('**便内の時刻矛盾を検査する項目が存在しない**', () => {
     // 便はアンカー 1 点から全時刻が決まるため、便内の矛盾は表現できない。
-    // 検証項目は V-01〜V-09 のみであり、便内を見る項目を後から足していない。
+    // 検証項目は V-01〜V-08 のみであり、便内を見る項目を後から足していない。
     expect(Object.keys(SEVERITY_OF)).toEqual([
       'V-01',
       'V-02',
@@ -309,7 +277,6 @@ describe('検証項目の全体', () => {
       'V-06',
       'V-07',
       'V-08',
-      'V-09',
     ]);
   });
 
@@ -320,7 +287,6 @@ describe('検証項目の全体', () => {
       'error',
       'warning',
       'warning',
-      'warning',
       'info',
       'info',
       'info',
@@ -329,8 +295,8 @@ describe('検証項目の全体', () => {
 
   it('検証項目 ID の昇順に並ぶ（重大度の順でもある）', () => {
     const ids = idsOf([
-      trip('S1', 8, 0, ''), // V-04（運用番号が空欄なので運用にならない）→ V-07
-      trip('S1', 8, 0, '1'), // V-04 × 2、V-06（間隔 0 分）
+      trip('S1', 8, 0, ''), // 運用番号が空欄なので運用にならない → V-05
+      trip('S1', 8, 0, '1'), // V-04 × 2、V-05（間隔 0 分）
       trip('S1', 9, 0, '1'), // V-01（吹田着の次に豊中発）
     ]);
     expect([...ids]).toEqual([...ids].sort((a, b) => a.localeCompare(b)));
