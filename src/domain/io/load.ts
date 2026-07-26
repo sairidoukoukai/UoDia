@@ -1,0 +1,255 @@
+/**
+ * プロジェクトの読込（仕様書 §7.3、§7.4）。
+ *
+ * ネットワーク定義の読込（T-06）と同じく、**どの段階で失敗したかを型で区別する**。
+ * 加えて、開けはするが伝えるべきことがある場合を `warnings` として返す。
+ *
+ * 壊れた参照でファイルを開けなくするのは避ける。`route.json` を書き換えたあとに
+ * 古いプロジェクトを開く、という状況は普通に起こり、そこで「開けません」とだけ
+ * 言われても利用者は手を打てない。既定値へ倒したうえで、何をどう倒したかを
+ * 警告として並べる。
+ */
+
+import {
+  parseWithSchema,
+  projectSchema,
+  type Project,
+  type SchemaIssue,
+  type Service,
+  type Trip,
+} from '@/domain/model';
+import type { NetworkIndex } from '@/domain/network';
+import { MIGRATIONS, migrateProjectData, type Migration } from './migrate';
+
+/** 読込時の警告の種類。 */
+export type ProjectWarningId =
+  /** `route.json` の版数がプロジェクトの想定と違う。 */
+  | 'W-01'
+  /** 停車パターンが見つからず、既定のパターンへ倒した。 */
+  | 'W-02'
+  /** アンカー停留所が経路に無く、時刻を未入力へ倒した。 */
+  | 'W-03'
+  /** 知らないキーがあったので読み飛ばした。 */
+  | 'W-04'
+  /** マイグレーションを適用した。 */
+  | 'W-05';
+
+export interface ProjectWarning {
+  readonly id: ProjectWarningId;
+  readonly message: string;
+  /** 該当箇所。ファイル全体に関わる警告では省略される。 */
+  readonly path?: string;
+}
+
+export type LoadProjectResult =
+  | { readonly ok: true; readonly project: Project; readonly warnings: readonly ProjectWarning[] }
+  | { readonly ok: false; readonly stage: 'json'; readonly message: string }
+  | { readonly ok: false; readonly stage: 'version'; readonly message: string }
+  | { readonly ok: false; readonly stage: 'schema'; readonly issues: readonly SchemaIssue[] };
+
+export interface LoadProjectOptions {
+  /**
+   * 適用する変換の一覧。既定は {@link MIGRATIONS}。
+   *
+   * 差し替えられるようにしてあるのは、変換が 1 つも無い今の段階でも読込全体を
+   * 通して確かめられるようにするためである（{@link migrateProjectData} と同じ理由）。
+   */
+  readonly migrations?: readonly Migration[];
+  /** 引き上げ先の版数。既定は現在の形式版数。 */
+  readonly targetVersion?: number;
+}
+
+/**
+ * `.uodia` の内容を読み込む。
+ *
+ * @param json ファイルの中身
+ * @param network 参照整合性の検査に使うネットワーク定義
+ */
+export function loadProject(
+  json: string,
+  network: NetworkIndex,
+  options: LoadProjectOptions = {},
+): LoadProjectResult {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(json);
+  } catch (error) {
+    return { ok: false, stage: 'json', message: String(error) };
+  }
+
+  const formatVersion = readFormatVersion(raw);
+  if (formatVersion === null) {
+    return {
+      ok: false,
+      stage: 'version',
+      message: 'meta.formatVersion がありません。UoDia のプロジェクトファイルではないようです',
+    };
+  }
+
+  const migrated = migrateProjectData(
+    raw,
+    formatVersion,
+    options.migrations ?? MIGRATIONS,
+    options.targetVersion,
+  );
+  if (!migrated.ok) {
+    return { ok: false, stage: 'version', message: describeMigrationFailure(migrated) };
+  }
+
+  const parsed = parseWithSchema(projectSchema, migrated.data);
+  if (!parsed.ok) {
+    return { ok: false, stage: 'schema', issues: parsed.issues };
+  }
+
+  const warnings: ProjectWarning[] = migrated.applied.map((version) => ({
+    id: 'W-05' as const,
+    message: `ファイル形式を版 ${String(version)} に変換しました`,
+  }));
+
+  warnings.push(...findUnknownKeys(migrated.data, parsed.value).map(unknownKeyWarning));
+  warnings.push(...checkRouteVersion(parsed.value, network));
+
+  const repaired = repairReferences(parsed.value, network, warnings);
+  return { ok: true, project: repaired, warnings };
+}
+
+/** スキーマ検証の前に版数だけを覗く。古いファイルは現在のスキーマに適合しない。 */
+function readFormatVersion(raw: unknown): number | null {
+  if (!isPlainObject(raw)) return null;
+  const { meta } = raw;
+  if (!isPlainObject(meta)) return null;
+  const { formatVersion } = meta;
+  return typeof formatVersion === 'number' && Number.isInteger(formatVersion)
+    ? formatVersion
+    : null;
+}
+
+function describeMigrationFailure(
+  failure: Extract<ReturnType<typeof migrateProjectData>, { ok: false }>,
+): string {
+  const version = String(failure.formatVersion);
+  return failure.reason === 'tooNew'
+    ? `このファイルは新しい形式（版 ${version}）です。UoDia を更新してください`
+    : `版 ${version} からの変換手順がありません`;
+}
+
+/** `route.json` の版数がプロジェクトの想定と一致するか（仕様書 §7.3）。 */
+function checkRouteVersion(project: Project, network: NetworkIndex): ProjectWarning[] {
+  if (project.meta.routeVersion === network.def.version) return [];
+  return [
+    {
+      id: 'W-01',
+      message:
+        `ネットワーク定義が変更されています（プロジェクト: 版 ${String(project.meta.routeVersion)}、` +
+        `現在: 版 ${String(network.def.version)}）。時刻が再計算されます`,
+      path: 'meta.routeVersion',
+    },
+  ];
+}
+
+function unknownKeyWarning(path: string): ProjectWarning {
+  return { id: 'W-04', message: `知らない項目を読み飛ばしました: ${path}`, path };
+}
+
+/**
+ * 読み飛ばされたキーを探す。
+ *
+ * スキーマ検証は知らないキーを黙って捨てる。捨てたこと自体は正しい振る舞いだが、
+ * 黙っていると「保存し直したら項目が消えた」という結果だけが残る。検証の前後を
+ * 突き合わせて、入力にしか無いキーを集める。
+ *
+ * 既定値の補完で**出力にだけ**現れるキーは対象外である。
+ */
+function findUnknownKeys(raw: unknown, parsed: unknown, path = ''): string[] {
+  if (Array.isArray(raw) && Array.isArray(parsed)) {
+    return raw.flatMap((item: unknown, index) =>
+      findUnknownKeys(item, parsed[index], `${path}[${String(index)}]`),
+    );
+  }
+  if (!isPlainObject(raw) || !isPlainObject(parsed)) {
+    return [];
+  }
+
+  const unknown: string[] = [];
+  for (const [key, value] of Object.entries(raw)) {
+    const childPath = path === '' ? key : `${path}.${key}`;
+    if (key in parsed) {
+      unknown.push(...findUnknownKeys(value, parsed[key], childPath));
+    } else {
+      unknown.push(childPath);
+    }
+  }
+  return unknown;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * 壊れた参照を既定値へ倒す（仕様書 §7.4）。
+ *
+ * - 停車パターンが見つからない便は、方向 0 の既定パターンへ倒す。方向が分からない
+ *   以上どちらかを選ぶほかなく、既定パターンなら区間表が揃っていることが保証
+ *   されている（R-03・R-05）。
+ * - アンカー停留所が経路に無い便は、**時刻を未入力に戻す**。始発へ寄せるなどして
+ *   時刻を残すと、利用者が入力した覚えのない時刻がダイヤに紛れ込む。時刻が
+ *   消えたことは検証（V-08）にも出るため、見落とされない。
+ */
+function repairReferences(
+  project: Project,
+  network: NetworkIndex,
+  warnings: ProjectWarning[],
+): Project {
+  const fallbackPatternId = network.def.patterns.find(
+    (p) => p.isDefault && !p.isDeadhead && p.directionId === 0,
+  )?.patternId;
+
+  const services = project.services.map((service, serviceIndex) => ({
+    ...service,
+    trips: service.trips.map((trip, tripIndex) =>
+      repairTrip(trip, {
+        network,
+        warnings,
+        fallbackPatternId,
+        path: `services[${String(serviceIndex)}].trips[${String(tripIndex)}]`,
+      }),
+    ),
+  }));
+
+  return { ...project, services: services satisfies Service[] };
+}
+
+interface RepairContext {
+  readonly network: NetworkIndex;
+  readonly warnings: ProjectWarning[];
+  readonly fallbackPatternId: string | undefined;
+  readonly path: string;
+}
+
+function repairTrip(trip: Trip, context: RepairContext): Trip {
+  const { network, warnings, fallbackPatternId, path } = context;
+
+  let patternId = trip.patternId;
+  if (network.patternIndex(patternId) === undefined && fallbackPatternId !== undefined) {
+    warnings.push({
+      id: 'W-02',
+      message: `停車パターン ${patternId} が見つかりません。${fallbackPatternId} へ変更しました`,
+      path: `${path}.patternId`,
+    });
+    patternId = fallbackPatternId;
+  }
+
+  const pattern = network.patternIndex(patternId);
+  const { anchor } = trip;
+  if (anchor !== null && pattern !== undefined && !pattern.includes(anchor.stopId)) {
+    warnings.push({
+      id: 'W-03',
+      message: `停留所 ${anchor.stopId} は ${patternId} の経路にありません。時刻を未入力に戻しました`,
+      path: `${path}.anchor`,
+    });
+    return { ...trip, patternId, anchor: null };
+  }
+
+  return { ...trip, patternId };
+}
