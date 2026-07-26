@@ -7,6 +7,7 @@
   --color-bg: #ffffff;
   --color-fg: #1a1a1a;
   --color-fg-muted: #666666;
+  --color-border: #cccccc;
 
   font-family:
     system-ui,
@@ -24,6 +25,7 @@
     --color-bg: #1a1a1a;
     --color-fg: #f0f0f0;
     --color-fg-muted: #999999;
+    --color-border: #444444;
   }
 }
 
@@ -63,4 +65,36 @@ body {
 .app-shell__note {
   color: var(--color-fg-muted);
   font-size: 0.875rem;
+}
+
+/* ファイル操作の問いかけ（T-17）。焦点と Esc は <dialog> に任せる。 */
+.file-dialog {
+  max-width: 32rem;
+  padding: 1.25rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  background: var(--color-bg);
+  color: var(--color-fg);
+}
+
+.file-dialog::backdrop {
+  background: rgb(0 0 0 / 40%);
+}
+
+.file-dialog h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.125rem;
+}
+
+.file-dialog__message,
+.file-dialog__warnings {
+  /* 改行を残す。読込の指摘は 1 行ずつ意味を持つ。 */
+  white-space: pre-wrap;
+}
+
+.file-dialog__actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 1rem;
 }

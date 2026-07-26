@@ -12,6 +12,7 @@
 
 import {
   MAX_RECENT_FILES,
+  type CloseHandler,
   type FileHandle,
   type OpenedProject,
   type PlatformAdapter,
@@ -96,6 +97,16 @@ export function createWebPlatform(environment: WebEnvironment): PlatformAdapter 
         : { handle: toHandle('download', null, picked.name), content: picked.content };
     },
 
+    async readProject(handle: FileHandle): Promise<string> {
+      const target = toRef(handle);
+      if (fileSystem === null || target?.mode !== 'inPlace') {
+        // ダウンロードで保存したファイルの場所をブラウザは覚えていない。
+        // 「最近使ったファイル」に載らないため、ここへ来るのは食い違いである。
+        throw new TypeError(`この環境では開き直せないハンドルです: ${handle.name}`);
+      }
+      return fileSystem.read(target.ref);
+    },
+
     async saveProject(handle: FileHandle, content: string): Promise<void> {
       const target = toRef(handle);
       if (target === null) {
@@ -148,6 +159,11 @@ export function createWebPlatform(environment: WebEnvironment): PlatformAdapter 
       await store.remove(BACKUP_KEY);
     },
 
+    setWindowTitle(title: string): Promise<void> {
+      environment.setWindowTitle(title);
+      return Promise.resolve();
+    },
+
     async listRecentFiles(): Promise<readonly RecentFile[]> {
       if (fileSystem === null) return [];
 
@@ -184,6 +200,11 @@ export function createWebPlatform(environment: WebEnvironment): PlatformAdapter 
         MAX_RECENT_FILES,
       );
       await store.set(RECENT_KEY, next);
+    },
+
+    onCloseRequested(handler: CloseHandler): () => void {
+      // 非同期の確認は使えない。ブラウザは beforeunload の中で待ってくれない。
+      return environment.onBeforeUnload(() => handler.canCloseNow());
     },
   };
 }

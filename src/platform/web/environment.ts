@@ -32,6 +32,8 @@ export interface PickedFile {
  */
 export interface FileSystemAccess {
   open(): Promise<PickedFile | null>;
+  /** 既に持っている参照から読み直す。最近使ったファイルを開くのに使う。 */
+  read(ref: unknown): Promise<string>;
   /** 開いたファイルへ上書きする。 */
   save(ref: unknown, content: string): Promise<void>;
   /** 保存先を選ばせて書く。 */
@@ -59,4 +61,13 @@ export interface WebEnvironment {
   readonly fallback: FallbackIo;
   /** 同梱の `route.json` を読む。 */
   loadBundledNetworkDef(): Promise<string>;
+  /** タブの題名を変える。 */
+  setWindowTitle(title: string): void;
+  /**
+   * タブを閉じる操作に割り込む。
+   *
+   * `canClose` が `false` を返すとブラウザ既定の確認が出る。**独自の確認は
+   * 出せない。** `beforeunload` は同期で答えることしか許していない。
+   */
+  onBeforeUnload(canClose: () => boolean): () => void;
 }

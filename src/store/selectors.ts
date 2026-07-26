@@ -12,6 +12,7 @@
 import { deriveBlocks, type BlockDerivation } from '@/domain/block';
 import type { DirectionId, NetworkDef, Project, Service, Trip } from '@/domain/model';
 import { buildNetworkIndex, type NetworkIndex } from '@/domain/network';
+import type { FileHandle } from '@/platform';
 import { allTimes } from '@/domain/trip';
 import type { Seconds } from '@/domain/time';
 import {
@@ -63,6 +64,21 @@ export function selectUndoLabel(state: AppState): string | null {
 /** 次にやり直される操作の名前。無ければ `null`。 */
 export function selectRedoLabel(state: AppState): string | null {
   return state.history.future[0]?.label ?? null;
+}
+
+/**
+ * 保存していない変更があるか（仕様書 §6.8）。
+ *
+ * 保存した時点の内容と**参照が同じか**だけを見る。真偽値の旗を立て回すより、
+ * 更新の漏れが「未保存」側に倒れるぶん安全である（`types.ts`）。
+ */
+export function selectIsDirty(state: AppState): boolean {
+  return state.project !== null && state.project !== state.file.savedProject;
+}
+
+/** 保存先。まだ保存していなければ `null`。 */
+export function selectFileHandle(state: AppState): FileHandle | null {
+  return state.file.handle;
 }
 
 /** 編集中のダイヤ。`view.activeServiceId` が指すもの。無ければ先頭。 */

@@ -7,7 +7,13 @@ export {
   type ExecuteResult,
 } from './store';
 
-export { APP_STATE_KEYS, type AppState, type DocumentState, type UiState } from './types';
+export {
+  APP_STATE_KEYS,
+  type AppState,
+  type DocumentState,
+  type FileState,
+  type UiState,
+} from './types';
 
 export {
   DEFAULT_HISTORY_LIMIT,
@@ -27,6 +33,8 @@ export {
   selectBlocks,
   selectCanRedo,
   selectCanUndo,
+  selectFileHandle,
+  selectIsDirty,
   selectNetwork,
   selectRedoLabel,
   selectSelectedTripIds,

@@ -20,6 +20,7 @@ import {
   selectActiveService,
   selectAllTripTimes,
   selectBlocks,
+  selectIsDirty,
   selectSelectedTrips,
   selectTrips,
   selectTripsByDirection,
@@ -139,6 +140,67 @@ describe('操作', () => {
   it('プロジェクトを null にできる', () => {
     state().setProject(null);
     expect(state().project).toBeNull();
+  });
+});
+
+describe('開いているファイル（T-17）', () => {
+  it('新規作成の直後は保存済み', () => {
+    expect(selectIsDirty(state())).toBe(false);
+    expect(state().file.handle).toBeNull();
+  });
+
+  it('**編集すると未保存になる**', () => {
+    state().editProject('文書名の変更', (project) => {
+      project.document.name = 'あ';
+    });
+    expect(selectIsDirty(state())).toBe(true);
+  });
+
+  it('値が変わらない編集では未保存にならない', () => {
+    const name = state().project?.document.name ?? '';
+    state().editProject('何もしない', (project) => {
+      project.document.name = name;
+    });
+    expect(selectIsDirty(state())).toBe(false);
+  });
+
+  it('保存を記録すると未保存が解ける', () => {
+    state().editProject('文書名の変更', (project) => {
+      project.document.name = 'あ';
+    });
+    const project = state().project;
+    if (project === null) throw new Error('プロジェクトがありません');
+
+    state().markSaved(project, { kind: 'memory', name: 'a.uodia', ref: 'a.uodia' });
+    expect(selectIsDirty(state())).toBe(false);
+    expect(state().file.handle?.name).toBe('a.uodia');
+  });
+
+  it('保存しても取り消しは残る（保存は編集ではない）', () => {
+    state().editProject('文書名の変更', (project) => {
+      project.document.name = 'あ';
+    });
+    const project = state().project;
+    if (project === null) throw new Error('プロジェクトがありません');
+
+    state().markSaved(project, null);
+    expect(state().undo()).toBe(true);
+  });
+
+  it('取り消して保存した時点と別の内容になれば、また未保存になる', () => {
+    const project = state().project;
+    if (project === null) throw new Error('プロジェクトがありません');
+    state().markSaved(project, null);
+
+    state().editProject('文書名の変更', (p) => {
+      p.document.name = 'あ';
+    });
+    expect(selectIsDirty(state())).toBe(true);
+  });
+
+  it('プロジェクトが無ければ未保存ではない', () => {
+    state().setProject(null);
+    expect(selectIsDirty(state())).toBe(false);
   });
 });
 

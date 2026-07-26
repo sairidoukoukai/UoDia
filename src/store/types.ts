@@ -26,6 +26,7 @@
  */
 
 import type { NetworkDef, Project } from '@/domain/model';
+import type { FileHandle } from '@/platform';
 import type { History } from './history';
 
 /** 保存しない状態。 */
@@ -52,10 +53,29 @@ export interface DocumentState {
   readonly project: Project | null;
 }
 
+/**
+ * 開いているファイルの状態（仕様書 §6.8）。
+ *
+ * **未保存かどうかを真偽値で持たない。** 「保存した時点の内容」を覚えておき、
+ * 今の内容と**参照が同じか**で判定する（`selectIsDirty`）。真偽値だと、状態を
+ * 変えるすべての場所で立て忘れ・下ろし忘れが起こりうる。参照の比較なら、
+ * 更新が 1 箇所でも漏れれば「保存済み」と嘘をつくのではなく「未保存」に倒れる。
+ *
+ * 参照の比較で足りるのは、`execute` が**内容が変わったときだけ**新しい
+ * プロジェクトを作るためである（変わらなければ履歴にも載せない）。
+ */
+export interface FileState {
+  /** 保存先。まだ保存していなければ `null`。 */
+  readonly handle: FileHandle | null;
+  /** 最後に保存した内容そのもの。保存も読込もしていなければ `null`。 */
+  readonly savedProject: Project | null;
+}
+
 export interface AppState extends DocumentState {
   readonly ui: UiState;
   readonly history: History;
+  readonly file: FileState;
 }
 
 /** 状態が持つ項目。派生値を足していないことをテストで固定するために使う。 */
-export const APP_STATE_KEYS = ['networkDef', 'project', 'ui', 'history'] as const;
+export const APP_STATE_KEYS = ['networkDef', 'project', 'ui', 'history', 'file'] as const;

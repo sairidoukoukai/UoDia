@@ -15,10 +15,24 @@ vi.mock('@tauri-apps/api/core', () => ({
   invoke: (...args: unknown[]): Promise<unknown> => invoke(...args),
 }));
 
+/** 登録された購読。Rust からのイベントを手で起こせるようにする。 */
+const listeners: ((event: unknown) => void)[] = [];
+const unlisten = vi.fn();
+vi.mock('@tauri-apps/api/event', () => ({
+  listen: (_name: string, handler: (event: unknown) => void): Promise<() => void> => {
+    listeners.push(handler);
+    return Promise.resolve(() => {
+      unlisten();
+    });
+  },
+}));
+
 const { basename, createTauriPlatform, toHandle, toPath } = await import('./tauri');
 
 beforeEach(() => {
   invoke.mockReset();
+  unlisten.mockReset();
+  listeners.length = 0;
 });
 
 describe('basename', () => {
@@ -194,5 +208,61 @@ describe('最近使ったファイル', () => {
       createTauriPlatform().addRecentFile({ kind: 'web', name: 'b', ref: {} }),
     ).rejects.toThrow(TypeError);
     expect(invoke).not.toHaveBeenCalled();
+  });
+});
+
+describe('T-17 で足した口', () => {
+  it('ハンドルから読み直す', async () => {
+    invoke.mockResolvedValue('中身');
+    expect(await createTauriPlatform().readProject(toHandle('/a/b.uodia'))).toBe('中身');
+    expect(invoke.mock.calls[0]).toEqual(['read_project_file', { path: '/a/b.uodia' }]);
+  });
+
+  it('他の実装が作ったハンドルは解釈しない', async () => {
+    await expect(
+      createTauriPlatform().readProject({ kind: 'web', name: 'b.uodia', ref: {} }),
+    ).rejects.toThrow(TypeError);
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it('題名を Rust 側へ渡す', async () => {
+    invoke.mockResolvedValue(null);
+    await createTauriPlatform().setWindowTitle('a.uodia — UoDia');
+    expect(invoke.mock.calls[0]).toEqual(['set_window_title', { title: 'a.uodia — UoDia' }]);
+  });
+
+  it('**閉じてよいと答えたときだけ閉じる**', async () => {
+    invoke.mockResolvedValue(null);
+    createTauriPlatform().onCloseRequested({
+      canCloseNow: () => false,
+      confirmClose: () => Promise.resolve(true),
+    });
+
+    listeners[0]?.({});
+    await vi.waitFor(() => {
+      expect(invoke.mock.calls[0]).toEqual(['close_window']);
+    });
+  });
+
+  it('閉じてはいけないと答えたら閉じない', async () => {
+    createTauriPlatform().onCloseRequested({
+      canCloseNow: () => false,
+      confirmClose: () => Promise.resolve(false),
+    });
+
+    listeners[0]?.({});
+    await Promise.resolve();
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it('割り込みをやめられる', async () => {
+    const stop = createTauriPlatform().onCloseRequested({
+      canCloseNow: () => true,
+      confirmClose: () => Promise.resolve(true),
+    });
+    stop();
+    await vi.waitFor(() => {
+      expect(unlisten).toHaveBeenCalled();
+    });
   });
 });

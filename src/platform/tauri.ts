@@ -12,8 +12,10 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import {
   MAX_RECENT_FILES,
+  type CloseHandler,
   type FileHandle,
   type OpenedProject,
   type PlatformAdapter,
@@ -23,6 +25,15 @@ import {
 
 /** この実装が作るハンドルの識別子。 */
 const KIND = 'tauri';
+
+/**
+ * Rust 側が「閉じようとしている」と知らせてくるイベント。
+ *
+ * Rust は閉じる操作を**必ず一度止める**。未保存の変更があるかを知っているのは
+ * フロントエンドだけであり、Rust 側で判断できないためである。閉じてよいと
+ * 決まったら `close_window` を呼び直す。
+ */
+const CLOSE_REQUESTED_EVENT = 'uodia://close-requested';
 
 /** Rust 側が返す履歴の 1 件。 */
 interface RecentEntry {
@@ -75,6 +86,16 @@ export function createTauriPlatform(): PlatformAdapter {
       return { handle: toHandle(path), content };
     },
 
+    readProject(handle: FileHandle): Promise<string> {
+      const path = toPath(handle);
+      if (path === null) {
+        return Promise.reject(
+          new TypeError(`この実装が作ったハンドルではありません: ${handle.kind}`),
+        );
+      }
+      return invoke<string>('read_project_file', { path });
+    },
+
     async saveProject(handle: FileHandle, content: string): Promise<void> {
       const path = toPath(handle);
       if (path === null) {
@@ -110,6 +131,10 @@ export function createTauriPlatform(): PlatformAdapter {
       await invoke('clear_backup');
     },
 
+    async setWindowTitle(title: string): Promise<void> {
+      await invoke('set_window_title', { title });
+    },
+
     async listRecentFiles(): Promise<readonly RecentFile[]> {
       const entries = await invoke<RecentEntry[]>('list_recent_files');
       // 上限は Rust 側でも守っているが、古い履歴ファイルが残っている場合に
@@ -125,6 +150,20 @@ export function createTauriPlatform(): PlatformAdapter {
         throw new TypeError(`この実装が作ったハンドルではありません: ${handle.kind}`);
       }
       await invoke('add_recent_file', { path, openedAt: new Date().toISOString() });
+    },
+
+    onCloseRequested(handler: CloseHandler): () => void {
+      const listening = listen(CLOSE_REQUESTED_EVENT, () => {
+        void (async () => {
+          if (await handler.confirmClose()) await invoke('close_window');
+        })();
+      });
+
+      return () => {
+        void listening.then((stop) => {
+          stop();
+        });
+      };
     },
   };
 }

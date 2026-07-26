@@ -1,5 +1,6 @@
 export {
   MAX_RECENT_FILES,
+  type CloseHandler,
   type FileHandle,
   type OpenedProject,
   type PlatformAdapter,
