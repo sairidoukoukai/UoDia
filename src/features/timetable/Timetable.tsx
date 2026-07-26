@@ -6,7 +6,7 @@
  * 両方に置くと、どちらが正かを決める規則が要る（`store/types.ts`）。
  */
 
-import { useMemo, type ReactElement } from 'react';
+import { useCallback, useMemo, type ReactElement } from 'react';
 import type { DirectionId } from '@/domain/model';
 import {
   selectActiveDirection,
@@ -15,8 +15,9 @@ import {
   selectTripsByDirection,
   useAppStore,
 } from '@/store';
+import { commitCellInput, type CellPosition } from './editing';
 import { DIRECTION_LABEL, buildTimetable, stopsForDirection } from './model';
-import { TimetableGrid } from './TimetableGrid';
+import { TimetableGrid, type CommitResult } from './TimetableGrid';
 
 const DIRECTIONS: readonly DirectionId[] = [0, 1];
 
@@ -31,6 +32,37 @@ export function Timetable(): ReactElement {
     if (network === null) return null;
     return buildTimetable(trips, stopsForDirection(network, direction), network, times);
   }, [network, trips, direction, times]);
+
+  /**
+   * 升目の入力を便に反映する。
+   *
+   * 書き換えるのは 1 便だけであり、他の升目は計算し直さない。**時刻は
+   * アンカーから導かれる純粋な関数**であるため（T-08）、便が変われば同じ列の
+   * 表示は次の描画でひとりでに揃う。
+   */
+  const handleCommit = useCallback(
+    (at: CellPosition, text: string): CommitResult => {
+      if (network === null || timetable === null) return { ok: false, reason: 'notEditable' };
+
+      const outcome = commitCellInput(timetable, at, text, network);
+      if (!outcome.ok) return { ok: false, reason: outcome.reason };
+
+      const { trip } = outcome;
+      editProject(
+        '時刻の入力',
+        (project) => {
+          for (const service of project.services) {
+            const index = service.trips.findIndex((t) => t.tripId === trip.tripId);
+            if (index >= 0) service.trips[index] = trip;
+          }
+        },
+        // 同じ升目への打ち直しは 1 回の取り消しでまとめて戻す（仕様書 §6.7）。
+        `time:${trip.tripId}:${String(at.row)}`,
+      );
+      return { ok: true, rounded: outcome.rounded };
+    },
+    [network, timetable, editProject],
+  );
 
   return (
     <section className="timetable-pane">
@@ -59,7 +91,7 @@ export function Timetable(): ReactElement {
       {timetable === null ? (
         <p className="timetable__empty">ネットワーク定義を読み込んでいます…</p>
       ) : (
-        <TimetableGrid timetable={timetable} />
+        <TimetableGrid timetable={timetable} onCommit={handleCommit} />
       )}
     </section>
   );

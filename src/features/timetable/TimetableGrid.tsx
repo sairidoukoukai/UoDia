@@ -12,26 +12,168 @@
  * 仕掛けを入れるほどの量ではない。実測は T-40 で行う。
  */
 
-import type { ReactElement } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
 import { formatTime } from '@/domain/time';
+import {
+  initialEditText,
+  movePosition,
+  type CellPosition,
+  type CommitFailure,
+  type Move,
+} from './editing';
 import { HANDLING_MARK, NOT_SERVED, type Timetable, type TimetableCell } from './model';
+
+/** 入力を確定したときの結果。丸めが起きたか、なぜ受け付けられなかったか。 */
+export type CommitResult =
+  | { readonly ok: true; readonly rounded: boolean }
+  | { readonly ok: false; readonly reason: CommitFailure | null };
 
 export interface TimetableGridProps {
   readonly timetable: Timetable;
+  /**
+   * 升目の入力を確定する。
+   *
+   * 表そのものは書き換えない。書き換えるのはストアであり、その結果が
+   * `timetable` として降りてくる。**同じ列の他の升目が計算し直されるのは、
+   * この流れが 1 本しかないため**である（仕様書 §6.1.2）。
+   */
+  readonly onCommit: (at: CellPosition, text: string) => CommitResult;
+}
+
+/** 丸めを知らせる点滅の長さ（ミリ秒）。 */
+const FLASH_MS = 700;
+
+/** 移動に使うキー。 */
+const MOVE_KEYS: Readonly<Record<string, Move>> = {
+  ArrowUp: 'up',
+  ArrowDown: 'down',
+  ArrowLeft: 'left',
+  ArrowRight: 'right',
+};
+
+/** 編集中の升目。 */
+interface Editing {
+  readonly at: CellPosition;
+  readonly text: string;
+  /** 直前の確定が受け付けられなかったか。 */
+  readonly failure: CommitFailure | null;
 }
 
 /** 便番号・運用番号が空のときに出す印。 */
 const BLANK = '―';
 
-export function TimetableGrid({ timetable }: TimetableGridProps): ReactElement {
+export function TimetableGrid({ timetable, onCommit }: TimetableGridProps): ReactElement {
   const { stops, columns } = timetable;
+  const size = { rows: stops.length, columns: columns.length };
+
+  const [focus, setFocus] = useState<CellPosition | null>(null);
+  const [editing, setEditing] = useState<Editing | null>(null);
+  const [flash, setFlash] = useState<CellPosition | null>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
+  /**
+   * 利用者が表を触ったか。
+   *
+   * 触るまでは焦点を奪わない。読み込み直後に画面が勝手に表へ飛ぶのを防ぐ。
+   * `document.activeElement` を見る形では駄目である。確定した直後は編集欄が
+   * 外れて焦点が本体へ戻っており、**続けて打てるはずの場面で見失う**。
+   */
+  const interacting = useRef(false);
+
+  // 移動と編集の終わりに、その升目へ焦点を移す。移さないと、確定した瞬間に
+  // キーボード操作の起点が消える。
+  useEffect(() => {
+    if (focus === null || editing !== null || !interacting.current) return;
+    const grid = gridRef.current;
+    if (grid === null) return;
+    cellElement(grid, focus)?.focus();
+  }, [focus, editing]);
+
+  // 丸めの点滅は一定時間で消す（仕様書 §6.1.2）。
+  useEffect(() => {
+    if (flash === null) return;
+    const timer = setTimeout(() => {
+      setFlash(null);
+    }, FLASH_MS);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [flash]);
+
+  /** 編集を終える。確定できなければ編集状態を保ったまま警告する。 */
+  const finish = (next: CellPosition | null): void => {
+    if (editing === null) return;
+    const result = onCommit(editing.at, editing.text);
+
+    if (!result.ok && result.reason !== null) {
+      // 入力を消さない。打ち直せる状態のまま、なぜ駄目かを色で示す。
+      setEditing({ ...editing, failure: result.reason });
+      return;
+    }
+
+    setEditing(null);
+    if (result.ok && result.rounded) setFlash(editing.at);
+    if (next !== null) setFocus(next);
+  };
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLElement>, at: CellPosition): void => {
+    interacting.current = true;
+    const move = MOVE_KEYS[event.key];
+
+    if (editing !== null) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setEditing(null);
+        return;
+      }
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        finish(movePosition(at, 'down', size));
+        return;
+      }
+      if (event.key === 'Tab') {
+        event.preventDefault();
+        finish(movePosition(at, event.shiftKey ? 'left' : 'right', size));
+        return;
+      }
+      // 矢印キーは編集欄の中の移動に使う。升目の移動には使わない。
+      return;
+    }
+
+    if (move !== undefined) {
+      event.preventDefault();
+      setFocus(movePosition(at, move, size));
+      return;
+    }
+    if (event.key === 'Enter' || event.key === 'F2') {
+      event.preventDefault();
+      startEditing(at, initialEditText(timetable, at));
+      return;
+    }
+    if (event.key === 'Tab') {
+      event.preventDefault();
+      setFocus(movePosition(at, event.shiftKey ? 'left' : 'right', size));
+      return;
+    }
+    // 直接タイプで上書き入力を始める（表計算ソフトと同じ挙動）。
+    if (isTypingKey(event)) {
+      event.preventDefault();
+      startEditing(at, event.key);
+    }
+  };
+
+  const startEditing = (at: CellPosition, text: string): void => {
+    interacting.current = true;
+    if (timetable.columns[at.column]?.cells[at.row]?.kind === 'notServed') return;
+    setFocus(at);
+    setEditing({ at, text, failure: null });
+  };
 
   if (columns.length === 0) {
     return <p className="timetable__empty">この方向の便はまだありません。</p>;
   }
 
   return (
-    <div className="timetable__scroll">
+    <div className="timetable__scroll" ref={gridRef}>
       <table className="timetable">
         <thead>
           <tr>
@@ -90,13 +232,38 @@ export function TimetableGrid({ timetable }: TimetableGridProps): ReactElement {
               <th scope="row" className="timetable__stop">
                 {stop.stopName}
               </th>
-              {columns.map((column) => (
-                <Cell
-                  key={column.trip.tripId}
-                  cell={column.cells[row] ?? { kind: 'notServed' }}
-                  deadhead={column.pattern?.isDeadhead === true}
-                />
-              ))}
+              {columns.map((column, index) => {
+                const at = { row, column: index };
+                return (
+                  <Cell
+                    key={column.trip.tripId}
+                    cell={column.cells[row] ?? { kind: 'notServed' }}
+                    deadhead={column.pattern?.isDeadhead === true}
+                    at={at}
+                    focused={focus?.row === row && focus.column === index}
+                    editing={
+                      editing !== null && editing.at.row === row && editing.at.column === index
+                        ? editing
+                        : null
+                    }
+                    flashing={flash?.row === row && flash.column === index}
+                    onFocusCell={(next) => {
+                      interacting.current = true;
+                      setFocus(next);
+                    }}
+                    onStartEditing={startEditing}
+                    onChangeText={(text) => {
+                      setEditing((current) =>
+                        current === null ? null : { ...current, text, failure: null },
+                      );
+                    }}
+                    onKeyDown={handleKeyDown}
+                    onBlurInput={() => {
+                      finish(null);
+                    }}
+                  />
+                );
+              })}
             </tr>
           ))}
         </tbody>
@@ -105,43 +272,98 @@ export function TimetableGrid({ timetable }: TimetableGridProps): ReactElement {
   );
 }
 
-function Cell({
-  cell,
-  deadhead,
-}: {
+interface CellProps {
   readonly cell: TimetableCell;
   readonly deadhead: boolean;
-}): ReactElement {
-  const base = deadhead ? 'timetable__cell timetable__cell--deadhead' : 'timetable__cell';
+  readonly at: CellPosition;
+  readonly focused: boolean;
+  readonly editing: Editing | null;
+  readonly flashing: boolean;
+  readonly onFocusCell: (at: CellPosition) => void;
+  readonly onStartEditing: (at: CellPosition, text: string) => void;
+  readonly onChangeText: (text: string) => void;
+  readonly onKeyDown: (event: KeyboardEvent<HTMLElement>, at: CellPosition) => void;
+  readonly onBlurInput: () => void;
+}
 
-  if (cell.kind === 'notServed') {
-    // 経由しないことを空欄で表さない。空欄は「まだ入れていない」に見える。
-    return (
-      <td className={`${base} timetable__cell--notServed`} aria-label="経由しません">
-        {NOT_SERVED}
-      </td>
-    );
-  }
+function Cell(props: CellProps): ReactElement {
+  const { cell, deadhead, at, focused, editing, flashing } = props;
 
-  const mark = HANDLING_MARK[cell.handling];
-
-  if (cell.kind === 'empty') {
-    return (
-      <td
-        className={`${base} timetable__cell--empty`}
-        aria-label={cell.reason === 'unset' ? '時刻が未入力です' : '時刻を計算できません'}
-      >
-        {mark}
-      </td>
-    );
-  }
+  const classes = ['timetable__cell'];
+  if (deadhead) classes.push('timetable__cell--deadhead');
+  if (flashing) classes.push('timetable__cell--rounded');
+  if (editing?.failure != null) classes.push('timetable__cell--invalid');
+  if (cell.kind === 'notServed') classes.push('timetable__cell--notServed');
+  if (cell.kind === 'empty') classes.push('timetable__cell--empty');
+  if (cell.kind === 'time' && cell.isAnchor) classes.push('timetable__cell--anchor');
 
   return (
-    <td className={cell.isAnchor ? `${base} timetable__cell--anchor` : base}>
-      {mark}
-      {formatTime(cell.time)}
+    <td
+      className={classes.join(' ')}
+      data-cell={`${String(at.row)}:${String(at.column)}`}
+      // 焦点を持てる升目を 1 つに絞る。表全体が Tab の順路になると、表を
+      // 通り抜けるだけで 100 回以上 Tab を押すことになる。
+      tabIndex={focused ? 0 : -1}
+      aria-label={describe(cell)}
+      onMouseDown={(event) => {
+        props.onFocusCell(at);
+        // 明示的に焦点を移す。押しボタン以外の要素を押しても焦点が移らない
+        // ブラウザがあり、任せると環境によって挙動が変わる。
+        event.currentTarget.focus();
+      }}
+      onDoubleClick={() => {
+        props.onStartEditing(at, '');
+      }}
+      onKeyDown={(event) => {
+        props.onKeyDown(event, at);
+      }}
+    >
+      {editing === null ? (
+        content(cell)
+      ) : (
+        <input
+          className="timetable__input"
+          value={editing.text}
+          autoFocus
+          aria-label="時刻"
+          aria-invalid={editing.failure !== null}
+          onChange={(event) => {
+            props.onChangeText(event.target.value);
+          }}
+          onBlur={props.onBlurInput}
+        />
+      )}
     </td>
   );
+}
+
+/** 升目に出す文字。 */
+function content(cell: TimetableCell): string {
+  // 経由しないことを空欄で表さない。空欄は「まだ入れていない」に見える。
+  if (cell.kind === 'notServed') return NOT_SERVED;
+  if (cell.kind === 'empty') return HANDLING_MARK[cell.handling];
+  return `${HANDLING_MARK[cell.handling]}${formatTime(cell.time)}`;
+}
+
+/** 画面読み上げに升目の意味を伝える。 */
+function describe(cell: TimetableCell): string | undefined {
+  if (cell.kind === 'notServed') return '経由しません';
+  if (cell.kind === 'empty') {
+    return cell.reason === 'unset' ? '時刻が未入力です' : '時刻を計算できません';
+  }
+  return undefined;
+}
+
+/** その打鍵で上書き入力を始めてよいか。 */
+function isTypingKey(event: KeyboardEvent<HTMLElement>): boolean {
+  if (event.ctrlKey || event.altKey || event.metaKey) return false;
+  // 1 文字のキーだけを見る。Shift や CapsLock のような修飾は key が長い。
+  return event.key.length === 1;
+}
+
+/** 位置から升目の要素を引く。 */
+function cellElement(grid: HTMLElement, at: CellPosition): HTMLElement | null {
+  return grid.querySelector<HTMLElement>(`[data-cell="${String(at.row)}:${String(at.column)}"]`);
 }
 
 /** 回送便の列と、参照が壊れている列を見分けられるようにする。 */
