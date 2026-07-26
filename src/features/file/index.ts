@@ -1,10 +1,14 @@
+export { createFileService, type FileService, type FileServiceOptions } from './fileService';
+
+export type { BackupDialogs, DialogAnswer, FileDialogs } from './prompts';
+
 export {
-  createFileService,
-  type DiscardChoice,
-  type FileDialogs,
-  type FileService,
-  type FileServiceOptions,
-} from './fileService';
+  DEFAULT_BACKUP_INTERVAL_MS,
+  createBackupService,
+  type BackupService,
+  type BackupServiceOptions,
+  type RecoverableBackup,
+} from './backupService';
 
 export {
   useFileDialogs,
@@ -12,6 +16,7 @@ export {
   type DiscardRequest,
   type ErrorRequest,
   type FileDialogController,
+  type RecoverRequest,
   type WarningsRequest,
 } from './dialogs';
 

@@ -98,3 +98,8 @@ body {
   justify-content: flex-end;
   margin-top: 1rem;
 }
+
+.file-dialog__note {
+  color: var(--color-fg-muted);
+  font-size: 0.875rem;
+}
