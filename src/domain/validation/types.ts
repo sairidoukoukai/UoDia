@@ -14,7 +14,8 @@
  * 箕面学舎を経由しないため、箕面学舎経由の便を追い抜いてよい）。検査すべき
  * 条件が残らないため、仕様書 v4.3 で項目ごと削除した。
  */
-export type ValidationId = 'V-01' | 'V-02' | 'V-03' | 'V-04' | 'V-05' | 'V-06' | 'V-07' | 'V-08';
+export type ValidationId =
+  'V-01' | 'V-02' | 'V-03' | 'V-04' | 'V-05' | 'V-06' | 'V-07' | 'V-08' | 'V-09';
 
 /**
  * 重大度。
@@ -45,11 +46,11 @@ export interface ValidationIssue {
  * ためである（実装計画書 T-10）。既定値は仕様書の「既定」欄に従う。
  */
 export interface ValidationThresholds {
-  /** V-05: 同方向の便間隔がこれ未満なら警告。 */
+  /** V-06: 同方向の便間隔がこれ未満なら警告。 */
   readonly minHeadwayMinutes: number;
-  /** V-05: 同方向の便間隔がこれを超えたら警告。 */
+  /** V-06: 同方向の便間隔がこれを超えたら警告。 */
   readonly maxHeadwayMinutes: number;
-  /** V-08: 営業所待機がこれ未満なら情報。 */
+  /** V-09: 営業所待機がこれ未満なら情報。 */
   readonly minStandbyMinutes: number;
 }
 
@@ -64,9 +65,10 @@ export const SEVERITY_OF: Readonly<Record<ValidationId, Severity>> = {
   'V-01': 'error',
   'V-02': 'error',
   'V-03': 'error',
-  'V-04': 'warning',
+  'V-04': 'error',
   'V-05': 'warning',
-  'V-06': 'info',
+  'V-06': 'warning',
   'V-07': 'info',
   'V-08': 'info',
+  'V-09': 'info',
 };

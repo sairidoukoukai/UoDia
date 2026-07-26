@@ -15,6 +15,7 @@ import { formatTime, fromHM, MAX_SECONDS, seconds, type Seconds } from '@/domain
 import {
   allTimes,
   changePattern,
+  isAnchored,
   originStopId,
   originTime,
   setTimeAt,
@@ -394,3 +395,57 @@ function withMinoh25(segment: { fromStopId: string; toStopId: string; runMinutes
     (segment.fromStopId === MINOH && segment.toStopId === TOYONAKA);
   return isToyonakaMinoh ? { ...segment, runMinutes: 25 } : segment;
 }
+
+describe('アンカー未設定の便（仕様書 §6.1.4）', () => {
+  const empty: Trip = { ...makeTrip(), anchor: null };
+
+  it('isAnchored が false', () => {
+    expect(isAnchored(empty)).toBe(false);
+    expect(isAnchored(makeTrip())).toBe(true);
+  });
+
+  it('すべての停留所の時刻が null', () => {
+    expect(at(empty, TOYONAKA)).toBeNull();
+    expect(at(empty, SUITA)).toBeNull();
+  });
+
+  it('allTimes が空', () => {
+    expect(allTimes(empty, network).size).toBe(0);
+  });
+
+  it('始発・終着の停留所は分かるが、時刻は無い', () => {
+    expect(originStopId(empty, network)).toBe(TOYONAKA);
+    expect(terminalStopId(empty, network)).toBe(SUITA);
+    expect(originTime(empty, network)).toBeNull();
+    expect(terminalTime(empty, network)).toBeNull();
+  });
+
+  it('**時刻を設定すると通常の便になる**（初回入力の経路）', () => {
+    const filled = setTimeAt(empty, MINOH, fromHM(9, 0), network);
+    expect(filled).not.toBeNull();
+    if (filled === null) return;
+    expect(isAnchored(filled)).toBe(true);
+    expect(at(filled, TOYONAKA)).toBe('8:40');
+    expect(at(filled, SUITA)).toBe('9:20');
+  });
+
+  it('平行移動はできない（動かす時刻が無い）', () => {
+    expect(shiftTrip(empty, 15, network)).toBeNull();
+  });
+
+  it('**パターンは変えられる。未設定のまま経路だけが変わる**', () => {
+    const changed = changePattern(empty, 'S1', network);
+    expect(changed?.patternId).toBe('S1');
+    expect(changed?.anchor).toBeNull();
+  });
+
+  it('パターン変更が仮の時刻を作らない', () => {
+    // 引き継ぐ時刻が無いのだから、始発 0:00 のような値を捏造してはならない
+    const changed = changePattern(empty, 'S2', network);
+    expect(changed === null ? null : originTime(changed, network)).toBeNull();
+  });
+
+  it('存在しないパターンには変えられない', () => {
+    expect(changePattern(empty, 'なにこれ', network)).toBeNull();
+  });
+});

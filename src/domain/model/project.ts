@@ -31,7 +31,15 @@ export const tripSchema = z.object({
   tripId: idSchema,
   /** 方向・行先・経由地を兼ねる。 */
   patternId: idSchema,
-  anchor: anchorSchema,
+  /**
+   * 基準時刻。`null` は**まだ時刻が入力されていない便**を表す（仕様書 §6.1.4）。
+   *
+   * 便の追加は「既定パターンの空便を挿入する」操作であり、その時点では時刻が
+   * 決まっていない。これを表現できないと、時刻を入れるまで便を作れないか、
+   * あるいは仮の時刻を入れて「本当に 0:00 発なのか、まだ入力していないのか」を
+   * 区別できなくなる。
+   */
+  anchor: anchorSchema.nullable(),
   /** 運用番号。GTFS `block_id`。空文字は未割当を意味する。 */
   blockId: z.string(),
   /** 便番号。GTFS `trip_short_name`。 */

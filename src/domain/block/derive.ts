@@ -67,12 +67,19 @@ export interface BlockDerivation {
   /**
    * 運用番号が空欄の便。どの運用にも属さない。
    *
-   * 捨てずに返すのは、これが検証の情報項目（T-10 の V-07）になるためである。
+   * 捨てずに返すのは、これが検証の情報項目（V-07）になるためである。
    */
   readonly unassigned: readonly Trip[];
   /**
-   * 時刻を導出できなかった便。`patternId` が解決できないか、時刻が表現できる
-   * 範囲を外れている（T-11 の参照整合性検査が拾う）。
+   * 時刻がまだ入力されていない便（`anchor` が `null`）。
+   *
+   * **`unresolved` とは区別する。** 前者は「これから入力する」正常な途中状態、
+   * 後者は「データが壊れている」異常であり、利用者が取るべき行動が違う。
+   */
+  readonly unanchored: readonly Trip[];
+  /**
+   * 時刻を導出できなかった便。`patternId` が解決できないか、アンカー停留所が
+   * 経路に無いか、時刻が表現できる範囲を外れている。
    */
   readonly unresolved: readonly Trip[];
 }
@@ -80,19 +87,28 @@ export interface BlockDerivation {
 /** 便を運用に分解する。 */
 export function deriveBlocks(trips: readonly Trip[], network: NetworkIndex): BlockDerivation {
   const unassigned: Trip[] = [];
+  const unanchored: Trip[] = [];
   const unresolved: Trip[] = [];
   const byBlockId = new Map<string, NonEmptyTrips>();
 
+  // 3 つの分類は互いに排他ではない。運用番号が空欄で、かつ時刻も未入力の便は
+  // 両方に現れる。どちらも「まだ埋まっていない」という別々の事実であり、
+  // 片方だけ報告すると、直したあとにもう片方が現れて二度手間になる。
   for (const trip of trips) {
-    if (trip.blockId === '') {
-      unassigned.push(trip);
+    if (trip.blockId === '') unassigned.push(trip);
+
+    if (trip.anchor === null) {
+      unanchored.push(trip);
       continue;
     }
+
     const resolved = resolveTrip(trip, network);
     if (resolved === null) {
       unresolved.push(trip);
       continue;
     }
+    if (trip.blockId === '') continue;
+
     const group = byBlockId.get(trip.blockId);
     if (group === undefined) {
       byBlockId.set(trip.blockId, [resolved]);
@@ -106,7 +122,7 @@ export function deriveBlocks(trips: readonly Trip[], network: NetworkIndex): Blo
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([blockId, group]) => buildBlock(blockId, group, depotIds));
 
-  return { blocks, unassigned, unresolved };
+  return { blocks, unassigned, unanchored, unresolved };
 }
 
 /** 時刻を導出できた便。折返し時分はまだ求めていない。 */
