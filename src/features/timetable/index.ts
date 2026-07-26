@@ -10,6 +10,18 @@ export {
   type TimetableColumn,
 } from './model';
 
-export { TimetableGrid, type TimetableGridProps } from './TimetableGrid';
+export { TimetableGrid, type CommitResult, type TimetableGridProps } from './TimetableGrid';
+
+export {
+  commitCellInput,
+  initialEditText,
+  movePosition,
+  previousTimeInRow,
+  type CellPosition,
+  type CommitFailure,
+  type CommitOutcome,
+  type GridSize,
+  type Move,
+} from './editing';
 
 export { Timetable } from './Timetable';

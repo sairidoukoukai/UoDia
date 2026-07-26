@@ -12,6 +12,9 @@
   --color-error: #c0392b;
   /* アンカーの升目。色だけに頼らず太字も併用する（仕様書 §9.4）。 */
   --color-anchor: #fff2b8;
+  --color-focus: #2f6fdb;
+  --color-invalid: #ffd6d0;
+  --color-rounded: #cfe8ff;
 
   font-family:
     system-ui,
@@ -33,6 +36,9 @@
     --color-bg-accent: #262626;
     --color-error: #ff7b6b;
     --color-anchor: #5a4a12;
+    --color-focus: #7aa8ff;
+    --color-invalid: #6b2a22;
+    --color-rounded: #1f4468;
   }
 }
 
@@ -211,4 +217,62 @@ body {
 .timetable__empty {
   padding: 0.5rem;
   color: var(--color-fg-muted);
+}
+
+/* 升目の編集（T-20、仕様書 §6.1.2）。 */
+.timetable__cell {
+  cursor: cell;
+}
+
+.timetable__cell:focus-visible,
+.timetable__cell:focus {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+.timetable__input {
+  /*
+   * 幅を決め打ちにする。`width: 100%` だと、入力欄が持つ既定の文字数
+   * （20 文字）で列が広がり、編集を始めた瞬間に表がずれる。
+   */
+  width: 4rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: right;
+}
+
+.timetable__input:focus {
+  outline: none;
+}
+
+/* 受け付けられない入力。打った内容は消さず、色で知らせる。 */
+.timetable__cell--invalid {
+  background: var(--color-invalid);
+}
+
+/*
+ * 5 分に丸めたことを知らせる（§6.1.2）。色だけに頼らず、動きでも示す。
+ * 動きを減らす設定の利用者には出さない（§9.4）。
+ */
+.timetable__cell--rounded {
+  animation: timetable-rounded 0.7s ease-out;
+}
+
+@keyframes timetable-rounded {
+  from {
+    background: var(--color-rounded);
+  }
+  to {
+    background: transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .timetable__cell--rounded {
+    animation: none;
+    background: var(--color-rounded);
+  }
 }
