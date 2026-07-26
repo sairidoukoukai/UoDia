@@ -48,6 +48,60 @@ export default tseslint.config(
     extends: [reactHooks.configs.flat['recommended-latest'], reactRefresh.configs.vite],
   },
 
+  // ---- プラットフォーム境界（仕様書 §10.4、実装計画書 T-12）----
+  //
+  // `src/domain/` と `src/features/` は PlatformAdapter にのみ依存し、
+  // Tauri API とブラウザ API を直接呼ばない。方針を文書に書くだけでは、
+  // 「ここだけ」の直接呼び出しが必ず入り込む。
+  {
+    files: ['src/domain/**/*.{ts,tsx}', 'src/features/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@tauri-apps/*', '@tauri-apps/**'],
+              message:
+                'Tauri API を直接呼ばないでください。PlatformAdapter（src/platform）を経由します。',
+            },
+            {
+              group: ['@/platform/tauri', '@/platform/web', '**/platform/tauri', '**/platform/web'],
+              message:
+                '特定の実装に依存しないでください。PlatformAdapter インタフェースを使います。',
+            },
+          ],
+        },
+      ],
+      // 永続化・通信に関わるブラウザ API も同様に禁じる。DOM の操作そのものは
+      // 画面を描く以上避けられないため、features では許す（domain では下で禁じる）。
+      'no-restricted-globals': [
+        'error',
+        { name: 'localStorage', message: 'PlatformAdapter を経由してください。' },
+        { name: 'sessionStorage', message: 'PlatformAdapter を経由してください。' },
+        { name: 'indexedDB', message: 'PlatformAdapter を経由してください。' },
+        { name: 'fetch', message: 'PlatformAdapter を経由してください。' },
+      ],
+    },
+  },
+  {
+    // ドメイン層は純関数のみで構成する（実装計画書 §2.3）。DOM にも触れない。
+    files: ['src/domain/**/*.{ts,tsx}'],
+    ignores: ['src/domain/**/*.{test,spec}.{ts,tsx}'],
+    rules: {
+      'no-restricted-globals': [
+        'error',
+        { name: 'window', message: 'ドメイン層はブラウザ API に依存しません。' },
+        { name: 'document', message: 'ドメイン層はブラウザ API に依存しません。' },
+        { name: 'navigator', message: 'ドメイン層はブラウザ API に依存しません。' },
+        { name: 'localStorage', message: 'PlatformAdapter を経由してください。' },
+        { name: 'sessionStorage', message: 'PlatformAdapter を経由してください。' },
+        { name: 'indexedDB', message: 'PlatformAdapter を経由してください。' },
+        { name: 'fetch', message: 'PlatformAdapter を経由してください。' },
+      ],
+    },
+  },
+
   // ---- 設定ファイル（Node 環境・型情報ルールの対象外）----
   {
     files: ['**/*.js', '**/*.cjs', '**/*.mjs'],
