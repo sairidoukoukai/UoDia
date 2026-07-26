@@ -14,6 +14,7 @@ import {
   type FileHandle,
   type OpenedProject,
   type PlatformAdapter,
+  type PlatformCapabilities,
   type RecentFile,
 } from './types';
 
@@ -47,8 +48,15 @@ export function createMemoryPlatform(options: MemoryPlatformOptions = {}): Memor
   const now = options.now ?? ((): Date => new Date());
   const recent: RecentFile[] = [];
 
+  const capabilities: PlatformCapabilities = {
+    saveInPlace: true,
+    recentFiles: true,
+    networkDefWritable: options.canSaveNetworkDef ?? true,
+  };
+
   const platform: MemoryPlatform = {
     kind: 'memory',
+    capabilities,
     files: new Map(Object.entries(options.files ?? {})),
     networkDef: options.networkDef ?? '',
     savedNetworkDef: null,
@@ -89,16 +97,12 @@ export function createMemoryPlatform(options: MemoryPlatformOptions = {}): Memor
     },
 
     saveNetworkDef(content: string): Promise<void> {
-      if (!platform.canSaveNetworkDef()) {
+      if (!capabilities.networkDefWritable) {
         return Promise.reject(new Error('この環境では route.json を書き戻せません'));
       }
       platform.savedNetworkDef = content;
       platform.networkDef = content;
       return Promise.resolve();
-    },
-
-    canSaveNetworkDef(): boolean {
-      return options.canSaveNetworkDef ?? true;
     },
 
     writeBackup(content: string): Promise<void> {

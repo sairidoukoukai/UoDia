@@ -980,7 +980,21 @@ interface FileHandle {
   readonly name: string;   // 利用者に見せる名前
   readonly ref: unknown;   // アダプタだけが解釈する実体
 }
+
+interface PlatformCapabilities {
+  readonly saveInPlace: boolean;        // 上書き保存できるか
+  readonly recentFiles: boolean;        // 最近使ったファイルを保持できるか
+  readonly networkDefWritable: boolean; // route.json を書き戻せるか
+}
 ```
+
+**できないことは `capabilities` で事前に伝える。** 呼んでから失敗するのでは、メニューを出してよいかを判断できず、利用者は押してから断られることになる。ブラウザの種類ではなく**機能の有無**で表す。「Firefox かどうか」で分岐すると、対応状況が変わるたびに判定を書き直すことになる。
+
+| | デスクトップ版 | Web 版（File System Access API あり） | Web 版（無し） |
+| --- | --- | --- | --- |
+| `saveInPlace` | ✓ | ✓ | — （ダウンロード） |
+| `recentFiles` | ✓ | ✓ | — |
+| `networkDefWritable` | ✓ | — | — |
 
 **取り消しは例外ではなく `null` で表す。** 利用者がダイアログを閉じるのは正常な操作であり、異常として扱うと呼び出し側が毎回 try/catch を書くことになる。例外は本当に失敗したとき（読めない・書けない）だけに残す。
 

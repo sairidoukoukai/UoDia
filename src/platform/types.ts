@@ -52,6 +52,8 @@ export interface OpenedProject {
 export interface PlatformAdapter {
   /** この実装の識別子。作る `FileHandle` の `kind` と一致する。 */
   readonly kind: string;
+  /** この環境でできること。 */
+  readonly capabilities: PlatformCapabilities;
 
   /** ファイルを選ばせて開く。取り消されたら `null`。 */
   openProject(): Promise<OpenedProject | null>;
@@ -65,12 +67,10 @@ export interface PlatformAdapter {
   /**
    * `route.json` を書き戻す。
    *
-   * Web 版では書き戻せないため、対応の有無を {@link canSaveNetworkDef} で問う
-   * （仕様書 §6.5.5）。対応していない実装で呼ぶと例外を投げる。
+   * 対応していない環境（{@link PlatformCapabilities.networkDefWritable} が
+   * `false`）で呼ぶと例外を投げる。仕様書 §6.5.5。
    */
   saveNetworkDef(content: string): Promise<void>;
-  /** `route.json` を書き戻せる環境か。 */
-  canSaveNetworkDef(): boolean;
 
   /** 自動バックアップを書く（仕様書 §6.8）。 */
   writeBackup(content: string): Promise<void>;
@@ -87,3 +87,31 @@ export interface PlatformAdapter {
 
 /** 最近使ったファイルの保持件数（仕様書 §6.8）。 */
 export const MAX_RECENT_FILES = 10;
+
+/**
+ * その環境で何ができるか（仕様書 §10.4）。
+ *
+ * 真偽値を並べているのは、**できないことを UI が事前に知る必要がある**ため。
+ * 呼んでから失敗するのでは、メニューを出してよいかを判断できず、利用者は
+ * 押してから断られることになる。
+ *
+ * ブラウザの種類ではなく**機能の有無**で表す。「Firefox かどうか」で分岐すると、
+ * 対応状況が変わるたびに判定を書き直すことになる。
+ */
+export interface PlatformCapabilities {
+  /**
+   * 開いたファイルへ**上書き保存**できるか。
+   *
+   * `false` の環境（File System Access API 非対応のブラウザ）では、保存は
+   * ダウンロードになる。同じ場所へ書き戻すことはできない。
+   */
+  readonly saveInPlace: boolean;
+  /**
+   * 最近使ったファイルを保持できるか。
+   *
+   * ファイルへの参照を永続化できない環境では保持できない。
+   */
+  readonly recentFiles: boolean;
+  /** `route.json` を書き戻せるか（仕様書 §6.5.5）。 */
+  readonly networkDefWritable: boolean;
+}

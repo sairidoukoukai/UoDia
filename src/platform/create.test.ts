@@ -43,8 +43,10 @@ describe('createPlatform', () => {
     expect((await createPlatform()).kind).toBe('tauri');
   });
 
-  it('ブラウザではインメモリ実装に倒す（Web 版の実装は T-14）', async () => {
+  it('ブラウザでは Web 版の実装を返す', async () => {
+    // File System Access API の有無に関わらず、Web 版の実装が選ばれる。
+    // 対応状況の違いは capabilities で表す（実装は差し替えない）。
     stubWindow(false);
-    expect((await createPlatform()).kind).toBe('memory');
+    expect((await createPlatform()).kind).toBe('web');
   });
 });
