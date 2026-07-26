@@ -12,6 +12,7 @@
 
 import {
   MAX_RECENT_FILES,
+  foreignHandleError,
   type CloseHandler,
   type FileHandle,
   type OpenedProject,
@@ -109,9 +110,7 @@ export function createWebPlatform(environment: WebEnvironment): PlatformAdapter 
 
     async saveProject(handle: FileHandle, content: string): Promise<void> {
       const target = toRef(handle);
-      if (target === null) {
-        throw new TypeError(`この実装が作ったハンドルではありません: ${handle.kind}`);
-      }
+      if (target === null) throw foreignHandleError(handle);
 
       // 上書きできない経路では、黙ってダウンロードに倒す。ここで失敗させると
       // 「保存」がまったく効かない環境になってしまう。何が起きるかは
@@ -182,9 +181,7 @@ export function createWebPlatform(environment: WebEnvironment): PlatformAdapter 
 
     async addRecentFile(handle: FileHandle): Promise<void> {
       const target = toRef(handle);
-      if (target === null) {
-        throw new TypeError(`この実装が作ったハンドルではありません: ${handle.kind}`);
-      }
+      if (target === null) throw foreignHandleError(handle);
       // 覚えられない環境では黙って何もしない。呼び出し側に環境ごとの分岐を
       // 書かせないため。できないことは capabilities.recentFiles で伝えている。
       if (fileSystem === null || target.mode !== 'inPlace') return;

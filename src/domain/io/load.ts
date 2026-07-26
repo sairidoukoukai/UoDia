@@ -19,6 +19,7 @@ import {
   type Trip,
 } from '@/domain/model';
 import type { NetworkIndex } from '@/domain/network';
+import { parseJson } from '@/domain/util';
 import { MIGRATIONS, migrateProjectData, type Migration } from './migrate';
 
 /** 読込時の警告の種類。 */
@@ -70,14 +71,12 @@ export function loadProject(
   network: NetworkIndex,
   options: LoadProjectOptions = {},
 ): LoadProjectResult {
-  let raw: unknown;
-  try {
-    raw = JSON.parse(json);
-  } catch (error) {
-    return { ok: false, stage: 'json', message: String(error) };
+  const parsed = parseJson(json);
+  if (!parsed.ok) {
+    return { ok: false, stage: 'json', message: parsed.message };
   }
 
-  return loadProjectData(raw, network, options);
+  return loadProjectData(parsed.value, network, options);
 }
 
 /**

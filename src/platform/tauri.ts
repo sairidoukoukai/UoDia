@@ -15,6 +15,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import {
   MAX_RECENT_FILES,
+  foreignHandleError,
   type CloseHandler,
   type FileHandle,
   type OpenedProject,
@@ -58,10 +59,8 @@ export function toHandle(path: string): FileHandle {
 }
 
 /**
- * ハンドルからパスを取り出す。解釈できなければ `null`。
- *
- * 他の環境で作られたハンドルを黙って `name` で代用すると、意図しないファイルを
- * 上書きしかねない（仕様書 §10.4）。
+ * ハンドルからパスを取り出す。解釈できなければ `null`
+ * （呼び出し側が {@link foreignHandleError} で断る）。
  */
 export function toPath(handle: FileHandle): string | null {
   return handle.kind === KIND && typeof handle.ref === 'string' ? handle.ref : null;
@@ -88,19 +87,13 @@ export function createTauriPlatform(): PlatformAdapter {
 
     readProject(handle: FileHandle): Promise<string> {
       const path = toPath(handle);
-      if (path === null) {
-        return Promise.reject(
-          new TypeError(`この実装が作ったハンドルではありません: ${handle.kind}`),
-        );
-      }
+      if (path === null) return Promise.reject(foreignHandleError(handle));
       return invoke<string>('read_project_file', { path });
     },
 
     async saveProject(handle: FileHandle, content: string): Promise<void> {
       const path = toPath(handle);
-      if (path === null) {
-        throw new TypeError(`この実装が作ったハンドルではありません: ${handle.kind}`);
-      }
+      if (path === null) throw foreignHandleError(handle);
       await invoke('save_project_file', { path, content });
     },
 
@@ -146,9 +139,7 @@ export function createTauriPlatform(): PlatformAdapter {
 
     async addRecentFile(handle: FileHandle): Promise<void> {
       const path = toPath(handle);
-      if (path === null) {
-        throw new TypeError(`この実装が作ったハンドルではありません: ${handle.kind}`);
-      }
+      if (path === null) throw foreignHandleError(handle);
       await invoke('add_recent_file', { path, openedAt: new Date().toISOString() });
     },
 

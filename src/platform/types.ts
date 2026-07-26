@@ -29,6 +29,18 @@ export interface FileHandle {
   readonly ref: unknown;
 }
 
+/**
+ * 別の実装が作ったハンドルを渡されたことを表す例外。
+ *
+ * 解釈できないハンドルを黙って `name` で代用してはならない。名前が同じだけの
+ * 別のファイルを上書きしかねないためである（仕様書 §10.4）。**どの実装でも同じ
+ * 型・同じ文で断る**ことにして、呼び出し側が実装ごとの見分け方を持たずに済ま
+ * せる。
+ */
+export function foreignHandleError(handle: FileHandle): TypeError {
+  return new TypeError(`この実装が作ったハンドルではありません: ${handle.kind}`);
+}
+
 /** 最近使ったファイル（仕様書 §6.8）。 */
 export interface RecentFile {
   readonly handle: FileHandle;

@@ -19,6 +19,7 @@ import type { Trip } from '@/domain/model';
 import type { NetworkIndex } from '@/domain/network';
 import { compareTime, diffMinutes, type Seconds } from '@/domain/time';
 import { originTime, terminalTime } from '@/domain/trip';
+import { adjacentPairs } from '@/domain/util';
 
 /** 運用の中の 1 便と、そこから導出される値。 */
 export interface BlockTrip {
@@ -168,17 +169,15 @@ function buildBlock(blockId: string, group: NonEmptyTrips, depotIds: ReadonlySet
       a.trip.tripId.localeCompare(b.trip.tripId),
   );
 
+  // 先頭の便に折返し時分は無い。以降は直前の便の終着との差で決まる。
   const first = sorted[0];
-  let previous: ResolvedTrip | undefined;
+  const trips: BlockTrip[] = [{ ...first, layoverMinutes: null }];
   let last: ResolvedTrip = first;
-  const trips: BlockTrip[] = [];
-  for (const current of sorted) {
+  for (const [previous, current] of adjacentPairs(sorted)) {
     trips.push({
       ...current,
-      layoverMinutes:
-        previous === undefined ? null : diffMinutes(current.originTime, previous.terminalTime),
+      layoverMinutes: diffMinutes(current.originTime, previous.terminalTime),
     });
-    previous = current;
     last = current;
   }
 
@@ -206,14 +205,9 @@ function findStandbys(
   isDepot: (stopId: string) => boolean,
 ): DepotStandby[] {
   const standbys: DepotStandby[] = [];
-  let previous: BlockTrip | undefined;
 
-  for (const current of trips) {
-    if (
-      previous !== undefined &&
-      isDepot(previous.terminalStopId) &&
-      isDepot(current.originStopId)
-    ) {
+  for (const [previous, current] of adjacentPairs(trips)) {
+    if (isDepot(previous.terminalStopId) && isDepot(current.originStopId)) {
       standbys.push({
         inboundTripId: previous.trip.tripId,
         outboundTripId: current.trip.tripId,
@@ -222,7 +216,6 @@ function findStandbys(
         minutes: diffMinutes(current.originTime, previous.terminalTime),
       });
     }
-    previous = current;
   }
 
   return standbys;

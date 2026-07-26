@@ -18,6 +18,7 @@
  */
 
 import { networkDefSchema, parseWithSchema, type SchemaIssue } from '@/domain/model';
+import { parseJson } from '@/domain/util';
 import { buildNetworkIndex, type NetworkIndex } from './networkIndex';
 import { validateNetwork, type NetworkIssue } from './validate';
 
@@ -35,15 +36,12 @@ export type LoadNetworkResult =
  * という方針に従い、読み出しは `PlatformAdapter` の責務とする。
  */
 export function loadNetworkDef(json: string): LoadNetworkResult {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(json);
-  } catch (error) {
-    // String() は Error でも非 Error でも読める文字列を返すため、型で分岐しない。
-    return { ok: false, stage: 'json', message: String(error) };
+  const parsed = parseJson(json);
+  if (!parsed.ok) {
+    return { ok: false, stage: 'json', message: parsed.message };
   }
 
-  const schemaResult = parseWithSchema(networkDefSchema, parsed);
+  const schemaResult = parseWithSchema(networkDefSchema, parsed.value);
   if (!schemaResult.ok) {
     return { ok: false, stage: 'schema', issues: schemaResult.issues };
   }
