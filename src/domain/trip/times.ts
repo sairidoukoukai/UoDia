@@ -27,20 +27,27 @@
  * - 導出した時刻が表現できる範囲（0:00〜47:55）を外れる
  */
 
-import type { Trip } from '@/domain/model';
+import type { Anchor, Trip } from '@/domain/model';
 import type { NetworkIndex, PatternIndex } from '@/domain/network';
 import { tryAddMinutes, type Seconds } from '@/domain/time';
 
-/** 便のパターンと、アンカー停留所の累積所要時間。どちらか解決できなければ `null`。 */
+/** その便に時刻が入力されているか。`false` なら全停留所の時刻が `null` になる。 */
+export function isAnchored(trip: Trip): boolean {
+  return trip.anchor !== null;
+}
+
+/** 便のパターンとアンカー。解決できなければ `null`。 */
 function resolve(
   trip: Trip,
   network: NetworkIndex,
-): { pattern: PatternIndex; anchorOffset: number } | null {
+): { pattern: PatternIndex; anchor: Anchor; anchorOffset: number } | null {
   const pattern = network.patternIndex(trip.patternId);
   if (pattern === undefined) return null;
-  const anchorOffset = pattern.offsetFromOrigin(trip.anchor.stopId);
+  const { anchor } = trip;
+  if (anchor === null) return null;
+  const anchorOffset = pattern.offsetFromOrigin(anchor.stopId);
   if (anchorOffset === undefined) return null;
-  return { pattern, anchorOffset };
+  return { pattern, anchor, anchorOffset };
 }
 
 /**
@@ -54,7 +61,7 @@ export function timeAt(trip: Trip, stopId: string, network: NetworkIndex): Secon
   if (resolved === null) return null;
   const offset = resolved.pattern.offsetFromOrigin(stopId);
   if (offset === undefined) return null;
-  return tryAddMinutes(trip.anchor.time, offset - resolved.anchorOffset);
+  return tryAddMinutes(resolved.anchor.time, offset - resolved.anchorOffset);
 }
 
 /**
@@ -69,7 +76,7 @@ export function allTimes(trip: Trip, network: NetworkIndex): Map<string, Seconds
   if (resolved === null) return times;
 
   for (const [stopId, offset] of resolved.pattern.offsets) {
-    const time = tryAddMinutes(trip.anchor.time, offset - resolved.anchorOffset);
+    const time = tryAddMinutes(resolved.anchor.time, offset - resolved.anchorOffset);
     if (time !== null) times.set(stopId, time);
   }
   return times;
@@ -131,10 +138,13 @@ export function setTimeAt(
  * 便全体を指定分だけ平行移動する（仕様書 §6.1.4 の一括シフト、§6.3 のドラッグ）。
  *
  * アンカー時刻だけを動かす。**スジの傾きは変わらない。**
+ * 時刻が未入力の便は動かしようがないため `null` を返す。
  */
 export function shiftTrip(trip: Trip, minutes: number, network: NetworkIndex): Trip | null {
-  const time = tryAddMinutes(trip.anchor.time, minutes);
-  return time === null ? null : setTimeAt(trip, trip.anchor.stopId, time, network);
+  const { anchor } = trip;
+  if (anchor === null) return null;
+  const time = tryAddMinutes(anchor.time, minutes);
+  return time === null ? null : setTimeAt(trip, anchor.stopId, time, network);
 }
 
 /**
@@ -147,12 +157,19 @@ export function shiftTrip(trip: Trip, minutes: number, network: NetworkIndex): T
  * 始発時刻を引き継ぐ**。始発時刻を選ぶのは、それが利用者にとって最も動いて
  * ほしくない値だからである（例: 箕面経由から直行へ変えても、豊中学舎を出る時刻は
  * 変えたくない）。
+ *
+ * 時刻が未入力の便は、未入力のまま経路だけが変わる。引き継ぐ時刻が無いのだから
+ * 仮の時刻を作ってはならない。経路を決めてから時刻を入れる、という順序の入力が
+ * これで成り立つ。
  */
 export function changePattern(trip: Trip, patternId: string, network: NetworkIndex): Trip | null {
   const next = network.patternIndex(patternId);
   if (next === undefined) return null;
 
-  if (next.includes(trip.anchor.stopId)) {
+  const { anchor } = trip;
+  if (anchor === null) return { ...trip, patternId };
+
+  if (next.includes(anchor.stopId)) {
     const moved: Trip = { ...trip, patternId };
     return isRepresentable(moved, network) ? moved : null;
   }

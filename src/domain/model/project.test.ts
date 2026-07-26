@@ -79,6 +79,15 @@ describe('tripSchema', () => {
       tripSchema.safeParse(makeTrip({ anchor: { stopId: '1_0', time: fromHM(25, 30) } })).success,
     ).toBe(true);
   });
+
+  it('アンカーの null を受け入れる（時刻が未入力の便。仕様書 §6.1.4）', () => {
+    expect(tripSchema.safeParse(makeTrip({ anchor: null })).success).toBe(true);
+  });
+
+  it('アンカーの省略は受け入れない（未入力は null で明示する）', () => {
+    const { anchor: _anchor, ...withoutAnchor } = makeTrip();
+    expect(tripSchema.safeParse(withoutAnchor).success).toBe(false);
+  });
 });
 
 describe('serviceSchema', () => {

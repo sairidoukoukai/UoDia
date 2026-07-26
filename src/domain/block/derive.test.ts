@@ -115,7 +115,12 @@ describe('deriveBlocks — グルーピングと整列', () => {
   });
 
   it('便が 1 つも無ければ運用も無い', () => {
-    expect(deriveBlocks([], network)).toEqual({ blocks: [], unassigned: [], unresolved: [] });
+    expect(deriveBlocks([], network)).toEqual({
+      blocks: [],
+      unassigned: [],
+      unanchored: [],
+      unresolved: [],
+    });
   });
 });
 
@@ -153,11 +158,28 @@ describe('deriveBlocks — 運用に属さない便', () => {
     expect(deriveBlocks([broken], network).unresolved).toHaveLength(1);
   });
 
-  it('空欄の便はパターンが壊れていても unassigned として扱う', () => {
+  it('運用番号が空欄で参照も壊れていれば、両方に現れる', () => {
+    // どちらも別々に直す必要がある事実であり、片方だけ報告すると二度手間になる
     const broken = { ...trip('S1', 8, 0, ''), patternId: 'なにこれ' };
     const { unassigned, unresolved } = deriveBlocks([broken], network);
     expect(unassigned).toHaveLength(1);
+    expect(unresolved).toHaveLength(1);
+  });
+
+  it('アンカー未設定の便は unanchored に入れる', () => {
+    const empty: Trip = { ...trip('S1', 8, 0, '1'), anchor: null };
+    const { blocks, unanchored, unresolved } = deriveBlocks([empty], network);
+    expect(blocks).toEqual([]);
+    expect(unanchored.map((t) => t.tripId)).toEqual([empty.tripId]);
+    // 「まだ入力していない」は「壊れている」ではない
     expect(unresolved).toHaveLength(0);
+  });
+
+  it('運用番号が空欄でアンカーも未設定なら、両方に現れる', () => {
+    const empty: Trip = { ...trip('S1', 8, 0, ''), anchor: null };
+    const { unassigned, unanchored } = deriveBlocks([empty], network);
+    expect(unassigned).toHaveLength(1);
+    expect(unanchored).toHaveLength(1);
   });
 });
 

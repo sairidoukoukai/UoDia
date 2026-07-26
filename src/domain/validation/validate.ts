@@ -34,20 +34,25 @@ export function validateService(
   network: NetworkIndex,
   thresholds: ValidationThresholds = DEFAULT_THRESHOLDS,
 ): ValidationIssue[] {
-  const { blocks, unassigned, unresolved } = deriveBlocks(trips, network);
+  const { blocks, unassigned, unanchored, unresolved } = deriveBlocks(trips, network);
   const service = resolveServiceTrips(trips, network);
 
   return [
     ...blocks.flatMap((block) => checkBlockConnection(block)),
     ...blocks.flatMap((block) => checkBlockOverlap(block)),
+    ...unresolved.map((trip) =>
+      issue(
+        'V-04',
+        'この便の時刻を導出できません。停車パターンまたはアンカーの参照が壊れています',
+        {
+          tripId: trip.tripId,
+        },
+      ),
+    ),
     ...blocks.flatMap((block) => checkBlockEnds(block)),
     ...checkHeadway(service, thresholds),
-    ...unassigned.map((trip) => issue('V-06', '運用番号が空欄です', { tripId: trip.tripId })),
-    ...unresolved.map((trip) =>
-      issue('V-07', '時刻を導出できません（アンカーが未設定か、参照が壊れています）', {
-        tripId: trip.tripId,
-      }),
-    ),
+    ...unassigned.map((trip) => issue('V-07', '運用番号が空欄です', { tripId: trip.tripId })),
+    ...unanchored.map((trip) => issue('V-08', '時刻が入力されていません', { tripId: trip.tripId })),
     ...blocks.flatMap((block) => checkStandby(block, thresholds)),
   ];
 }
@@ -122,25 +127,25 @@ function checkBlockOverlap(block: Block): ValidationIssue[] {
   return issues;
 }
 
-/** V-04: 運用の先頭便が出庫回送であり、末尾便が入庫回送であること。 */
+/** V-05: 運用の先頭便が出庫回送であり、末尾便が入庫回送であること。 */
 function checkBlockEnds(block: Block): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   if (block.pullOutTime === null) {
-    issues.push(issue('V-04', '運用の先頭が出庫回送ではありません', { blockId: block.blockId }));
+    issues.push(issue('V-05', '運用の先頭が出庫回送ではありません', { blockId: block.blockId }));
   }
   if (block.pullInTime === null) {
-    issues.push(issue('V-04', '運用の末尾が入庫回送ではありません', { blockId: block.blockId }));
+    issues.push(issue('V-05', '運用の末尾が入庫回送ではありません', { blockId: block.blockId }));
   }
   return issues;
 }
 
-/** V-08: 営業所待機が短すぎないこと。停留所で待機できる可能性がある。 */
+/** V-09: 営業所待機が短すぎないこと。停留所で待機できる可能性がある。 */
 function checkStandby(block: Block, thresholds: ValidationThresholds): ValidationIssue[] {
   return block.standbys
     .filter((standby) => standby.minutes < thresholds.minStandbyMinutes)
     .map((standby) =>
       issue(
-        'V-08',
+        'V-09',
         `営業所待機が ${String(standby.minutes)} 分です。入庫せず停留所で待機できる可能性があります`,
         { blockId: block.blockId, tripId: standby.inboundTripId },
       ),
@@ -167,7 +172,7 @@ function resolveServiceTrips(trips: readonly Trip[], network: NetworkIndex): Ser
 }
 
 /**
- * V-05: 同方向の便の間隔が極端でないこと。
+ * V-06: 同方向の便の間隔が極端でないこと。
  *
  * 間隔は**停留所ごとに**測る。便によって始発停留所が違うため（豊中学舎発・
  * 箕面学舎発・工学部前発）、始発時刻の差を間隔と呼ぶと、利用者から見た待ち時間と
@@ -208,13 +213,13 @@ function checkHeadway(
         const gap = diffMinutes(current.time, previous.time);
         if (gap < thresholds.minHeadwayMinutes) {
           issues.push(
-            issue('V-05', `${stopId} で前の便との間隔が ${String(gap)} 分しかありません`, {
+            issue('V-06', `${stopId} で前の便との間隔が ${String(gap)} 分しかありません`, {
               tripId: current.tripId,
             }),
           );
         } else if (gap > thresholds.maxHeadwayMinutes) {
           issues.push(
-            issue('V-05', `${stopId} で前の便との間隔が ${String(gap)} 分空いています`, {
+            issue('V-06', `${stopId} で前の便との間隔が ${String(gap)} 分空いています`, {
               tripId: current.tripId,
             }),
           );

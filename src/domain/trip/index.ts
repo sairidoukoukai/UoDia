@@ -1,6 +1,7 @@
 export {
   allTimes,
   changePattern,
+  isAnchored,
   originStopId,
   originTime,
   setTimeAt,
