@@ -35,8 +35,7 @@ npm install
 | コマンド | 内容 |
 | --- | --- |
 | `npm run dev` | Web 版の開発サーバ（http://localhost:1420） |
-| `npm run dev:desktop` | デスクトップ版の開発起動 |
-| `npm run dev:desktop:wsl` | 同上（WSL 用。後述） |
+| `npm run dev:desktop` | デスクトップ版の開発起動（WSL は自動判定） |
 | `npm run build:web` | Web 版のビルド |
 | `npm run build:desktop` | デスクトップ版のビルド |
 | `npm run test` | テスト実行 |
@@ -65,13 +64,18 @@ src/
 
 ## WSL でデスクトップ版を動かす場合
 
-WSLg は DRI3 に対応していないため、WebKitGTK が GPU 合成に失敗してウィンドウが正しく表示されないことがある。その場合はソフトウェアレンダリングを強制する。
+**追加の操作は要らない。** `npm run dev:desktop` が WSL を自動判定し、必要な設定を入れて起動する（`scripts/tauri-dev.mjs`）。
 
-```bash
-npm run dev:desktop:wsl
+WSLg の既定経路（Wayland）では WebKitGTK の EGL 初期化が失敗し、**ウィンドウは作られるのに何も描かれない**という分かりにくい壊れ方をする。タスクバーには項目が現れるため、起動していないのか描けていないのかも判別しにくい。
+
+```
+MESA: error: ZINK: failed to choose pdev
+libEGL warning: egl: failed to create dri2 screen
 ```
 
-これでも表示されない場合は、Windows 側にネイティブインストールした Node.js / Rust で実行するとよい。Web 版（`npm run dev`）は WSL でも問題なく動作する。
+`GDK_BACKEND=x11` で X11（Xwayland）経由にすると描画される。あわせてソフトウェアレンダリングに倒し、`libEGL warning: DRI3 error` が出続けないようにしている。
+
+Web 版（`npm run dev`）は WSL でもそのまま動作する。ブラウザで確認するだけなら、こちらの方が起動が速い。
 
 ## 進め方
 
