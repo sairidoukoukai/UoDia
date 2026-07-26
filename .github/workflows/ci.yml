@@ -111,5 +111,13 @@ jobs:
       - name: 依存のインストール
         run: npm ci
 
+      # Rust 側にもファイル I/O の実ロジックがある（アトミック書き込み・
+      # route.json の複製・履歴）。ビルドが通るだけでは正しさを確かめられない。
+      - name: Rust のテスト
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
+      - name: Rust の Lint
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+
       - name: ビルド
         run: npm run build:desktop

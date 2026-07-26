@@ -8,6 +8,8 @@ export {
 
 export { createMemoryPlatform, type MemoryPlatform, type MemoryPlatformOptions } from './memory';
 
+export { createPlatform, isTauri } from './create';
+
 export { usePlatform } from './context';
 
 export { PlatformProvider, type PlatformProviderProps } from './PlatformProvider';
