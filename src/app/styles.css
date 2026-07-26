@@ -8,6 +8,10 @@
   --color-fg: #1a1a1a;
   --color-fg-muted: #666666;
   --color-border: #cccccc;
+  --color-bg-accent: #f4f4f4;
+  --color-error: #c0392b;
+  /* アンカーの升目。色だけに頼らず太字も併用する（仕様書 §9.4）。 */
+  --color-anchor: #fff2b8;
 
   font-family:
     system-ui,
@@ -26,6 +30,9 @@
     --color-fg: #f0f0f0;
     --color-fg-muted: #999999;
     --color-border: #444444;
+    --color-bg-accent: #262626;
+    --color-error: #ff7b6b;
+    --color-anchor: #5a4a12;
   }
 }
 
@@ -102,4 +109,106 @@ body {
 .file-dialog__note {
   color: var(--color-fg-muted);
   font-size: 0.875rem;
+}
+
+/* 時刻表（T-19、仕様書 §6.1.1）。 */
+.timetable-pane {
+  margin-top: 1rem;
+  /* 表の外に出さない。ページ全体が横に伸びると停留所名の固定が意味を失う。 */
+  min-width: 0;
+}
+
+.timetable__tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.timetable__tab {
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.25rem 0.25rem 0 0;
+  background: transparent;
+  color: var(--color-fg-muted);
+  cursor: pointer;
+}
+
+.timetable__tab--active {
+  background: var(--color-bg-accent);
+  color: var(--color-fg);
+  font-weight: 600;
+}
+
+.timetable__scroll {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+}
+
+.timetable {
+  border-collapse: separate;
+  /* separate + border-spacing 0 にする。collapse だと、固定した列の罫線が
+     スクロール時に一緒に流れてしまう。 */
+  border-spacing: 0;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.timetable th,
+.timetable td {
+  padding: 0.15rem 0.5rem;
+  border-right: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+  font-size: 0.875rem;
+  font-weight: normal;
+  text-align: right;
+}
+
+.timetable thead th,
+.timetable thead td {
+  background: var(--color-bg-accent);
+}
+
+/* 停留所名の列は横スクロールしても残す。 */
+.timetable__corner,
+.timetable tbody .timetable__stop,
+.timetable thead th[scope='row'] {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--color-bg-accent);
+  text-align: left;
+}
+
+.timetable__head--deadhead,
+.timetable__cell--deadhead {
+  color: var(--color-fg-muted);
+}
+
+.timetable__head--broken {
+  color: var(--color-error);
+}
+
+.timetable__badge {
+  margin-left: 0.25rem;
+  padding: 0 0.25rem;
+  border-radius: 0.25rem;
+  background: var(--color-border);
+  font-size: 0.75rem;
+}
+
+/* 経由しない停留所。空欄（未入力）と見分けられるようにする。 */
+.timetable__cell--notServed {
+  color: var(--color-fg-muted);
+  text-align: center;
+}
+
+/* アンカーの升目。どの時刻を基準に他が計算されているかを示す（§6.1.1）。 */
+.timetable__cell--anchor {
+  background: var(--color-anchor);
+  font-weight: 600;
+}
+
+.timetable__empty {
+  padding: 0.5rem;
+  color: var(--color-fg-muted);
 }
