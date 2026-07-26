@@ -39,6 +39,8 @@ function createFakeFileSystem() {
     denied: new Set<string>(),
     /** 権限を失った参照。 */
     unusable: new Set<string>(),
+    /** 読み取りを拒否する参照。 */
+    unreadable: new Set<string>(),
   };
 
   const api: FileSystemAccess = {
@@ -46,6 +48,16 @@ function createFakeFileSystem() {
       const name = state.openTarget;
       if (name === null) return Promise.resolve(null);
       return Promise.resolve({ ref: name, name, content: files.get(name) ?? '' });
+    },
+    read(ref) {
+      const name = ref as string;
+      if (state.unreadable.has(name)) {
+        return Promise.reject(new Error('ファイルの読み取りが許可されませんでした'));
+      }
+      const content = files.get(name);
+      return content === undefined
+        ? Promise.reject(new Error(`ファイルがありません: ${name}`))
+        : Promise.resolve(content);
     },
     save(ref, content) {
       const name = ref as string;
@@ -89,6 +101,8 @@ function createFakeFallback(): FallbackIo & {
 const BUNDLED = '{"version":1,"name":"同梱"}';
 
 function makeEnvironment(withFileSystem: boolean) {
+  const titles: string[] = [];
+  const unloadGuards: (() => boolean)[] = [];
   const store = createMemoryStore();
   const fileSystem = createFakeFileSystem();
   const fallback = createFakeFallback();
@@ -97,8 +111,25 @@ function makeEnvironment(withFileSystem: boolean) {
     fileSystem: withFileSystem ? fileSystem.api : null,
     fallback,
     loadBundledNetworkDef: () => Promise.resolve(BUNDLED),
+    setWindowTitle(title: string): void {
+      titles.push(title);
+    },
+    onBeforeUnload(canClose: () => boolean): () => void {
+      unloadGuards.push(canClose);
+      return () => {
+        unloadGuards.splice(unloadGuards.indexOf(canClose), 1);
+      };
+    },
   };
-  return { environment, store, fileSystem, fallback, platform: createWebPlatform(environment) };
+  return {
+    environment,
+    store,
+    fileSystem,
+    fallback,
+    titles,
+    unloadGuards,
+    platform: createWebPlatform(environment),
+  };
 }
 
 describe('capabilities — 何ができるかを事前に伝える', () => {
@@ -373,5 +404,51 @@ describe('ブラウザ API の検出', () => {
     const { hasFileSystemAccess, createFileSystemAccess } = await import('./browser');
     expect(hasFileSystemAccess()).toBe(false);
     expect(createFileSystemAccess()).toBeNull();
+  });
+});
+
+describe('T-17 で足した口', () => {
+  it('履歴のハンドルから読み直せる', async () => {
+    const { platform, fileSystem } = makeEnvironment(true);
+    fileSystem.files.set('a.uodia', '中身');
+    fileSystem.state.openTarget = 'a.uodia';
+    const opened = await platform.openProject();
+    if (opened === null) throw new Error('開けませんでした');
+
+    expect(await platform.readProject(opened.handle)).toBe('中身');
+  });
+
+  it('**ダウンロードで保存したファイルは開き直せない**', async () => {
+    const { platform } = makeEnvironment(false);
+    const handle = await platform.saveProjectAs('中身', 'a.uodia');
+    if (handle === null) throw new Error('保存できませんでした');
+
+    await expect(platform.readProject(handle)).rejects.toThrow(TypeError);
+  });
+
+  it('他の実装が作ったハンドルは解釈しない', async () => {
+    const { platform } = makeEnvironment(true);
+    await expect(platform.readProject({ kind: 'tauri', name: 'a', ref: '/a' })).rejects.toThrow(
+      TypeError,
+    );
+  });
+
+  it('タブの題名を変える', async () => {
+    const { platform, titles } = makeEnvironment(true);
+    await platform.setWindowTitle('a.uodia — UoDia');
+    expect(titles).toEqual(['a.uodia — UoDia']);
+  });
+
+  it('**閉じる操作には同期の答えだけを使う**（ブラウザは待ってくれない）', () => {
+    const { platform, unloadGuards } = makeEnvironment(true);
+    const stop = platform.onCloseRequested({
+      canCloseNow: () => false,
+      confirmClose: () => Promise.resolve(true),
+    });
+
+    expect(unloadGuards).toHaveLength(1);
+    expect(unloadGuards[0]?.()).toBe(false);
+    stop();
+    expect(unloadGuards).toHaveLength(0);
   });
 });

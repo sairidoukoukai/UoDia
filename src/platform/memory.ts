@@ -11,6 +11,7 @@
 
 import {
   MAX_RECENT_FILES,
+  type CloseHandler,
   type FileHandle,
   type OpenedProject,
   type PlatformAdapter,
@@ -42,6 +43,10 @@ export interface MemoryPlatform extends PlatformAdapter {
   openTarget: string | null;
   /** 次の「名前を付けて保存」で選ばれるファイル名。`null` なら取り消し。 */
   saveAsTarget: string | null;
+  /** 最後に設定されたウィンドウ題名。 */
+  windowTitle: string;
+  /** 閉じる操作に割り込んでいる相手。テストから閉じる操作を起こせる。 */
+  closeHandler: CloseHandler | null;
 }
 
 export function createMemoryPlatform(options: MemoryPlatformOptions = {}): MemoryPlatform {
@@ -63,6 +68,8 @@ export function createMemoryPlatform(options: MemoryPlatformOptions = {}): Memor
     backup: null,
     openTarget: null,
     saveAsTarget: null,
+    windowTitle: '',
+    closeHandler: null,
 
     openProject(): Promise<OpenedProject | null> {
       const name = platform.openTarget;
@@ -72,6 +79,19 @@ export function createMemoryPlatform(options: MemoryPlatformOptions = {}): Memor
         return Promise.reject(new Error(`ファイルがありません: ${name}`));
       }
       return Promise.resolve({ handle: makeHandle(name), content });
+    },
+
+    readProject(handle: FileHandle): Promise<string> {
+      const name = nameOf(handle);
+      if (name === null) {
+        return Promise.reject(
+          new TypeError(`このアダプタが作ったハンドルではありません: ${handle.kind}`),
+        );
+      }
+      const content = platform.files.get(name);
+      return content === undefined
+        ? Promise.reject(new Error(`ファイルがありません: ${name}`))
+        : Promise.resolve(content);
     },
 
     saveProject(handle: FileHandle, content: string): Promise<void> {
@@ -119,6 +139,11 @@ export function createMemoryPlatform(options: MemoryPlatformOptions = {}): Memor
       return Promise.resolve();
     },
 
+    setWindowTitle(title: string): Promise<void> {
+      platform.windowTitle = title;
+      return Promise.resolve();
+    },
+
     listRecentFiles(): Promise<readonly RecentFile[]> {
       return Promise.resolve([...recent]);
     },
@@ -130,6 +155,13 @@ export function createMemoryPlatform(options: MemoryPlatformOptions = {}): Memor
       recent.unshift({ handle, openedAt: now().toISOString() });
       recent.splice(MAX_RECENT_FILES);
       return Promise.resolve();
+    },
+
+    onCloseRequested(handler: CloseHandler): () => void {
+      platform.closeHandler = handler;
+      return () => {
+        platform.closeHandler = null;
+      };
     },
   };
 

@@ -24,6 +24,7 @@ import { applyPatches, enablePatches, produceWithPatches } from 'immer';
 import { create } from 'zustand';
 import type { NetworkDef, Project } from '@/domain/model';
 import { validateNetwork, type NetworkIssue } from '@/domain/network';
+import type { FileHandle } from '@/platform';
 import { createHistory, pushHistory, setHistoryLimit, takeRedo, takeUndo } from './history';
 import type { AppState, DocumentState } from './types';
 
@@ -85,8 +86,22 @@ export interface AppActions {
    * 意味を失う。
    */
   readonly setNetworkDef: (networkDef: NetworkDef) => void;
-  /** プロジェクトを開く・新規作成する。履歴と選択を捨てる。 */
-  readonly setProject: (project: Project | null) => void;
+  /**
+   * プロジェクトを開く・新規作成する。履歴と選択を捨てる。
+   *
+   * 開いた直後は保存済みの状態である。読み込んだ内容をそのまま
+   * 「保存した時点の内容」として覚える。
+   */
+  readonly setProject: (project: Project | null, handle?: FileHandle | null) => void;
+  /**
+   * 保存が済んだことを記録する。**履歴は捨てない。**
+   *
+   * 保存は編集ではないため、保存したあとも直前の編集を取り消せる必要がある。
+   * `meta.updatedAt` を打ち直した内容を受け取るのは、書き出したバイト列と
+   * 状態の中身を一致させるためである。ずれていると、保存した直後から
+   * 「未保存」に見える。
+   */
+  readonly markSaved: (project: Project, handle: FileHandle | null) => void;
 
   /** 選択を置き換える（仕様書 §6.3.1）。 */
   readonly selectTrips: (tripIds: readonly string[]) => void;
@@ -114,6 +129,7 @@ const INITIAL_STATE: AppState = {
   project: null,
   ui: { selectedTripIds: [] },
   history: createHistory(),
+  file: { handle: null, savedProject: null },
 };
 
 /** ストアを作る。テストごとに独立したものを使えるよう、生成を関数にしている。 */
@@ -199,13 +215,18 @@ export function createAppStore(): AppStoreHook {
       set({ networkDef, history: createHistory(get().history.limit) });
     },
 
-    setProject: (project): void => {
+    setProject: (project, handle = null): void => {
       set({
         project,
         history: createHistory(get().history.limit),
         // 別のプロジェクトの便を選んだままにしない。
         ui: { selectedTripIds: [] },
+        file: { handle, savedProject: project },
       });
+    },
+
+    markSaved: (project, handle): void => {
+      set({ project, file: { handle, savedProject: project } });
     },
 
     selectTrips: (tripIds): void => {

@@ -8,7 +8,7 @@
 //! そのまま利用者に見せられる。取り消しは失敗ではないため `Option` で表す。
 
 use std::path::Path;
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 use tauri_plugin_dialog::DialogExt;
 
 use crate::atomic;
@@ -18,6 +18,9 @@ use crate::recent::{self, RecentEntry};
 /// プロジェクトファイルの拡張子（仕様書 §7.1）。
 const PROJECT_EXTENSION: &str = "uodia";
 const PROJECT_FILTER_NAME: &str = "UoDia プロジェクト";
+
+/// `tauri.conf.json` で定義しているウィンドウのラベル。
+const MAIN_WINDOW: &str = "main";
 
 /// 「開く」ダイアログ。取り消されたら `None`。
 #[tauri::command]
@@ -104,6 +107,37 @@ pub fn add_recent_file(app: AppHandle, path: String, opened_at: String) -> Resul
     let json = serde_json::to_string_pretty(&next)
         .map_err(|e| format!("履歴を書き出せません: {e}"))?;
     atomic::write_atomic(&list_path, &json)
+}
+
+/// ウィンドウの題名を変える（仕様書 §6.8）。
+///
+/// フロントエンドの `document.title` では OS のウィンドウ題名は変わらない。
+/// 未保存を示す `[*]` を題名に出すため、ここで橋渡しする。
+#[tauri::command]
+pub fn set_window_title(app: AppHandle, title: String) -> Result<(), String> {
+    let window = app
+        .get_webview_window(MAIN_WINDOW)
+        .ok_or_else(|| format!("ウィンドウがありません: {MAIN_WINDOW}"))?;
+    window
+        .set_title(&title)
+        .map_err(|e| format!("題名を変えられません: {e}"))
+}
+
+/// ウィンドウを閉じる。
+///
+/// 閉じる操作はいったん Rust 側で必ず止めており（[`crate::run`]）、閉じてよいと
+/// フロントエンドが判断したときにここへ戻ってくる。未保存の変更があるかを
+/// 知っているのはフロントエンドだけであり、Rust 側で判断できない。
+#[tauri::command]
+pub fn close_window(app: AppHandle) -> Result<(), String> {
+    let window = app
+        .get_webview_window(MAIN_WINDOW)
+        .ok_or_else(|| format!("ウィンドウがありません: {MAIN_WINDOW}"))?;
+    // close() ではなく destroy() を使う。close() は再び CloseRequested を起こし、
+    // 止める側と閉じる側が延々と押し合うことになる。
+    window
+        .destroy()
+        .map_err(|e| format!("ウィンドウを閉じられません: {e}"))
 }
 
 /// 履歴を読む。壊れていれば空として扱う。

@@ -42,6 +42,17 @@ export function createFileSystemAccess(): FileSystemAccess | null {
       }
     },
 
+    async read(ref: unknown): Promise<string> {
+      const handle = ref as FileSystemFileHandle;
+      // 読むだけでも権限は要る。一覧に出す時点では求めていない（isUsable）ため、
+      // 実際に開くこの場で求める。
+      const permission = await handle.requestPermission({ mode: 'read' });
+      if (permission !== 'granted') {
+        throw new Error('ファイルの読み取りが許可されませんでした');
+      }
+      return (await handle.getFile()).text();
+    },
+
     async save(ref: unknown, content: string): Promise<void> {
       const handle = ref as FileSystemFileHandle;
       // 権限は時間が経つと失われる。書く直前に確かめ、必要なら求め直す。
@@ -152,5 +163,19 @@ export function createBrowserEnvironment(): WebEnvironment {
     fileSystem: createFileSystemAccess(),
     fallback: createFallbackIo(),
     loadBundledNetworkDef,
+    setWindowTitle(title: string): void {
+      document.title = title;
+    },
+    onBeforeUnload(canClose: () => boolean): () => void {
+      const listener = (event: BeforeUnloadEvent): void => {
+        if (canClose()) return;
+        // 文言はブラウザが決める。指定しても無視される。
+        event.preventDefault();
+      };
+      window.addEventListener('beforeunload', listener);
+      return () => {
+        window.removeEventListener('beforeunload', listener);
+      };
+    },
   };
 }

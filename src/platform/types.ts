@@ -57,6 +57,13 @@ export interface PlatformAdapter {
 
   /** ファイルを選ばせて開く。取り消されたら `null`。 */
   openProject(): Promise<OpenedProject | null>;
+  /**
+   * 既に分かっているハンドルから読む。最近使ったファイルを開くのに使う。
+   *
+   * 読めなければ例外を投げる。消された・移動された・権限を失った、のいずれも
+   * 利用者に伝えるべき失敗であり、取り消しとは違う。
+   */
+  readProject(handle: FileHandle): Promise<string>;
   /** 既存のファイルへ上書き保存する。 */
   saveProject(handle: FileHandle, content: string): Promise<void>;
   /** 名前を付けて保存する。取り消されたら `null`。 */
@@ -79,10 +86,40 @@ export interface PlatformAdapter {
   /** 自動バックアップを消す。正常終了時に呼ぶ。 */
   clearBackup(): Promise<void>;
 
+  /**
+   * ウィンドウ（Web 版はタブ）の題名を変える（仕様書 §6.8）。
+   *
+   * `document.title` では足りない。デスクトップ版の題名は OS のウィンドウが
+   * 持っており、中の文書からは触れないためである。
+   */
+  setWindowTitle(title: string): Promise<void>;
+
   /** 最近使ったファイル。新しい順。 */
   listRecentFiles(): Promise<readonly RecentFile[]>;
   /** 最近使ったファイルに加える。既にあれば先頭へ移す。 */
   addRecentFile(handle: FileHandle): Promise<void>;
+
+  /**
+   * 閉じる操作に割り込む。
+   *
+   * @returns 割り込みをやめる関数
+   */
+  onCloseRequested(handler: CloseHandler): () => void;
+}
+
+/**
+ * 閉じる操作への割り込み（仕様書 §6.8）。
+ *
+ * 同期と非同期の 2 つを持たせているのは、**ブラウザが待ってくれない**ためである。
+ * `beforeunload` の中で確認ダイアログを出して答えを待つことはできず、
+ * 「閉じてよいか」に同期で答えるしかない（その結果、ブラウザ既定の確認が出る）。
+ * デスクトップ版は閉じる操作をいったん止められるため、こちらの確認を出せる。
+ */
+export interface CloseHandler {
+  /** 今すぐ閉じてよいか。Web 版はこちらだけを使う。 */
+  canCloseNow(): boolean;
+  /** 閉じてよいかを尋ねる。デスクトップ版はこちらを使う。 */
+  confirmClose(): Promise<boolean>;
 }
 
 /** 最近使ったファイルの保持件数（仕様書 §6.8）。 */

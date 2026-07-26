@@ -155,3 +155,42 @@ describe('最近使ったファイル（仕様書 §6.8）', () => {
     expect(await platform.listRecentFiles()).toHaveLength(1);
   });
 });
+
+describe('T-17 で足した口', () => {
+  function handle(name: string): FileHandle {
+    return { kind: 'memory', name, ref: name };
+  }
+
+  it('ハンドルから読み直せる', async () => {
+    const platform = createMemoryPlatform({ files: { 'a.uodia': '中身' } });
+    expect(await platform.readProject(handle('a.uodia'))).toBe('中身');
+  });
+
+  it('無いファイルは読めない', async () => {
+    const platform = createMemoryPlatform();
+    await expect(platform.readProject(handle('無い'))).rejects.toThrow('ファイルがありません');
+  });
+
+  it('他の実装が作ったハンドルは解釈しない', async () => {
+    const platform = createMemoryPlatform();
+    await expect(platform.readProject({ kind: 'web', name: 'a', ref: {} })).rejects.toThrow(
+      TypeError,
+    );
+  });
+
+  it('題名を記録する', async () => {
+    const platform = createMemoryPlatform();
+    await platform.setWindowTitle('a.uodia — UoDia');
+    expect(platform.windowTitle).toBe('a.uodia — UoDia');
+  });
+
+  it('閉じる操作への割り込みを覚え、やめれば外れる', () => {
+    const platform = createMemoryPlatform();
+    const handler = { canCloseNow: () => true, confirmClose: () => Promise.resolve(true) };
+
+    const stop = platform.onCloseRequested(handler);
+    expect(platform.closeHandler).toBe(handler);
+    stop();
+    expect(platform.closeHandler).toBeNull();
+  });
+});
