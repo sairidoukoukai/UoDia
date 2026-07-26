@@ -4,11 +4,34 @@
 //! ドメインロジック（時刻計算・検証・運用の導出）は TypeScript 側で完結させ、
 //! Web 版と同一のコードを用いる。ここにビジネスロジックを追加してはならない。
 //!
-//! ファイル操作コマンドは T-13 で実装する。
+//! ファイル操作は [`commands`] に置く。
+
+mod atomic;
+mod commands;
+mod paths;
+mod recent;
+mod rendering;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // ウィンドウを作る前に行う。GTK は初期化時に GDK_BACKEND を読む。
+    rendering::configure();
+
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .invoke_handler(tauri::generate_handler![
+            commands::open_project_dialog,
+            commands::save_project_dialog,
+            commands::read_project_file,
+            commands::save_project_file,
+            commands::read_route_def,
+            commands::write_route_def,
+            commands::write_backup,
+            commands::read_backup,
+            commands::clear_backup,
+            commands::list_recent_files,
+            commands::add_recent_file,
+        ])
         .run(tauri::generate_context!())
         .expect("Tauri アプリケーションの起動に失敗しました");
 }

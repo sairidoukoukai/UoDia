@@ -7,7 +7,7 @@
   "license": "UNLICENSED",
   "scripts": {
     "dev": "vite",
-    "dev:desktop": "node scripts/tauri-dev.mjs",
+    "dev:desktop": "tauri dev",
     "build:web": "tsc --noEmit && vite build",
     "build:desktop": "tauri build",
     "preview": "vite preview",
