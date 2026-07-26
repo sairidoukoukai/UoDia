@@ -5,23 +5,24 @@
  *
  * 1. `json`   — JSON として解釈できるか
  * 2. `schema` — 期待する形をしているか（T-04）
- * 3. `rules`  — データの内容が矛盾していないか（R-01〜R-09）
+ * 3. `rules`  — データの内容が矛盾していないか（R-01〜R-10）
  *
  * 段階を混ぜると「ファイルが壊れている」のか「編集内容が矛盾している」のかを
  * 利用者に伝えられない。前者はファイルの復旧、後者は編集の修正と、取るべき
  * 行動が異なる。
+ *
+ * 成功時は生の `NetworkDef` ではなく索引化した `NetworkIndex` を返す（T-07）。
+ * 索引の構築は R-03・R-06・R-10 が満たされていることを前提とするため、検証を
+ * 通った直後のこの場所が、それを保証できる唯一の地点である。生の定義は
+ * `NetworkIndex.def` から取れる。
  */
 
-import {
-  networkDefSchema,
-  parseWithSchema,
-  type NetworkDef,
-  type SchemaIssue,
-} from '@/domain/model';
+import { networkDefSchema, parseWithSchema, type SchemaIssue } from '@/domain/model';
+import { buildNetworkIndex, type NetworkIndex } from './networkIndex';
 import { validateNetwork, type NetworkIssue } from './validate';
 
 export type LoadNetworkResult =
-  | { readonly ok: true; readonly network: NetworkDef }
+  | { readonly ok: true; readonly network: NetworkIndex }
   | { readonly ok: false; readonly stage: 'json'; readonly message: string }
   | { readonly ok: false; readonly stage: 'schema'; readonly issues: readonly SchemaIssue[] }
   | { readonly ok: false; readonly stage: 'rules'; readonly issues: readonly NetworkIssue[] };
@@ -52,5 +53,5 @@ export function loadNetworkDef(json: string): LoadNetworkResult {
     return { ok: false, stage: 'rules', issues };
   }
 
-  return { ok: true, network: schemaResult.value };
+  return { ok: true, network: buildNetworkIndex(schemaResult.value) };
 }

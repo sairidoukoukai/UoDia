@@ -1,5 +1,7 @@
 export { loadNetworkDef, type LoadNetworkResult } from './load';
 
+export { buildNetworkIndex, type NetworkIndex, type PatternIndex } from './networkIndex';
+
 export {
   formatNetworkIssues,
   segmentKey,

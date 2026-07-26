@@ -17,10 +17,10 @@ describe('loadNetworkDef — 正常系', () => {
     const result = loadNetworkDef(validJson);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.network.stops).toHaveLength(7);
-    expect(result.network.segments).toHaveLength(15);
-    expect(result.network.patterns).toHaveLength(14);
-    expect(result.network.timeGrain).toBe(300);
+    expect(result.network.def.stops).toHaveLength(7);
+    expect(result.network.def.segments).toHaveLength(15);
+    expect(result.network.def.patterns).toHaveLength(14);
+    expect(result.network.def.timeGrain).toBe(300);
   });
 });
 
