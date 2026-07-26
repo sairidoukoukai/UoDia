@@ -77,6 +77,21 @@ export function loadProject(
     return { ok: false, stage: 'json', message: String(error) };
   }
 
+  return loadProjectData(raw, network, options);
+}
+
+/**
+ * 解釈済みのデータから読み込む。`json` の段階だけを飛ばす。
+ *
+ * 自動バックアップ（T-18）は入れ物の中にプロジェクトを抱えており、既に解釈が
+ * 済んでいる。**文字列へ戻してから読み直すのを避けるため**に分けてある。
+ * 版数の変換も参照の修復も、通常の読込とまったく同じ手順を通す。
+ */
+export function loadProjectData(
+  raw: unknown,
+  network: NetworkIndex,
+  options: LoadProjectOptions = {},
+): LoadProjectResult {
   const formatVersion = readFormatVersion(raw);
   if (formatVersion === null) {
     return {

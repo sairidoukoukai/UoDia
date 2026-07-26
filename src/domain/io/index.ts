@@ -4,6 +4,7 @@ export { createProject, touchProject, type CreateProjectOptions } from './create
 
 export {
   loadProject,
+  loadProjectData,
   type LoadProjectOptions,
   type LoadProjectResult,
   type ProjectWarning,
@@ -11,3 +12,12 @@ export {
 } from './load';
 
 export { migrateProjectData, MIGRATIONS, type Migration, type MigrateResult } from './migrate';
+
+export {
+  BACKUP_FORMAT,
+  backupEnvelopeSchema,
+  parseBackup,
+  serializeBackup,
+  type BackupEnvelope,
+  type ParseBackupResult,
+} from './backup';

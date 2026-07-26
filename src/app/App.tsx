@@ -3,20 +3,26 @@
  *
  * 実際のレイアウト（上=ダイヤグラム／下=時刻表）は T-32 で実装する。それまでは、
  * **ここまでの層が実際に繋がっていること**を画面で確かめられる状態にしておく。
- * `route.json` の読込・書き込みの往復・ストアへの反映・セレクタによる導出・
- * ファイル操作がすべて通っていれば、この画面が出る。
+ * `route.json` の読込・ストアへの反映・セレクタによる導出・ファイル操作・
+ * 自動バックアップがすべて通っていれば、この画面が出る。
+ *
+ * **起動時に書き込みを試す確認は置かない。** 以前は自動バックアップの往復で
+ * 「読めるが書けない」状態を検出していたが、T-18 で本物のバックアップが同じ
+ * 場所を使うようになった。確認の後始末（`clearBackup`）が、復元すべき編集
+ * 内容をそのまま消してしまう。
  */
 
 import { useEffect, useMemo, useState } from 'react';
 import { loadNetworkDef } from '@/domain/network';
 import {
   FileDialogHost,
+  createBackupService,
   createFileService,
   useFileDialogs,
   watchWindowTitle,
   windowTitleOf,
 } from '@/features/file';
-import { usePlatform, type PlatformAdapter, type RecentFile } from '@/platform';
+import { usePlatform, type RecentFile } from '@/platform';
 import {
   selectBlocks,
   selectCanRedo,
@@ -32,25 +38,9 @@ type LoadState =
   | { readonly status: 'ready' }
   | { readonly status: 'failed'; readonly message: string };
 
-/**
- * 書き込みが通っているかを、自動バックアップの往復で確かめる。
- *
- * 読込だけでは「読めるが書けない」状態を見逃す。バックアップの書き込みは
- * どのみち 5 分ごとに行う操作であり（仕様書 §6.8）、ここで 1 往復しても
- * 余計な副作用にはならない。**痕跡を残さないよう最後に消す。**
- */
-async function checkWritable(platform: PlatformAdapter): Promise<boolean> {
-  const probe = `書き込み確認 ${new Date().toISOString()}`;
-  await platform.writeBackup(probe);
-  const readBack = await platform.readBackup();
-  await platform.clearBackup();
-  return readBack === probe;
-}
-
 export function App() {
   const platform = usePlatform();
   const [load, setLoad] = useState<LoadState>({ status: 'loading' });
-  const [writable, setWritable] = useState<boolean | null>(null);
   const [recent, setRecent] = useState<readonly RecentFile[]>([]);
 
   const { dialogs, request, respond } = useFileDialogs();
@@ -58,6 +48,7 @@ export function App() {
     () => createFileService({ platform, store: useAppStore, dialogs }),
     [platform, dialogs],
   );
+  const backups = useMemo(() => createBackupService({ platform, store: useAppStore }), [platform]);
 
   const setNetworkDef = useAppStore((state) => state.setNetworkDef);
   const editProject = useAppStore((state) => state.editProject);
@@ -90,10 +81,8 @@ export function App() {
     void (async () => {
       try {
         const json = await platform.loadNetworkDef();
-        const isWritable = await checkWritable(platform);
         if (controller.signal.aborted) return;
 
-        setWritable(isWritable);
         const result = loadNetworkDef(json);
         if (!result.ok) {
           setLoad({ status: 'failed', message: `${result.stage} の段階で失敗しました` });
@@ -101,8 +90,13 @@ export function App() {
         }
         // 索引ではなく定義を渡す。索引はセレクタが組み立てる（`selectNetwork`）。
         setNetworkDef(result.network.def);
-        await files.newProject();
         setLoad({ status: 'ready' });
+
+        // 前回の編集内容が残っていれば先に尋ねる。新規作成してから尋ねると、
+        // 復元しなかったときに空のプロジェクトが 2 回作られる。
+        if (!(await backups.offerRecovery(dialogs))) {
+          await files.newProject();
+        }
         refreshRecent();
       } catch (error) {
         if (!controller.signal.aborted) {
@@ -114,7 +108,10 @@ export function App() {
     return () => {
       controller.abort();
     };
-  }, [platform, setNetworkDef, files, refreshRecent]);
+  }, [platform, setNetworkDef, files, backups, dialogs, refreshRecent]);
+
+  // 自動バックアップ（仕様書 §9.2）。未保存でなくなれば消える。
+  useEffect(() => backups.start(), [backups]);
 
   // 題名を状態に追従させる（仕様書 §6.8）。
   useEffect(() => watchWindowTitle(useAppStore, platform), [platform]);
@@ -124,9 +121,15 @@ export function App() {
     () =>
       platform.onCloseRequested({
         canCloseNow: () => !selectIsDirty(useAppStore.getState()),
-        confirmClose: () => files.confirmClose(),
+        confirmClose: async () => {
+          const ok = await files.confirmClose();
+          // 正常に閉じるならバックアップは要らない。残すと、次の起動で
+          // 「異常終了した」と誤って判断される。
+          if (ok) await backups.discard();
+          return ok;
+        },
       }),
-    [platform, files],
+    [platform, files, backups],
   );
 
   /** ファイル操作を実行し、履歴を読み直す。 */
@@ -145,9 +148,6 @@ export function App() {
         {load.status === 'ready' &&
           `停留所 ${String(stops.length)} 件・運用 ${String(blocks?.blocks.length ?? 0)} 件・指摘 ${String(issues.length)} 件`}
         {load.status === 'failed' && `route.json を読み込めません（${load.message}）`}
-      </p>
-      <p className="app-shell__note">
-        書き込み: {writable === null ? '確認中…' : writable ? '正常' : '失敗'}
       </p>
       <p className="app-shell__note">
         上書き保存: {platform.capabilities.saveInPlace ? '可' : '不可（ダウンロード）'}
@@ -178,6 +178,13 @@ export function App() {
         </button>{' '}
         <button type="button" onClick={run(() => files.saveAs())}>
           名前を付けて保存
+        </button>{' '}
+        {/*
+          自動バックアップ（T-18）は 5 分ごとに走る。実機で確かめるには待って
+          いられないため、同じ処理をその場で呼べるようにしておく。
+        */}
+        <button type="button" onClick={run(() => backups.backupNow())}>
+          今すぐバックアップ
         </button>
       </p>
       <p className="app-shell__note">

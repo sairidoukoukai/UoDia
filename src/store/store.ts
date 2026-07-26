@@ -94,6 +94,14 @@ export interface AppActions {
    */
   readonly setProject: (project: Project | null, handle?: FileHandle | null) => void;
   /**
+   * バックアップから復元する（仕様書 §9.2、T-18）。
+   *
+   * **最初から未保存として扱う。** 復元した内容はどこにも保存されておらず、
+   * 保存済みに見せると、そのまま閉じて同じ内容をもう一度失うことになる。
+   * 保存先も引き継がない（理由は `domain/io/backup.ts`）。
+   */
+  readonly restoreProject: (project: Project) => void;
+  /**
    * 保存が済んだことを記録する。**履歴は捨てない。**
    *
    * 保存は編集ではないため、保存したあとも直前の編集を取り消せる必要がある。
@@ -222,6 +230,16 @@ export function createAppStore(): AppStoreHook {
         // 別のプロジェクトの便を選んだままにしない。
         ui: { selectedTripIds: [] },
         file: { handle, savedProject: project },
+      });
+    },
+
+    restoreProject: (project): void => {
+      set({
+        project,
+        history: createHistory(get().history.limit),
+        ui: { selectedTripIds: [] },
+        // savedProject を null にすることで未保存になる（`selectIsDirty`）。
+        file: { handle: null, savedProject: null },
       });
     },
 

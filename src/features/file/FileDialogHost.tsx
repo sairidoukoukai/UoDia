@@ -10,12 +10,12 @@
 import { useEffect, useRef, type ReactElement } from 'react';
 import type { ProjectWarning } from '@/domain/io';
 import type { DialogRequest } from './dialogs';
-import type { DiscardChoice } from './fileService';
+import type { DialogAnswer } from './prompts';
 import { UNTITLED } from './title';
 
 export interface FileDialogHostProps {
   readonly request: DialogRequest | null;
-  readonly onRespond: (choice: DiscardChoice) => void;
+  readonly onRespond: (choice: DialogAnswer) => void;
 }
 
 export function FileDialogHost({ request, onRespond }: FileDialogHostProps): ReactElement {
@@ -48,7 +48,7 @@ export function FileDialogHost({ request, onRespond }: FileDialogHostProps): Rea
   );
 }
 
-function renderBody(request: DialogRequest, onRespond: (choice: DiscardChoice) => void) {
+function renderBody(request: DialogRequest, onRespond: (choice: DialogAnswer) => void) {
   switch (request.kind) {
     case 'discard':
       return (
@@ -80,6 +80,39 @@ function renderBody(request: DialogRequest, onRespond: (choice: DiscardChoice) =
               }}
             >
               やめる
+            </button>
+          </div>
+        </>
+      );
+
+    case 'recover':
+      return (
+        <>
+          <h2>前回の編集内容が残っています</h2>
+          <p>
+            {request.fileName === '' ? UNTITLED : request.fileName} の編集内容が
+            {formatSavedAt(request.savedAt)} の時点で残っています。復元しますか。
+          </p>
+          <p className="file-dialog__note">
+            復元した内容は未保存の状態になります。保存先を選び直してください。
+          </p>
+          <div className="file-dialog__actions">
+            <button
+              type="button"
+              autoFocus
+              onClick={() => {
+                onRespond('recover');
+              }}
+            >
+              復元する
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onRespond('discard');
+              }}
+            >
+              破棄する
             </button>
           </div>
         </>
@@ -128,6 +161,16 @@ function renderBody(request: DialogRequest, onRespond: (choice: DiscardChoice) =
         </>
       );
   }
+}
+
+/**
+ * 書き出した時刻を読める形にする。
+ *
+ * 「いつの内容か」が分からないと、復元してよいかを判断できない。
+ */
+function formatSavedAt(savedAt: string): string {
+  const time = new Date(savedAt);
+  return Number.isNaN(time.getTime()) ? savedAt : time.toLocaleString('ja-JP');
 }
 
 /** 警告 1 件を、何が起きたか分かる文にする。 */

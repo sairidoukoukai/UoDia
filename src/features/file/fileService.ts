@@ -6,10 +6,9 @@
  *
  * ## ダイアログを注入する
  *
- * 確認も警告もエラーも、**尋ねる相手**を外から渡す。手順そのもの（未保存なら
- * 尋ね、保存を選ばれたら保存し、取り消されたら何もしない）はどの画面でも同じ
- * であり、React を立ち上げずに確かめられる形にしておきたい。実際の見た目は
- * `dialogs.tsx` が受け持つ。
+ * 確認も警告もエラーも、**尋ねる相手**を外から渡す（`prompts.ts`）。手順その
+ * もの（未保存なら尋ね、保存を選ばれたら保存し、取り消されたら何もしない）は
+ * どの画面でも同じであり、React を立ち上げずに確かめられる形にしておきたい。
  *
  * ## 取り消しと失敗を区別する
  *
@@ -20,30 +19,12 @@
  */
 
 import { createProject, loadProject, serializeProject, touchProject } from '@/domain/io';
-import type { ProjectWarning } from '@/domain/io';
 import type { Project } from '@/domain/model';
 import { formatIssues } from '@/domain/model';
 import type { FileHandle, PlatformAdapter, RecentFile } from '@/platform';
 import { selectIsDirty, selectNetwork, type AppStoreHook } from '@/store';
+import type { FileDialogs } from './prompts';
 import { suggestFileName } from './title';
-
-/** 未保存の変更をどうするか。 */
-export type DiscardChoice = 'save' | 'discard' | 'cancel';
-
-/** 利用者に尋ねる口。 */
-export interface FileDialogs {
-  /**
-   * 未保存の変更があることを伝え、どうするかを尋ねる。
-   *
-   * 「保存して続ける」「破棄して続ける」「やめる」の 3 択とする。2 択にすると、
-   * 続ける気が無いときにも保存か破棄かを選ばされる。
-   */
-  confirmDiscard(fileName: string): Promise<DiscardChoice>;
-  /** 読込時の警告を伝える（仕様書 §7.4.1）。 */
-  showWarnings(warnings: readonly ProjectWarning[]): Promise<void>;
-  /** 失敗を伝える。 */
-  showError(message: string): Promise<void>;
-}
 
 export interface FileServiceOptions {
   readonly platform: PlatformAdapter;
@@ -126,9 +107,11 @@ export function createFileService(options: FileServiceOptions): FileService {
     if (!selectIsDirty(state)) return true;
 
     const choice = await dialogs.confirmDiscard(state.file.handle?.name ?? '');
-    if (choice === 'cancel') return false;
+    if (choice === 'save') return service.save();
     if (choice === 'discard') return true;
-    return service.save();
+    // 想定していない答えは「やめる」として扱う。黙って保存や破棄へ倒れるより、
+    // 何も起きないほうが取り返しがつく。
+    return false;
   }
 
   /** 保存の本体。書き出したバイト列と状態の中身を一致させる。 */

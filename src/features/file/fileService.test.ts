@@ -17,7 +17,8 @@ import { serializeProject, type ProjectWarning } from '@/domain/io';
 import { loadNetworkDef, type NetworkIndex } from '@/domain/network';
 import { createMemoryPlatform, type MemoryPlatform } from '@/platform';
 import { createAppStore, selectIsDirty, type AppStoreHook } from '@/store';
-import { createFileService, type DiscardChoice, type FileService } from './fileService';
+import { createFileService, type FileService } from './fileService';
+import type { DialogAnswer } from './prompts';
 import { windowTitleOf } from './windowTitle';
 
 const routeJsonPath = fileURLToPath(new URL('../../../data/route.json', import.meta.url));
@@ -34,13 +35,13 @@ function createFakeDialogs() {
     warnings: [] as (readonly ProjectWarning[])[],
     errors: [] as string[],
     /** 次に返す答え。 */
-    answer: 'cancel' as DiscardChoice,
+    answer: 'cancel' as DialogAnswer,
   };
 
   return {
     record,
     dialogs: {
-      confirmDiscard(fileName: string): Promise<DiscardChoice> {
+      confirmDiscard(fileName: string): Promise<DialogAnswer> {
         record.discardAsks.push(fileName);
         return Promise.resolve(record.answer);
       },
