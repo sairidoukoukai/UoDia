@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { addMinutes, compareTime, diffMinutes, isBeforeOrEqual } from './arithmetic';
-import { fromHM } from './types';
+import { addMinutes, compareTime, diffMinutes, isBeforeOrEqual, tryAddMinutes } from './arithmetic';
+import { fromHM, MAX_SECONDS, seconds } from './types';
 
 describe('addMinutes', () => {
   it('分を加算する', () => {
@@ -80,5 +80,35 @@ describe('compareTime', () => {
       fromHM(9, 0),
       fromHM(25, 30),
     ]);
+  });
+});
+
+describe('tryAddMinutes', () => {
+  it('加算できる場合は addMinutes と同じ結果を返す', () => {
+    expect(tryAddMinutes(fromHM(8, 30), 15)).toBe(addMinutes(fromHM(8, 30), 15));
+  });
+
+  it('負の分も加算できる', () => {
+    expect(tryAddMinutes(fromHM(8, 30), -30)).toBe(fromHM(8, 0));
+  });
+
+  it('負になる場合は null（例外を投げない）', () => {
+    expect(tryAddMinutes(fromHM(0, 10), -15)).toBeNull();
+  });
+
+  it('上限を超える場合は null', () => {
+    expect(tryAddMinutes(seconds(MAX_SECONDS), 5)).toBeNull();
+  });
+
+  it('上限ちょうどは加算できる', () => {
+    expect(tryAddMinutes(seconds(MAX_SECONDS - 300), 5)).toBe(MAX_SECONDS);
+  });
+
+  it('5 の倍数でない分は null', () => {
+    expect(tryAddMinutes(fromHM(8, 30), 3)).toBeNull();
+  });
+
+  it('整数でない分は null', () => {
+    expect(tryAddMinutes(fromHM(8, 30), 2.5)).toBeNull();
   });
 });
