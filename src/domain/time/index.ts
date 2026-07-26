@@ -15,4 +15,4 @@ export { parseTimeInput, type ParsedTime } from './parse';
 
 export { formatMinutesSigned, formatTime, formatTimePadded } from './format';
 
-export { addMinutes, compareTime, diffMinutes, isBeforeOrEqual } from './arithmetic';
+export { addMinutes, compareTime, diffMinutes, isBeforeOrEqual, tryAddMinutes } from './arithmetic';

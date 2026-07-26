@@ -23,6 +23,25 @@ export function addMinutes(time: Seconds, minutes: number): Seconds {
 }
 
 /**
+ * {@link addMinutes} と同じ計算を行い、不変条件を満たせない場合に `null` を返す。
+ *
+ * 便の時刻導出（T-08）やスジのドラッグは、範囲外になり得る加算を**判定として**
+ * 行う。そこで例外を投げると、描画やドラッグ中の座標計算が中断してしまう。
+ * 「できない」ことが正常な結果である文脈のために用意する。
+ *
+ * `addMinutes` を呼び分けるのではなく包むことで、許容条件が 2 箇所に分かれて
+ * 食い違うことを防いでいる。例外は範囲外のときにしか起きず、通常の経路では
+ * 送出されない。
+ */
+export function tryAddMinutes(time: Seconds, minutes: number): Seconds | null {
+  try {
+    return addMinutes(time, minutes);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * 2 つの時刻の差を分で返す。`a - b`。負の値を取り得る。
  *
  * 折返し時分（次便の始発 − 当便の終着）の算出に用いる。仕様書 §2.2 では下限が

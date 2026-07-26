@@ -140,6 +140,18 @@ describe('buildNetworkIndex — 累積所要時間', () => {
   it('存在しないパターンの索引は undefined', () => {
     expect(index.patternIndex('X')).toBeUndefined();
   });
+
+  it('offsets は経路の順に停留所と累積時間を並べる', () => {
+    expect(p0?.offsets).toEqual([
+      ['A', 0],
+      ['B', 10],
+      ['C', 10],
+    ]);
+  });
+
+  it('offsets の最後の値が totalMinutes と一致する', () => {
+    expect(p0?.offsets.at(-1)?.[1]).toBe(p0?.totalMinutes);
+  });
 });
 
 describe('buildNetworkIndex — 前提が破れている場合', () => {

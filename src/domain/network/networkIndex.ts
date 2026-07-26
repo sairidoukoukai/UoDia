@@ -29,6 +29,13 @@ export interface PatternIndex {
   /** 始発から終着までの所要時間（分）。 */
   readonly totalMinutes: number;
   /**
+   * 経路の順に並んだ、停留所と始発からの累積所要時間（分）の組。
+   *
+   * 時刻表の 1 列とダイヤグラムの 1 本のスジは、どちらもこの並びをそのまま辿る。
+   * 停留所列を持ち回って各要素の累積時間を引き直すより、呼び出し側が単純になる。
+   */
+  readonly offsets: readonly (readonly [stopId: string, minutes: number])[];
+  /**
    * 始発からの累積所要時間（分）。パターンに含まれない停留所は `undefined`。
    *
    * 微生物研究所前と工学部前のように、区間所要時間が 0 分であれば同じ値になる。
@@ -110,6 +117,8 @@ function buildPatternIndex(
     originStopId: first.stopId,
     terminalStopId: previous.stopId,
     totalMinutes: total,
+    // Map は挿入順を保ち、挿入は経路の順に行っている。
+    offsets: [...offsets],
     offsetFromOrigin: (stopId) => offsets.get(stopId),
     includes: (stopId) => offsets.has(stopId),
   };
