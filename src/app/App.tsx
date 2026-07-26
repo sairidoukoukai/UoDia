@@ -2,18 +2,20 @@
  * アプリケーションのルート。
  *
  * 実際のレイアウト（上=ダイヤグラム／下=時刻表）は T-32 で実装する。それまでは、
- * **プラットフォーム実装が実際に動いていること**を画面で確かめられる状態に
- * しておく。`route.json` の読込は、設定ディレクトリへの複製（初回起動）と
- * ファイル読込の両方を通る経路であり、ここが出ていれば I/O は繋がっている。
+ * **ここまでの層が実際に繋がっていること**を画面で確かめられる状態にしておく。
+ * `route.json` の読込・書き込みの往復・ストアへの反映・セレクタによる導出が
+ * すべて通っていれば、この行が出る。
  */
 
 import { useEffect, useState } from 'react';
+import { createProject } from '@/domain/io';
 import { loadNetworkDef } from '@/domain/network';
 import { usePlatform, type PlatformAdapter } from '@/platform';
+import { selectBlocks, selectValidation, selectVisibleStops, useAppStore } from '@/store';
 
-type NetworkState =
+type LoadState =
   | { readonly status: 'loading' }
-  | { readonly status: 'ready'; readonly stops: number; readonly patterns: number }
+  | { readonly status: 'ready' }
   | { readonly status: 'failed'; readonly message: string };
 
 /**
@@ -33,37 +35,38 @@ async function checkWritable(platform: PlatformAdapter): Promise<boolean> {
 
 export function App() {
   const platform = usePlatform();
-  const [network, setNetwork] = useState<NetworkState>({ status: 'loading' });
+  const [load, setLoad] = useState<LoadState>({ status: 'loading' });
   const [writable, setWritable] = useState<boolean | null>(null);
 
+  const setNetwork = useAppStore((state) => state.setNetwork);
+  const setProject = useAppStore((state) => state.setProject);
+  const stops = useAppStore(selectVisibleStops);
+  const blocks = useAppStore(selectBlocks);
+  const issues = useAppStore(selectValidation);
+
   useEffect(() => {
-    // 読み込み中にアンマウントされたら状態を更新しない。真偽値の変数ではなく
-    // AbortController を使うのは、別のクロージャでの書き換えを型検査が
-    // 追えず「常に false」と判断されるため。
+    // 待ち合わせをすべて済ませてから一度だけ確認する。await のたびに
+    // 確認すると、型検査が「2 回目以降は常に false」と判断してしまう。
     const controller = new AbortController();
 
     void (async () => {
       try {
-        // 待ち合わせをすべて済ませてから一度だけ確認する。await のたびに
-        // 確認すると、型検査が「2 回目以降は常に false」と判断してしまう。
         const json = await platform.loadNetworkDef();
         const isWritable = await checkWritable(platform);
         if (controller.signal.aborted) return;
 
         setWritable(isWritable);
         const result = loadNetworkDef(json);
-        setNetwork(
-          result.ok
-            ? {
-                status: 'ready',
-                stops: result.network.def.stops.length,
-                patterns: result.network.def.patterns.length,
-              }
-            : { status: 'failed', message: `${result.stage} の段階で失敗しました` },
-        );
+        if (!result.ok) {
+          setLoad({ status: 'failed', message: `${result.stage} の段階で失敗しました` });
+          return;
+        }
+        setNetwork(result.network);
+        setProject(createProject(result.network));
+        setLoad({ status: 'ready' });
       } catch (error) {
         if (!controller.signal.aborted) {
-          setNetwork({ status: 'failed', message: String(error) });
+          setLoad({ status: 'failed', message: String(error) });
         }
       }
     })();
@@ -71,7 +74,7 @@ export function App() {
     return () => {
       controller.abort();
     };
-  }, [platform]);
+  }, [platform, setNetwork, setProject]);
 
   return (
     <div className="app-shell">
@@ -80,10 +83,10 @@ export function App() {
       <p className="app-shell__note">
         実行環境: {platform.kind}
         {' ／ '}
-        {network.status === 'loading' && 'route.json を読み込んでいます…'}
-        {network.status === 'ready' &&
-          `route.json: 停留所 ${String(network.stops)} 件・停車パターン ${String(network.patterns)} 件`}
-        {network.status === 'failed' && `route.json を読み込めません（${network.message}）`}
+        {load.status === 'loading' && 'route.json を読み込んでいます…'}
+        {load.status === 'ready' &&
+          `停留所 ${String(stops.length)} 件・運用 ${String(blocks?.blocks.length ?? 0)} 件・指摘 ${String(issues.length)} 件`}
+        {load.status === 'failed' && `route.json を読み込めません（${load.message}）`}
       </p>
       <p className="app-shell__note">
         書き込み: {writable === null ? '確認中…' : writable ? '正常' : '失敗'}
