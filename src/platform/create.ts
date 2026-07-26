@@ -9,7 +9,6 @@
  * 「環境を選ぶ」ことを知らずに済む。
  */
 
-import { createMemoryPlatform } from './memory';
 import type { PlatformAdapter } from './types';
 
 /**
@@ -23,16 +22,12 @@ export function isTauri(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
 
-/**
- * 環境に合った実装を作る。
- *
- * Web 版の実装（T-14）が入るまでは、ブラウザではインメモリ実装に倒す。
- * 保存はメモリ上に留まり、再読込で消える。
- */
+/** 環境に合った実装を作る。 */
 export async function createPlatform(): Promise<PlatformAdapter> {
   if (isTauri()) {
     const { createTauriPlatform } = await import('./tauri');
     return createTauriPlatform();
   }
-  return createMemoryPlatform();
+  const { createBrowserEnvironment, createWebPlatform } = await import('./web');
+  return createWebPlatform(createBrowserEnvironment());
 }

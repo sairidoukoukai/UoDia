@@ -88,6 +88,13 @@ export function App() {
       <p className="app-shell__note">
         書き込み: {writable === null ? '確認中…' : writable ? '正常' : '失敗'}
       </p>
+      <p className="app-shell__note">
+        上書き保存: {platform.capabilities.saveInPlace ? '可' : '不可（ダウンロード）'}
+        {' ／ '}
+        履歴: {platform.capabilities.recentFiles ? '可' : '不可'}
+        {' ／ '}
+        route.json の書き戻し: {platform.capabilities.networkDefWritable ? '可' : '不可'}
+      </p>
       <p className="app-shell__note">UI は T-19 以降で実装します。</p>
     </div>
   );

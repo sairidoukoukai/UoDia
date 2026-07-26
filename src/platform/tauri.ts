@@ -17,6 +17,7 @@ import {
   type FileHandle,
   type OpenedProject,
   type PlatformAdapter,
+  type PlatformCapabilities,
   type RecentFile,
 } from './types';
 
@@ -55,9 +56,17 @@ export function toPath(handle: FileHandle): string | null {
   return handle.kind === KIND && typeof handle.ref === 'string' ? handle.ref : null;
 }
 
+/** デスクトップ版はすべてを備える。設定ディレクトリへ自由に読み書きできる。 */
+const CAPABILITIES: PlatformCapabilities = {
+  saveInPlace: true,
+  recentFiles: true,
+  networkDefWritable: true,
+};
+
 export function createTauriPlatform(): PlatformAdapter {
   return {
     kind: KIND,
+    capabilities: CAPABILITIES,
 
     async openProject(): Promise<OpenedProject | null> {
       const path = await invoke<string | null>('open_project_dialog');
@@ -87,11 +96,6 @@ export function createTauriPlatform(): PlatformAdapter {
 
     async saveNetworkDef(content: string): Promise<void> {
       await invoke('write_route_def', { content });
-    },
-
-    canSaveNetworkDef(): boolean {
-      // デスクトップ版は設定ディレクトリへ書き戻せる（実装計画書 §3.3）。
-      return true;
     },
 
     async writeBackup(content: string): Promise<void> {
