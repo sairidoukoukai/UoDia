@@ -38,6 +38,17 @@ export interface TimetableGridProps {
    * この流れが 1 本しかないため**である（仕様書 §6.1.2）。
    */
   readonly onCommit: (at: CellPosition, text: string) => CommitResult;
+  /** 選択中の便（仕様書 §6.3.1）。列見出しと升目の色に出す。 */
+  readonly selectedTripIds: readonly string[];
+  /**
+   * 列見出しが押された。`additive` は <kbd>Ctrl</kbd> 等を伴う押下。
+   *
+   * 「選択を置き換える」か「加える」かの判断は呼び出し側に任せる。選択は
+   * 編集ではなく、履歴にも載らない（`store/store.ts`）。
+   */
+  readonly onSelectTrip: (tripId: string, additive: boolean) => void;
+  /** 列見出しの上で <kbd>Delete</kbd> が押された。 */
+  readonly onRemoveSelection: () => void;
 }
 
 /** 丸めを知らせる点滅の長さ（ミリ秒）。 */
@@ -62,9 +73,11 @@ interface Editing {
 /** 便番号・運用番号が空のときに出す印。 */
 const BLANK = '―';
 
-export function TimetableGrid({ timetable, onCommit }: TimetableGridProps): ReactElement {
+export function TimetableGrid(props: TimetableGridProps): ReactElement {
+  const { timetable, onCommit, selectedTripIds } = props;
   const { stops, columns } = timetable;
   const size = { rows: stops.length, columns: columns.length };
+  const selected = new Set(selectedTripIds);
 
   const [focus, setFocus] = useState<CellPosition | null>(null);
   const [editing, setEditing] = useState<Editing | null>(null);
@@ -181,11 +194,36 @@ export function TimetableGrid({ timetable, onCommit }: TimetableGridProps): Reac
               停留所
             </th>
             {columns.map((column, index) => (
-              <th key={column.trip.tripId} scope="col" className={columnClass(column.pattern)}>
-                {index + 1}便
-                {column.pattern?.isDeadhead === true && (
-                  <span className="timetable__badge">回送</span>
-                )}
+              <th
+                key={column.trip.tripId}
+                scope="col"
+                className={columnClass(column.pattern, selected.has(column.trip.tripId))}
+              >
+                {/*
+                  列見出しは押しボタンにする。便を選ぶ手立てがここしか無く、
+                  <th> のままではキーボードで辿り着けない（仕様書 §9.4）。
+                */}
+                <button
+                  type="button"
+                  className="timetable__column"
+                  aria-pressed={selected.has(column.trip.tripId)}
+                  onClick={(event) => {
+                    props.onSelectTrip(
+                      column.trip.tripId,
+                      event.ctrlKey || event.metaKey || event.shiftKey,
+                    );
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key !== 'Delete' && event.key !== 'Backspace') return;
+                    event.preventDefault();
+                    props.onRemoveSelection();
+                  }}
+                >
+                  {index + 1}便
+                  {column.pattern?.isDeadhead === true && (
+                    <span className="timetable__badge">回送</span>
+                  )}
+                </button>
               </th>
             ))}
           </tr>
@@ -196,7 +234,10 @@ export function TimetableGrid({ timetable, onCommit }: TimetableGridProps): Reac
           <tr>
             <th scope="row">パターン</th>
             {columns.map((column) => (
-              <td key={column.trip.tripId} className={columnClass(column.pattern)}>
+              <td
+                key={column.trip.tripId}
+                className={columnClass(column.pattern, selected.has(column.trip.tripId))}
+              >
                 {column.trip.patternId}
               </td>
             ))}
@@ -204,7 +245,10 @@ export function TimetableGrid({ timetable, onCommit }: TimetableGridProps): Reac
           <tr>
             <th scope="row">行先</th>
             {columns.map((column) => (
-              <td key={column.trip.tripId} className={columnClass(column.pattern)}>
+              <td
+                key={column.trip.tripId}
+                className={columnClass(column.pattern, selected.has(column.trip.tripId))}
+              >
                 {column.pattern === null ? '？' : column.pattern.patternName}
               </td>
             ))}
@@ -212,7 +256,10 @@ export function TimetableGrid({ timetable, onCommit }: TimetableGridProps): Reac
           <tr>
             <th scope="row">便番号</th>
             {columns.map((column) => (
-              <td key={column.trip.tripId} className={columnClass(column.pattern)}>
+              <td
+                key={column.trip.tripId}
+                className={columnClass(column.pattern, selected.has(column.trip.tripId))}
+              >
                 {column.trip.tripShortName === '' ? BLANK : column.trip.tripShortName}
               </td>
             ))}
@@ -220,7 +267,10 @@ export function TimetableGrid({ timetable, onCommit }: TimetableGridProps): Reac
           <tr>
             <th scope="row">運用</th>
             {columns.map((column) => (
-              <td key={column.trip.tripId} className={columnClass(column.pattern)}>
+              <td
+                key={column.trip.tripId}
+                className={columnClass(column.pattern, selected.has(column.trip.tripId))}
+              >
                 {column.trip.blockId === '' ? BLANK : column.trip.blockId}
               </td>
             ))}
@@ -239,6 +289,7 @@ export function TimetableGrid({ timetable, onCommit }: TimetableGridProps): Reac
                     key={column.trip.tripId}
                     cell={column.cells[row] ?? { kind: 'notServed' }}
                     deadhead={column.pattern?.isDeadhead === true}
+                    selected={selected.has(column.trip.tripId)}
                     at={at}
                     focused={focus?.row === row && focus.column === index}
                     editing={
@@ -275,6 +326,7 @@ export function TimetableGrid({ timetable, onCommit }: TimetableGridProps): Reac
 interface CellProps {
   readonly cell: TimetableCell;
   readonly deadhead: boolean;
+  readonly selected: boolean;
   readonly at: CellPosition;
   readonly focused: boolean;
   readonly editing: Editing | null;
@@ -287,10 +339,11 @@ interface CellProps {
 }
 
 function Cell(props: CellProps): ReactElement {
-  const { cell, deadhead, at, focused, editing, flashing } = props;
+  const { cell, deadhead, selected, at, focused, editing, flashing } = props;
 
   const classes = ['timetable__cell'];
   if (deadhead) classes.push('timetable__cell--deadhead');
+  if (selected) classes.push('timetable__cell--selected');
   if (flashing) classes.push('timetable__cell--rounded');
   if (editing?.failure != null) classes.push('timetable__cell--invalid');
   if (cell.kind === 'notServed') classes.push('timetable__cell--notServed');
@@ -367,7 +420,10 @@ function cellElement(grid: HTMLElement, at: CellPosition): HTMLElement | null {
 }
 
 /** 回送便の列と、参照が壊れている列を見分けられるようにする。 */
-function columnClass(pattern: { readonly isDeadhead: boolean } | null): string {
-  if (pattern === null) return 'timetable__head timetable__head--broken';
-  return pattern.isDeadhead ? 'timetable__head timetable__head--deadhead' : 'timetable__head';
+function columnClass(pattern: { readonly isDeadhead: boolean } | null, selected: boolean): string {
+  const classes = ['timetable__head'];
+  if (pattern === null) classes.push('timetable__head--broken');
+  else if (pattern.isDeadhead) classes.push('timetable__head--deadhead');
+  if (selected) classes.push('timetable__head--selected');
+  return classes.join(' ');
 }

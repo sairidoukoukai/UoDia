@@ -15,6 +15,7 @@
   --color-focus: #2f6fdb;
   --color-invalid: #ffd6d0;
   --color-rounded: #cfe8ff;
+  --color-selected: #dbe9ff;
 
   font-family:
     system-ui,
@@ -38,6 +39,7 @@
     --color-anchor: #5a4a12;
     --color-focus: #7aa8ff;
     --color-invalid: #6b2a22;
+    --color-selected: #23384f;
     --color-rounded: #1f4468;
   }
 }
@@ -212,6 +214,60 @@ body {
 .timetable__cell--anchor {
   background: var(--color-anchor);
   font-weight: 600;
+}
+
+/* 選択中の便（T-21、仕様書 §6.3.1）。列ごと色を変え、どの列を操作するのかを
+   示す。 */
+.timetable__head--selected,
+.timetable__cell--selected {
+  background: var(--color-selected);
+}
+
+/* 選択の色でアンカーを塗り潰さない。選択は列の見出しでも分かるが、どの升目が
+   基準なのかはここでしか分からない（§6.1.1）。 */
+.timetable__cell--selected.timetable__cell--anchor {
+  background: var(--color-anchor);
+}
+
+/* 列見出しは便を選ぶ押しボタン。見た目は見出しのままにする。 */
+.timetable__column {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: right;
+  cursor: pointer;
+}
+
+.timetable__column[aria-pressed='true'] {
+  font-weight: 600;
+}
+
+/* 便の操作（T-21、仕様書 §6.1.4）。本来の位置はメニューであり（T-37）、
+   ここに置くのは操作を実際に触れるようにするためである。 */
+.timetable__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.timetable__toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.timetable__minutes {
+  width: 4rem;
+}
+
+.timetable__toolbar-status {
+  color: var(--color-fg-muted);
 }
 
 .timetable__empty {

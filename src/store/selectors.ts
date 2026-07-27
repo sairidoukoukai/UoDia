@@ -27,6 +27,7 @@ import type { AppState } from './types';
 /** 便が 1 つも無いときに返す配列。参照を使い回して再描画を防ぐ。 */
 const NO_TRIPS: readonly Trip[] = [];
 const NO_ISSUES: readonly ValidationIssue[] = [];
+const NO_SERVICES: readonly Service[] = [];
 
 const networkOf = memoizeByIdentity((def: NetworkDef | null): NetworkIndex | null =>
   def === null ? null : buildNetworkIndex(def),
@@ -79,6 +80,11 @@ export function selectIsDirty(state: AppState): boolean {
 /** 保存先。まだ保存していなければ `null`。 */
 export function selectFileHandle(state: AppState): FileHandle | null {
   return state.file.handle;
+}
+
+/** ダイヤの一覧（仕様書 §5.7）。ダイヤ間コピーの写し先を選ぶのに使う。 */
+export function selectServices(state: AppState): readonly Service[] {
+  return state.project?.services ?? NO_SERVICES;
 }
 
 /** 編集中のダイヤ。`view.activeServiceId` が指すもの。無ければ先頭。 */

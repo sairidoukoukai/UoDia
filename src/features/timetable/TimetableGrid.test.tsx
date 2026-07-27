@@ -65,9 +65,17 @@ function stubCommit(result: CommitResult = { ok: true, rounded: false }) {
   return vi.fn<(at: CellPosition, text: string) => CommitResult>(() => result);
 }
 
+/** 選択にまつわる差し替え（T-21）。省くと「何も選ばれていない」表になる。 */
+interface RenderExtras {
+  readonly selectedTripIds?: readonly string[];
+  readonly onSelectTrip?: (tripId: string, additive: boolean) => void;
+  readonly onRemoveSelection?: () => void;
+}
+
 function render(
   trips: readonly Trip[],
   onCommit: (at: CellPosition, text: string) => CommitResult = stubCommit(),
+  extras: RenderExtras = {},
 ): void {
   const times = new Map<string, ReadonlyMap<string, Seconds>>(
     trips.map((trip) => [trip.tripId, allTimes(trip, network)]),
@@ -76,8 +84,24 @@ function render(
 
   const root = createRoot(container);
   act(() => {
-    root.render(<TimetableGrid timetable={timetable} onCommit={onCommit} />);
+    root.render(
+      <TimetableGrid
+        timetable={timetable}
+        onCommit={onCommit}
+        selectedTripIds={extras.selectedTripIds ?? []}
+        onSelectTrip={extras.onSelectTrip ?? (() => undefined)}
+        onRemoveSelection={extras.onRemoveSelection ?? (() => undefined)}
+      />,
+    );
   });
+}
+
+/** 列見出しの押しボタン。 */
+function columnButton(index: number): HTMLButtonElement {
+  const buttons = container.querySelectorAll<HTMLButtonElement>('thead .timetable__column');
+  const button = buttons[index];
+  if (button === undefined) throw new Error(`${String(index)} 列目の見出しがありません`);
+  return button;
 }
 
 /** 位置から升目の要素を引く。 */
@@ -466,5 +490,58 @@ describe('丸めの知らせ（受入条件）', () => {
     press('8');
     press('Enter');
     expect(cell(ROW.toyonaka, 0).className).not.toContain('timetable__cell--rounded');
+  });
+});
+
+describe('便の選択（T-21）', () => {
+  it('列見出しを押すと、その便が選ばれる', () => {
+    const onSelectTrip = vi.fn<(tripId: string, additive: boolean) => void>();
+    const trips = [makeTrip('S1', 8, 0), makeTrip('S3', 9, 0)];
+    render(trips, undefined, { onSelectTrip });
+
+    act(() => {
+      columnButton(1).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(onSelectTrip).toHaveBeenCalledWith(trips[1]?.tripId, false);
+  });
+
+  it('**Ctrl を押しながらなら選択に加える**', () => {
+    const onSelectTrip = vi.fn<(tripId: string, additive: boolean) => void>();
+    const trips = [makeTrip('S1', 8, 0)];
+    render(trips, undefined, { onSelectTrip });
+
+    act(() => {
+      columnButton(0).dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true }));
+    });
+    expect(onSelectTrip).toHaveBeenCalledWith(trips[0]?.tripId, true);
+  });
+
+  it('選ばれている列が見て分かる', () => {
+    const trips = [makeTrip('S1', 8, 0), makeTrip('S3', 9, 0)];
+    render(trips, undefined, { selectedTripIds: [trips[1]?.tripId ?? ''] });
+
+    expect(columnButton(0).getAttribute('aria-pressed')).toBe('false');
+    expect(columnButton(1).getAttribute('aria-pressed')).toBe('true');
+    expect(cell(ROW.toyonaka, 0).className).not.toContain('timetable__cell--selected');
+    expect(cell(ROW.toyonaka, 1).className).toContain('timetable__cell--selected');
+  });
+
+  it('**列見出しの上で Delete を押すと削除を求める**', () => {
+    const onRemoveSelection = vi.fn<() => void>();
+    render([makeTrip('S1', 8, 0)], undefined, { onRemoveSelection });
+
+    act(() => {
+      columnButton(0).dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete', bubbles: true }));
+    });
+    expect(onRemoveSelection).toHaveBeenCalledTimes(1);
+  });
+
+  it('**升目の上の Delete では消えない**（時刻を消す操作と紛れない）', () => {
+    const onRemoveSelection = vi.fn<() => void>();
+    render([makeTrip('S1', 8, 0)], undefined, { onRemoveSelection });
+
+    click(ROW.toyonaka, 0);
+    press('Delete');
+    expect(onRemoveSelection).not.toHaveBeenCalled();
   });
 });
