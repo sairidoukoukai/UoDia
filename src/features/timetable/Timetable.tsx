@@ -37,7 +37,7 @@ import {
   useAppStore,
 } from '@/store';
 import { commitCellInput, type CellPosition } from './editing';
-import { DIRECTION_LABEL, buildTimetable, stopsForDirection } from './model';
+import { DIRECTION_LABEL, blockColorsOf, buildTimetable, stopsForDirection } from './model';
 import { TimetableGrid, type CommitResult } from './TimetableGrid';
 import { TimetableToolbar } from './TimetableToolbar';
 
@@ -78,6 +78,10 @@ export function Timetable(): ReactElement {
   const selectedTripIds = useMemo(() => selectedTrips.map((trip) => trip.tripId), [selectedTrips]);
 
   const [message, setMessage] = useState<string | null>(null);
+
+  // 色はダイヤの全便から決める。片方向だけで割り当てると、方向をまたぐ運用が
+  // 方向によって違う色になる（仕様書 §5.8）。
+  const blockColors = useMemo(() => blockColorsOf(serviceTrips), [serviceTrips]);
 
   const timetable = useMemo(() => {
     if (network === null) return null;
@@ -216,6 +220,20 @@ export function Timetable(): ReactElement {
     setMessage(`${target.serviceName} へ ${String(result.added.length)} 便を複製しました`);
   };
 
+  const handleChangeBlockId = (tripId: string, blockId: string): void => {
+    editProject(
+      '運用番号の変更',
+      (project) => {
+        for (const service of project.services) {
+          const trip = service.trips.find((t) => t.tripId === tripId);
+          if (trip !== undefined) trip.blockId = blockId;
+        }
+      },
+      // 打っている間の 1 文字ずつを 1 回の取り消しでまとめて戻す（仕様書 §6.7）。
+      `block:${tripId}`,
+    );
+  };
+
   const handleSelectTrip = (tripId: string, additive: boolean): void => {
     if (!additive) {
       setSelection([tripId]);
@@ -291,6 +309,8 @@ export function Timetable(): ReactElement {
           selectedTripIds={selectedTripIds}
           onSelectTrip={handleSelectTrip}
           onRemoveSelection={handleRemove}
+          blockColors={blockColors}
+          onChangeBlockId={handleChangeBlockId}
         />
       )}
     </section>

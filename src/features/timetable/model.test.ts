@@ -16,7 +16,7 @@ import type { Trip } from '@/domain/model';
 import { loadNetworkDef, type NetworkIndex } from '@/domain/network';
 import { fromHM, type Seconds } from '@/domain/time';
 import { allTimes } from '@/domain/trip';
-import { buildTimetable, stopsForDirection, type TimetableCell } from './model';
+import { blockColorsOf, buildTimetable, stopsForDirection, type TimetableCell } from './model';
 
 const routeJsonPath = fileURLToPath(new URL('../../../data/route.json', import.meta.url));
 const loaded = loadNetworkDef(readFileSync(routeJsonPath, 'utf8'));
@@ -204,5 +204,31 @@ describe('列', () => {
     const timetable = build([makeTrip('S1', 8, 0), makeTrip('DT-in', 8, 0)]);
     expect(timetable.columns[0]?.pattern?.isDeadhead).toBe(false);
     expect(timetable.columns[1]?.pattern?.isDeadhead).toBe(true);
+  });
+});
+
+describe('運用番号の色（T-22、仕様書 §6.1.3）', () => {
+  it('同じ運用番号には同じ色を割り当てる', () => {
+    const colors = blockColorsOf([
+      makeTrip('S1', 8, 0, { blockId: 'A' }),
+      makeTrip('S1', 9, 0, { blockId: 'B' }),
+      makeTrip('S1', 10, 0, { blockId: 'A' }),
+    ]);
+
+    expect(colors.size).toBe(2);
+    expect(colors.get('A')).not.toBe(colors.get('B'));
+  });
+
+  it('**空欄は未割当であり、色を持たない**', () => {
+    const colors = blockColorsOf([makeTrip('S1', 8, 0), makeTrip('S1', 9, 0, { blockId: 'A' })]);
+
+    expect(colors.has('')).toBe(false);
+    expect(colors.size).toBe(1);
+  });
+
+  it('便の並び順で色が変わらない', () => {
+    const a = makeTrip('S1', 8, 0, { blockId: 'A' });
+    const b = makeTrip('S1', 9, 0, { blockId: 'B' });
+    expect([...blockColorsOf([a, b])]).toEqual([...blockColorsOf([b, a])]);
   });
 });

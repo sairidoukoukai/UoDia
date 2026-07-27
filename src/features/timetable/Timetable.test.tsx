@@ -334,3 +334,64 @@ function disabled(label: string): boolean {
   );
   return found?.disabled ?? false;
 }
+
+describe('運用番号の記入（T-22）', () => {
+  /** その列の運用番号欄。 */
+  function blockField(index: number): HTMLInputElement {
+    const fields = container.querySelectorAll<HTMLInputElement>('.timetable__block');
+    const field = fields[index];
+    if (field === undefined) throw new Error(`${String(index)} 列目の運用番号欄がありません`);
+    return field;
+  }
+
+  function typeBlockId(index: number, text: string): void {
+    const field = blockField(index);
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(field, text);
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  }
+
+  it('**記入した運用番号が便に入る**', () => {
+    mount();
+    press('便を追加');
+    typeBlockId(0, 'A');
+
+    expect(selectTrips(useAppStore.getState())[0]?.blockId).toBe('A');
+    expect(blockField(0).value).toBe('A');
+  });
+
+  it('**1 文字ずつ打っても、取り消しは 1 回で戻る**（仕様書 §6.7）', () => {
+    mount();
+    press('便を追加');
+    typeBlockId(0, 'A');
+    typeBlockId(0, 'A1');
+    typeBlockId(0, 'A12');
+
+    undo();
+    expect(selectTrips(useAppStore.getState())[0]?.blockId).toBe('');
+  });
+
+  it('**同じ運用の便が同じ色になり、空欄は色を持たない**', () => {
+    mount();
+    press('便を追加');
+    press('便を追加');
+    press('便を追加');
+    typeBlockId(0, 'A');
+    typeBlockId(2, 'A');
+
+    const shadow = (i: number) => blockField(i).parentElement?.style.boxShadow ?? '';
+    expect(shadow(0)).toBe(shadow(2));
+    expect(shadow(0)).not.toBe('');
+    expect(shadow(1)).toBe('');
+  });
+
+  it('複製した便は運用番号を引き継ぐ（T-21 と繋がる）', () => {
+    mount();
+    press('便を追加');
+    typeBlockId(0, 'A');
+    press('複製');
+
+    expect(selectTrips(useAppStore.getState()).map((trip) => trip.blockId)).toEqual(['A', 'A']);
+  });
+});

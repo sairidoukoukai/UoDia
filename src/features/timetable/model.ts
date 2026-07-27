@@ -6,6 +6,7 @@
  * 利用者が気づけない部分を React 抜きで確かめられる。
  */
 
+import { assignBlockColors } from '@/domain/block';
 import type { DirectionId, Handling, StopPattern, Stop, Trip } from '@/domain/model';
 import type { NetworkIndex } from '@/domain/network';
 import type { Seconds } from '@/domain/time';
@@ -90,6 +91,19 @@ export function stopsForDirection(
   return network.def.stops
     .filter((stop) => served.has(stop.stopId) && !stop.hiddenInEditor)
     .sort((a, b) => a.axisPosition - b.axisPosition);
+}
+
+/**
+ * 便の運用番号に色を割り当てる（仕様書 §6.1.3、§5.8）。
+ *
+ * **空欄は未割当であり、色を持たない。** 空欄どうしを同じ色でまとめると、
+ * まだ運用を決めていない便が「同じ車両で回る便」に見えてしまう。
+ *
+ * 渡すのはダイヤの全便である。運用は方向をまたぐため、片方向だけで割り当てると
+ * 同じ運用が方向によって違う色になる。
+ */
+export function blockColorsOf(trips: readonly Trip[]): ReadonlyMap<string, string> {
+  return assignBlockColors(trips.map((trip) => trip.blockId).filter((blockId) => blockId !== ''));
 }
 
 /**
