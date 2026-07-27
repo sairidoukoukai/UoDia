@@ -21,7 +21,13 @@ import {
   type CommitFailure,
   type Move,
 } from './editing';
-import { HANDLING_MARK, NOT_SERVED, type Timetable, type TimetableCell } from './model';
+import {
+  HANDLING_MARK,
+  NOT_SERVED,
+  type Timetable,
+  type TimetableCell,
+  type TimetableColumn,
+} from './model';
 
 /** 入力を確定したときの結果。丸めが起きたか、なぜ受け付けられなかったか。 */
 export type CommitResult =
@@ -49,6 +55,15 @@ export interface TimetableGridProps {
   readonly onSelectTrip: (tripId: string, additive: boolean) => void;
   /** 列見出しの上で <kbd>Delete</kbd> が押された。 */
   readonly onRemoveSelection: () => void;
+  /**
+   * 運用番号ごとの色（仕様書 §6.1.3、§5.8）。未割当（空欄）は含まない。
+   *
+   * 色を決めるのは表ではない。運用は方向をまたぐため、片方向しか知らない
+   * ここで割り当てると、同じ運用が方向によって違う色になる。
+   */
+  readonly blockColors: ReadonlyMap<string, string>;
+  /** 運用番号が書き換えられた。 */
+  readonly onChangeBlockId: (tripId: string, blockId: string) => void;
 }
 
 /** 丸めを知らせる点滅の長さ（ミリ秒）。 */
@@ -74,10 +89,24 @@ interface Editing {
 const BLANK = '―';
 
 export function TimetableGrid(props: TimetableGridProps): ReactElement {
-  const { timetable, onCommit, selectedTripIds } = props;
+  const { timetable, onCommit, selectedTripIds, blockColors } = props;
   const { stops, columns } = timetable;
   const size = { rows: stops.length, columns: columns.length };
   const selected = new Set(selectedTripIds);
+
+  /**
+   * 今その列を照らしている運用番号。空文字は「照らしていない」。
+   *
+   * 未割当（空欄）の便どうしを繋げてはならない（仕様書 §6.1.3）。空文字を
+   * 「無し」に使えるのは、そのためにどのみち空欄を除外するからである。
+   */
+  const [highlightedBlockId, setHighlightedBlockId] = useState('');
+
+  /** その列に付ける印。 */
+  const marks = (column: TimetableColumn): ColumnMarks => ({
+    selected: selected.has(column.trip.tripId),
+    sameBlock: highlightedBlockId !== '' && column.trip.blockId === highlightedBlockId,
+  });
 
   const [focus, setFocus] = useState<CellPosition | null>(null);
   const [editing, setEditing] = useState<Editing | null>(null);
@@ -197,7 +226,7 @@ export function TimetableGrid(props: TimetableGridProps): ReactElement {
               <th
                 key={column.trip.tripId}
                 scope="col"
-                className={columnClass(column.pattern, selected.has(column.trip.tripId))}
+                className={columnClass(column.pattern, marks(column))}
               >
                 {/*
                   列見出しは押しボタンにする。便を選ぶ手立てがここしか無く、
@@ -234,10 +263,7 @@ export function TimetableGrid(props: TimetableGridProps): ReactElement {
           <tr>
             <th scope="row">パターン</th>
             {columns.map((column) => (
-              <td
-                key={column.trip.tripId}
-                className={columnClass(column.pattern, selected.has(column.trip.tripId))}
-              >
+              <td key={column.trip.tripId} className={columnClass(column.pattern, marks(column))}>
                 {column.trip.patternId}
               </td>
             ))}
@@ -245,10 +271,7 @@ export function TimetableGrid(props: TimetableGridProps): ReactElement {
           <tr>
             <th scope="row">行先</th>
             {columns.map((column) => (
-              <td
-                key={column.trip.tripId}
-                className={columnClass(column.pattern, selected.has(column.trip.tripId))}
-              >
+              <td key={column.trip.tripId} className={columnClass(column.pattern, marks(column))}>
                 {column.pattern === null ? '？' : column.pattern.patternName}
               </td>
             ))}
@@ -256,24 +279,46 @@ export function TimetableGrid(props: TimetableGridProps): ReactElement {
           <tr>
             <th scope="row">便番号</th>
             {columns.map((column) => (
-              <td
-                key={column.trip.tripId}
-                className={columnClass(column.pattern, selected.has(column.trip.tripId))}
-              >
+              <td key={column.trip.tripId} className={columnClass(column.pattern, marks(column))}>
                 {column.trip.tripShortName === '' ? BLANK : column.trip.tripShortName}
               </td>
             ))}
           </tr>
           <tr>
             <th scope="row">運用</th>
-            {columns.map((column) => (
-              <td
-                key={column.trip.tripId}
-                className={columnClass(column.pattern, selected.has(column.trip.tripId))}
-              >
-                {column.trip.blockId === '' ? BLANK : column.trip.blockId}
-              </td>
-            ))}
+            {columns.map((column, index) => {
+              const color = blockColors.get(column.trip.blockId);
+              return (
+                <td
+                  key={column.trip.tripId}
+                  className={columnClass(column.pattern, marks(column))}
+                  // 運用の色は運用番号の並びから決まるため、あらかじめ書けない
+                  // （`domain/block/colors.ts`）。罫線ではなく内側の影で描くのは、
+                  // 色の付いた列だけ行の高さが変わるのを避けるため。
+                  style={
+                    color === undefined ? undefined : { boxShadow: `inset 0 -0.25rem ${color}` }
+                  }
+                >
+                  <input
+                    className="timetable__block"
+                    value={column.trip.blockId}
+                    // 空欄は未割当（仕様書 §6.1.3）。何も入っていないことが
+                    // 見えるよう、他の欄と同じ印を薄く出す。
+                    placeholder={BLANK}
+                    aria-label={`${String(index + 1)}便の運用番号`}
+                    onChange={(event) => {
+                      props.onChangeBlockId(column.trip.tripId, event.target.value);
+                    }}
+                    onFocus={() => {
+                      setHighlightedBlockId(column.trip.blockId);
+                    }}
+                    onBlur={() => {
+                      setHighlightedBlockId('');
+                    }}
+                  />
+                </td>
+              );
+            })}
           </tr>
         </thead>
         <tbody>
@@ -289,7 +334,8 @@ export function TimetableGrid(props: TimetableGridProps): ReactElement {
                     key={column.trip.tripId}
                     cell={column.cells[row] ?? { kind: 'notServed' }}
                     deadhead={column.pattern?.isDeadhead === true}
-                    selected={selected.has(column.trip.tripId)}
+                    selected={marks(column).selected}
+                    sameBlock={marks(column).sameBlock}
                     at={at}
                     focused={focus?.row === row && focus.column === index}
                     editing={
@@ -327,6 +373,7 @@ interface CellProps {
   readonly cell: TimetableCell;
   readonly deadhead: boolean;
   readonly selected: boolean;
+  readonly sameBlock: boolean;
   readonly at: CellPosition;
   readonly focused: boolean;
   readonly editing: Editing | null;
@@ -339,10 +386,11 @@ interface CellProps {
 }
 
 function Cell(props: CellProps): ReactElement {
-  const { cell, deadhead, selected, at, focused, editing, flashing } = props;
+  const { cell, deadhead, selected, sameBlock, at, focused, editing, flashing } = props;
 
   const classes = ['timetable__cell'];
   if (deadhead) classes.push('timetable__cell--deadhead');
+  if (sameBlock) classes.push('timetable__cell--sameBlock');
   if (selected) classes.push('timetable__cell--selected');
   if (flashing) classes.push('timetable__cell--rounded');
   if (editing?.failure != null) classes.push('timetable__cell--invalid');
@@ -419,11 +467,19 @@ function cellElement(grid: HTMLElement, at: CellPosition): HTMLElement | null {
   return grid.querySelector<HTMLElement>(`[data-cell="${String(at.row)}:${String(at.column)}"]`);
 }
 
+/** 列に付ける印。 */
+interface ColumnMarks {
+  readonly selected: boolean;
+  /** 今照らしている運用番号と同じ便か（仕様書 §6.1.3）。 */
+  readonly sameBlock: boolean;
+}
+
 /** 回送便の列と、参照が壊れている列を見分けられるようにする。 */
-function columnClass(pattern: { readonly isDeadhead: boolean } | null, selected: boolean): string {
+function columnClass(pattern: { readonly isDeadhead: boolean } | null, marks: ColumnMarks): string {
   const classes = ['timetable__head'];
   if (pattern === null) classes.push('timetable__head--broken');
   else if (pattern.isDeadhead) classes.push('timetable__head--deadhead');
-  if (selected) classes.push('timetable__head--selected');
+  if (marks.sameBlock) classes.push('timetable__head--sameBlock');
+  if (marks.selected) classes.push('timetable__head--selected');
   return classes.join(' ');
 }

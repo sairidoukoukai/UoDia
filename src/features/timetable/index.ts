@@ -2,6 +2,7 @@ export {
   DIRECTION_LABEL,
   HANDLING_MARK,
   NOT_SERVED,
+  blockColorsOf,
   buildTimetable,
   stopsForDirection,
   type EmptyReason,

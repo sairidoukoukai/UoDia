@@ -19,7 +19,7 @@ import { loadNetworkDef, type NetworkIndex } from '@/domain/network';
 import { fromHM, type Seconds } from '@/domain/time';
 import { allTimes } from '@/domain/trip';
 import type { CellPosition } from './editing';
-import { buildTimetable, stopsForDirection } from './model';
+import { blockColorsOf, buildTimetable, stopsForDirection } from './model';
 import { TimetableGrid, type CommitResult } from './TimetableGrid';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -65,11 +65,12 @@ function stubCommit(result: CommitResult = { ok: true, rounded: false }) {
   return vi.fn<(at: CellPosition, text: string) => CommitResult>(() => result);
 }
 
-/** 選択にまつわる差し替え（T-21）。省くと「何も選ばれていない」表になる。 */
+/** 選択と運用にまつわる差し替え（T-21・T-22）。省くと素の表になる。 */
 interface RenderExtras {
   readonly selectedTripIds?: readonly string[];
   readonly onSelectTrip?: (tripId: string, additive: boolean) => void;
   readonly onRemoveSelection?: () => void;
+  readonly onChangeBlockId?: (tripId: string, blockId: string) => void;
 }
 
 function render(
@@ -91,9 +92,29 @@ function render(
         selectedTripIds={extras.selectedTripIds ?? []}
         onSelectTrip={extras.onSelectTrip ?? (() => undefined)}
         onRemoveSelection={extras.onRemoveSelection ?? (() => undefined)}
+        blockColors={blockColorsOf(trips)}
+        onChangeBlockId={extras.onChangeBlockId ?? (() => undefined)}
       />,
     );
   });
+}
+
+/**
+ * 見出しの升目の中身。運用の行は記入欄（T-22）であるため、その値を読む。
+ */
+function headTexts(): (string | null)[] {
+  return [...container.querySelectorAll('thead td')].map((td) => {
+    const field = td.querySelector('input');
+    return field === null ? td.textContent : field.value;
+  });
+}
+
+/** 運用番号の記入欄。 */
+function blockField(index: number): HTMLInputElement {
+  const fields = container.querySelectorAll<HTMLInputElement>('.timetable__block');
+  const field = fields[index];
+  if (field === undefined) throw new Error(`${String(index)} 列目の運用番号欄がありません`);
+  return field;
 }
 
 /** 列見出しの押しボタン。 */
@@ -132,9 +153,9 @@ function click(row: number, column: number): void {
   });
 }
 
-/** 今開いている編集欄。 */
+/** 今開いている時刻の編集欄。運用番号の欄（T-22）と取り違えないよう絞る。 */
 function input(): HTMLInputElement | null {
-  return container.querySelector('input');
+  return container.querySelector('.timetable__input');
 }
 
 function type(text: string): void {
@@ -171,14 +192,14 @@ describe('見出し', () => {
     );
     expect(headings).toEqual(['パターン', '行先', '便番号', '運用']);
 
-    const cells = [...container.querySelectorAll('thead td')].map((td) => td.textContent);
-    expect(cells).toEqual(['S1', '直行吹田', 'E1', 'A']);
+    expect(headTexts()).toEqual(['S1', '直行吹田', 'E1', 'A']);
   });
 
-  it('便番号と運用が空なら印を出す（空欄と区別する）', () => {
+  it('便番号が空なら印を出す（空欄と区別する）', () => {
     render([makeTrip('S1', 8, 0)]);
-    const cells = [...container.querySelectorAll('thead td')].map((td) => td.textContent);
-    expect(cells).toEqual(['S1', '直行吹田', '―', '―']);
+    expect(headTexts()).toEqual(['S1', '直行吹田', '―', '']);
+    // 運用は記入欄であるため、空であることを薄い印で見せる（§6.1.3）。
+    expect(blockField(0).placeholder).toBe('―');
   });
 
   it('**回送便の列は見出しで分かる**', () => {
@@ -192,12 +213,7 @@ describe('見出し', () => {
   it('参照が壊れた列は行先を「？」にし、目印を付ける', () => {
     render([makeTrip('S1', 8, 0, { patternId: '無いパターン' })]);
 
-    expect([...container.querySelectorAll('thead td')].map((td) => td.textContent)).toEqual([
-      '無いパターン',
-      '？',
-      '―',
-      '―',
-    ]);
+    expect(headTexts()).toEqual(['無いパターン', '？', '―', '']);
     expect(container.querySelector('.timetable__head--broken')).not.toBeNull();
   });
 });
@@ -543,5 +559,78 @@ describe('便の選択（T-21）', () => {
     click(ROW.toyonaka, 0);
     press('Delete');
     expect(onRemoveSelection).not.toHaveBeenCalled();
+  });
+});
+
+describe('運用番号欄（T-22、受入条件）', () => {
+  it('便番号の下に記入欄が並ぶ', () => {
+    render([makeTrip('S1', 8, 0, { blockId: 'A' }), makeTrip('S3', 9, 0, { blockId: 'B' })]);
+
+    expect(blockField(0).value).toBe('A');
+    expect(blockField(1).value).toBe('B');
+    expect(blockField(0).getAttribute('aria-label')).toBe('1便の運用番号');
+  });
+
+  it('書き換えを伝える', () => {
+    const onChangeBlockId = vi.fn<(tripId: string, blockId: string) => void>();
+    const trips = [makeTrip('S1', 8, 0)];
+    render(trips, undefined, { onChangeBlockId });
+
+    const field = blockField(0);
+    act(() => {
+      const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+      descriptor?.set?.bind(field)('C');
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    expect(onChangeBlockId).toHaveBeenCalledWith(trips[0]?.tripId, 'C');
+  });
+
+  it('**同じ運用番号の便が同じ色になる**', () => {
+    render([
+      makeTrip('S1', 8, 0, { blockId: 'A' }),
+      makeTrip('S3', 9, 0, { blockId: 'B' }),
+      makeTrip('S1', 10, 0, { blockId: 'A' }),
+    ]);
+
+    const shadows = [0, 1, 2].map((i) => blockField(i).parentElement?.style.boxShadow ?? '');
+    expect(shadows[0]).toBe(shadows[2]);
+    expect(shadows[0]).not.toBe(shadows[1]);
+    expect(shadows[0]).not.toBe('');
+  });
+
+  it('**空欄は未割当**（空欄どうしが繋がらない）', () => {
+    render([makeTrip('S1', 8, 0), makeTrip('S3', 9, 0)]);
+
+    expect(blockField(0).parentElement?.style.boxShadow).toBe('');
+    expect(blockField(1).parentElement?.style.boxShadow).toBe('');
+  });
+
+  it('**焦点を当てると、同じ運用の列が強調される**', () => {
+    render([
+      makeTrip('S1', 8, 0, { blockId: 'A' }),
+      makeTrip('S3', 9, 0, { blockId: 'B' }),
+      makeTrip('S1', 10, 0, { blockId: 'A' }),
+    ]);
+
+    act(() => {
+      blockField(0).focus();
+    });
+    expect(cell(ROW.toyonaka, 0).className).toContain('timetable__cell--sameBlock');
+    expect(cell(ROW.toyonaka, 1).className).not.toContain('timetable__cell--sameBlock');
+    expect(cell(ROW.toyonaka, 2).className).toContain('timetable__cell--sameBlock');
+
+    act(() => {
+      blockField(0).blur();
+    });
+    expect(cell(ROW.toyonaka, 2).className).not.toContain('timetable__cell--sameBlock');
+  });
+
+  it('未割当の欄に焦点を当てても、他の未割当は光らない', () => {
+    render([makeTrip('S1', 8, 0), makeTrip('S3', 9, 0)]);
+
+    act(() => {
+      blockField(0).focus();
+    });
+    expect(container.querySelector('.timetable__cell--sameBlock')).toBeNull();
   });
 });
