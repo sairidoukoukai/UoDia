@@ -185,7 +185,7 @@ describe('deriveBlocks — 運用に属さない便', () => {
 
 describe('deriveBlocks — 折返し時分（仕様書 §2.2）', () => {
   it('先頭の便は null', () => {
-    expect(onlyBlock([trip('S1', 8, 0, '1')]).trips[0]?.layoverMinutes).toBeNull();
+    expect(onlyBlock([trip('S1', 8, 0, '1')]).trips[0].layoverMinutes).toBeNull();
   });
 
   it('次便の始発 − 当便の終着で求める', () => {
@@ -208,7 +208,7 @@ describe('deriveBlocks — 折返し時分（仕様書 §2.2）', () => {
     // 吹田着の次に豊中発が来る破綻した運用。検出は T-10（V-01）の責務。
     const block = onlyBlock([trip('S1', 8, 0, '1'), trip('S1', 9, 0, '1')]);
     expect(block.trips[1]?.layoverMinutes).toBe(30);
-    expect(block.trips[0]?.terminalStopId).toBe(SUITA);
+    expect(block.trips[0].terminalStopId).toBe(SUITA);
     expect(block.trips[1]?.originStopId).toBe(TOYONAKA);
   });
 });
@@ -312,11 +312,11 @@ describe('deriveBlocks — 導出される値の内訳', () => {
   });
 
   it('営業便は isDeadhead が false', () => {
-    expect(onlyBlock([trip('S1', 8, 0, '1')]).trips[0]?.isDeadhead).toBe(false);
+    expect(onlyBlock([trip('S1', 8, 0, '1')]).trips[0].isDeadhead).toBe(false);
   });
 
   it('元の便をそのまま保持する', () => {
     const original = trip('S1', 8, 0, '1');
-    expect(onlyBlock([original]).trips[0]?.trip).toBe(original);
+    expect(onlyBlock([original]).trips[0].trip).toBe(original);
   });
 });

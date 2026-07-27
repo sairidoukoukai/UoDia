@@ -304,9 +304,16 @@ describe('方向の切り替え', () => {
   });
 });
 
-/** その列の始発の升目に時刻を入れる。 */
-function setTime(column: number, time: number): void {
-  const cell = container.querySelector<HTMLElement>(`[data-cell="0:${String(column)}"]`);
+/**
+ * その列の升目に時刻を入れる。行は既定で 0（吹田方面では豊中学舎＝始発）。
+ *
+ * 豊中方面では行の並びが変わり、0 行目は終着の豊中学舎になる。始発を指したい
+ * ときは行を明示する。
+ */
+function setTime(column: number, time: number, row = 0): void {
+  const cell = container.querySelector<HTMLElement>(
+    `[data-cell="${String(row)}:${String(column)}"]`,
+  );
   if (cell === null) throw new Error(`${String(column)} 列目がありません`);
 
   act(() => {
@@ -393,5 +400,80 @@ describe('運用番号の記入（T-22）', () => {
     press('複製');
 
     expect(selectTrips(useAppStore.getState()).map((trip) => trip.blockId)).toEqual(['A', 'A']);
+  });
+});
+
+describe('運用番号の自動採番（T-23、仕様書 §6.1.5）', () => {
+  function blockIds(): (string | undefined)[] {
+    return selectTrips(useAppStore.getState()).map((trip) => trip.blockId);
+  }
+
+  /** 豊中方面のタブに切り替える。 */
+  function toToyonaka(): void {
+    press('豊中方面');
+  }
+
+  /** 豊中方面の行: 豊中・箕面・人間科学部前・工学部前・営業所。始発は工学部前。 */
+  const ORIGIN_ROW_WESTBOUND = 3;
+
+  it('**初めて時刻を入れたとき、継げる運用の番号が入る**', () => {
+    mount();
+    // 1 便目: 吹田方面 S3（豊中 8:00 → 工学部前 8:40）。運用 A を人が付ける。
+    press('便を追加');
+    setTime(0, fromHM(8, 0));
+    fill('1便の運用番号', 'A');
+
+    // 2 便目: 豊中方面 T3（工学部前 8:50 発）。工学部前で A に継げる。
+    toToyonaka();
+    press('便を追加');
+    setTime(0, fromHM(8, 50), ORIGIN_ROW_WESTBOUND);
+
+    expect(blockIds()).toEqual(['A', 'A']);
+  });
+
+  it('**継げる運用が無ければ空欄のまま**', () => {
+    mount();
+    press('便を追加');
+    setTime(0, fromHM(8, 0));
+    fill('1便の運用番号', 'A');
+
+    // 同じ方向の後続便。豊中学舎発であり、工学部前で終わる A には継げない。
+    press('便を追加');
+    setTime(1, fromHM(9, 0));
+
+    expect(blockIds()).toEqual(['A', '']);
+  });
+
+  it('**時刻を打ち直しても、消した運用番号は書き戻さない**', () => {
+    mount();
+    press('便を追加');
+    setTime(0, fromHM(8, 0));
+    fill('1便の運用番号', 'A');
+
+    toToyonaka();
+    press('便を追加');
+    setTime(0, fromHM(8, 50), ORIGIN_ROW_WESTBOUND);
+    expect(blockIds()).toEqual(['A', 'A']);
+
+    // 利用者が消してから、時刻を入れ直す。
+    fill('1便の運用番号', '');
+    setTime(0, fromHM(9, 0), ORIGIN_ROW_WESTBOUND);
+    expect(blockIds()).toEqual(['A', '']);
+  });
+
+  it('**提案と時刻は 1 回の取り消しでまとめて戻る**', () => {
+    mount();
+    press('便を追加');
+    setTime(0, fromHM(8, 0));
+    fill('1便の運用番号', 'A');
+
+    toToyonaka();
+    press('便を追加');
+    setTime(0, fromHM(8, 50), ORIGIN_ROW_WESTBOUND);
+
+    undo();
+    const trips = selectTrips(useAppStore.getState());
+    expect(trips[1]?.blockId).toBe('');
+    expect(trips[1]?.anchor).toBeNull();
   });
 });

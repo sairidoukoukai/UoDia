@@ -49,11 +49,19 @@ export interface DepotStandby {
   readonly minutes: number;
 }
 
+/**
+ * 1 便以上の行路。
+ *
+ * 運用は必ず 1 便以上を含む（0 便の運用番号は存在しようがない）。型で表して
+ * おくことで、先頭・末尾を取り出す側が「無いかもしれない」場合を書かずに済む。
+ */
+export type BlockTrips = readonly [BlockTrip, ...BlockTrip[]];
+
 /** 1 つの運用番号に属する便の行路。 */
 export interface Block {
   readonly blockId: string;
   /** 始発時刻の昇順。 */
-  readonly trips: readonly BlockTrip[];
+  readonly trips: BlockTrips;
   /** 出庫時刻。先頭の便が営業所を出る回送であればその始発時刻、でなければ `null`。 */
   readonly pullOutTime: Seconds | null;
   /** 入庫時刻。末尾の便が営業所へ入る回送であればその終着時刻、でなければ `null`。 */
@@ -171,7 +179,7 @@ function buildBlock(blockId: string, group: NonEmptyTrips, depotIds: ReadonlySet
 
   // 先頭の便に折返し時分は無い。以降は直前の便の終着との差で決まる。
   const first = sorted[0];
-  const trips: BlockTrip[] = [{ ...first, layoverMinutes: null }];
+  const trips: [BlockTrip, ...BlockTrip[]] = [{ ...first, layoverMinutes: null }];
   let last: ResolvedTrip = first;
   for (const [previous, current] of adjacentPairs(sorted)) {
     trips.push({
