@@ -13,9 +13,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { loadNetworkDef, type NetworkIndex } from '@/domain/network';
-import type { Trip } from '@/domain/model';
-import { fromHM } from '@/domain/time';
+import { loadNetworkDef } from '@/domain/network';
 import {
   FileDialogHost,
   createBackupService,
@@ -31,7 +29,6 @@ import {
   selectCanRedo,
   selectCanUndo,
   selectIsDirty,
-  selectNetwork,
   selectValidation,
   selectVisibleStops,
   useAppStore,
@@ -41,38 +38,6 @@ type LoadState =
   | { readonly status: 'loading' }
   | { readonly status: 'ready' }
   | { readonly status: 'failed'; readonly message: string };
-
-/**
- * 見本の便を作る。**T-21（便の追加）までの足場である。**
- *
- * 時刻表は便が無ければ何も映らない。受入条件（直行便と箕面経由便の見分け・
- * アンカーの明示・100 便でのスクロール）を実機で確かめるには、便を置く手立てが
- * 要る。T-21 で本物の追加操作ができたら消す。
- */
-function sampleTrips(network: NetworkIndex, count: number): Trip[] {
-  const patterns = ['S1', 'S3', 'DT-out', 'M2', 'S2'];
-  const trips: Trip[] = [];
-
-  for (let index = 0; index < count; index++) {
-    const patternId = patterns[index % patterns.length] ?? 'S1';
-    const pattern = network.patternIndex(patternId);
-    if (pattern === undefined) continue;
-
-    trips.push({
-      tripId: `sample-${String(index)}`,
-      patternId,
-      // 5 便ごとに 30 分ずつ後ろへずらす。同じ時刻に固まらないようにするだけで、
-      // ダイヤとして意味のある並びではない。
-      anchor: {
-        stopId: pattern.originStopId,
-        time: fromHM(7 + Math.floor(index / 5), (index % 5) * 10),
-      },
-      blockId: String((index % 3) + 1),
-      tripShortName: '',
-    });
-  }
-  return trips;
-}
 
 export function App() {
   const platform = usePlatform();
@@ -96,7 +61,6 @@ export function App() {
   const documentName = useAppStore((state) => state.project?.document.name ?? '');
   const canUndo = useAppStore(selectCanUndo);
   const canRedo = useAppStore(selectCanRedo);
-  const network = useAppStore(selectNetwork);
   const dirty = useAppStore(selectIsDirty);
   const title = useAppStore(windowTitleOf);
 
@@ -169,16 +133,6 @@ export function App() {
     [platform, files, backups],
   );
 
-  /** 見本の便を入れ替える（T-21 までの足場）。 */
-  const addSamples = (count: number): void => {
-    if (network === null) return;
-    const trips = sampleTrips(network, count);
-    editProject('見本の便', (project) => {
-      const service = project.services[0];
-      if (service !== undefined) service.trips = trips;
-    });
-  };
-
   /** ファイル操作を実行し、履歴を読み直す。 */
   const run = (action: () => Promise<boolean>) => (): void => {
     void action().then(refreshRecent, refreshRecent);
@@ -232,26 +186,6 @@ export function App() {
         */}
         <button type="button" onClick={run(() => backups.backupNow())}>
           今すぐバックアップ
-        </button>
-      </p>
-      {/* T-21（便の追加）までの足場。時刻表を実機で確かめるために置く。 */}
-      <p className="app-shell__note">
-        見本の便:{' '}
-        <button
-          type="button"
-          onClick={() => {
-            addSamples(5);
-          }}
-        >
-          5 便
-        </button>{' '}
-        <button
-          type="button"
-          onClick={() => {
-            addSamples(100);
-          }}
-        >
-          100 便
         </button>
       </p>
       <p className="app-shell__note">

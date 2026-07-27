@@ -39,6 +39,7 @@ export {
   selectRedoLabel,
   selectSelectedTripIds,
   selectSelectedTrips,
+  selectServices,
   selectTrips,
   selectTripsByDirection,
   selectUndoLabel,

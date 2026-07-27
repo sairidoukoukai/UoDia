@@ -12,6 +12,8 @@ export {
 
 export { TimetableGrid, type CommitResult, type TimetableGridProps } from './TimetableGrid';
 
+export { TimetableToolbar, type TimetableToolbarProps } from './TimetableToolbar';
+
 export {
   commitCellInput,
   initialEditText,
