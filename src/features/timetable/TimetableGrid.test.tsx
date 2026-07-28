@@ -100,13 +100,19 @@ function render(
 }
 
 /**
- * 見出しの升目の中身。運用の行は記入欄（T-22）であるため、その値を読む。
+ * 見出しの升目の中身（パターン・運用の 2 行）。運用は記入欄（T-22）であるため
+ * その値を読む。便番号は列見出しであり、{@link columnHeaders} で読む。
  */
 function headTexts(): (string | null)[] {
   return [...container.querySelectorAll('thead td')].map((td) => {
     const field = td.querySelector('input');
     return field === null ? td.textContent : field.value;
   });
+}
+
+/** 列見出し（便番号）の文字列。先頭は隅の「停留所」。 */
+function columnHeaders(): (string | null)[] {
+  return [...container.querySelectorAll('thead tr:first-child th')].map((th) => th.textContent);
 }
 
 /** 運用番号の記入欄。 */
@@ -184,46 +190,54 @@ function rowOf(stopName: string): (string | null)[] {
 }
 
 describe('見出し', () => {
-  it('パターン・行先・便番号・運用を出す', () => {
+  it('**見出しは 3 行**（列見出し = 便番号・パターン・運用。T-47）', () => {
     render([makeTrip('S1', 8, 0, { blockId: 'A' })]);
 
     const headings = [...container.querySelectorAll('thead th[scope="row"]')].map(
       (th) => th.textContent,
     );
-    expect(headings).toEqual(['パターン', '行先', '便番号', '運用']);
+    expect(headings).toEqual(['パターン', '運用']);
+    expect(columnHeaders()).toEqual(['停留所', 'E1']);
+    expect(headTexts()).toEqual(['S1', 'A']);
+  });
 
-    expect(headTexts()).toEqual(['S1', '直行吹田', 'E1', 'A']);
+  it('**行先は行を割かず、パターンの手掛かりとして残す**', () => {
+    render([makeTrip('S1', 8, 0)]);
+
+    const pattern = container.querySelector('thead tr:nth-child(2) td');
+    expect(pattern?.textContent).toBe('S1');
+    expect(pattern?.getAttribute('title')).toBe('直行吹田');
   });
 
   it('便番号が付かない便は印を出す（空欄と区別する）', () => {
     // 時刻が未入力の便には番号が付かない（仕様書 §6.1.6）。
     render([makeTrip('S1', 8, 0, { anchor: null })]);
-    expect(headTexts()).toEqual(['S1', '直行吹田', '―', '']);
+    expect(columnHeaders()).toEqual(['停留所', '―']);
+    expect(headTexts()).toEqual(['S1', '']);
     // 運用は記入欄であるため、空であることを薄い印で見せる（§6.1.3）。
     expect(blockField(0).placeholder).toBe('―');
   });
 
   it('**回送便には D の便番号が付く**（営業便とは別に数える。T-46）', () => {
     render([makeTrip('S1', 8, 0), makeTrip('DT-in', 7, 0), makeTrip('S1', 9, 0)]);
-
-    const numbers = [...container.querySelectorAll('thead tr:nth-child(4) td')].map(
-      (td) => td.textContent,
-    );
-    expect(numbers).toEqual(['E1', 'D1', 'E2']);
+    expect(columnHeaders()).toEqual(['停留所', 'E1', 'D1回送', 'E2']);
   });
 
   it('**回送便の列は見出しで分かる**', () => {
     render([makeTrip('S1', 8, 0), makeTrip('DT-in', 8, 0)]);
 
     const tops = [...container.querySelectorAll('thead tr:first-child th[scope="col"]')];
-    expect(tops.map((th) => th.textContent)).toEqual(['停留所', '1便', '2便回送']);
+    expect(tops.map((th) => th.textContent)).toEqual(['停留所', 'E1', 'D1回送']);
     expect(tops[2]?.className).toContain('deadhead');
   });
 
-  it('参照が壊れた列は行先を「？」にし、目印を付ける', () => {
+  it('参照が壊れた列は目印を付ける', () => {
     render([makeTrip('S1', 8, 0, { patternId: '無いパターン' })]);
 
-    expect(headTexts()).toEqual(['無いパターン', '？', '―', '']);
+    expect(headTexts()).toEqual(['無いパターン', '']);
+    expect(container.querySelector('thead tr:nth-child(2) td')?.getAttribute('title')).toBe(
+      '参照が壊れています',
+    );
     expect(container.querySelector('.timetable__head--broken')).not.toBeNull();
   });
 });
