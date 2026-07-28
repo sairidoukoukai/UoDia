@@ -3,7 +3,10 @@ export {
   type Block,
   type BlockDerivation,
   type BlockTrip,
+  type BlockTrips,
   type DepotStandby,
 } from './derive';
 
 export { assignBlockColors, blockColorAt, BLOCK_COLORS } from './colors';
+
+export { suggestBlockId } from './suggest';

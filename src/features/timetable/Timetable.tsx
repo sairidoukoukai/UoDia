@@ -14,7 +14,9 @@
  */
 
 import { useCallback, useMemo, useState, type ReactElement } from 'react';
+import { suggestBlockId } from '@/domain/block';
 import type { DirectionId, Trip } from '@/domain/model';
+import type { NetworkIndex } from '@/domain/network';
 import {
   addTrip,
   changeTripsPattern,
@@ -102,7 +104,12 @@ export function Timetable(): ReactElement {
       const outcome = commitCellInput(timetable, at, text, network);
       if (!outcome.ok) return { ok: false, reason: outcome.reason };
 
-      const { trip } = outcome;
+      const trip = withSuggestedBlockId(
+        outcome.trip,
+        timetable.columns[at.column]?.trip,
+        serviceTrips,
+        network,
+      );
       editProject(
         '時刻の入力',
         (project) => {
@@ -116,7 +123,7 @@ export function Timetable(): ReactElement {
       );
       return { ok: true, rounded: outcome.rounded };
     },
-    [network, timetable, editProject],
+    [network, timetable, editProject, serviceTrips],
   );
 
   /** ダイヤの便を丸ごと入れ替える。 */
@@ -315,6 +322,30 @@ export function Timetable(): ReactElement {
       )}
     </section>
   );
+}
+
+/**
+ * 便に運用番号を提案する（仕様書 §6.1.5、T-23）。
+ *
+ * 提案するのは、**その便に初めて時刻が入り、運用番号がまだ空欄のとき**だけで
+ * ある。仕様書の言う「新規便の作成時」がここに当たる。便を追加した時点では
+ * 時刻が無く（`anchor: null`）、始発時刻を要する提案アルゴリズムを走らせようが
+ * ないためである。
+ *
+ * 時刻を打ち直すたびに提案し直さないのは、利用者が消した運用番号を勝手に
+ * 書き戻さないためである。提案値は普通の編集と同じように上書きでき、自動で
+ * 付いたことは画面上で区別しない（§6.1.5）。
+ */
+function withSuggestedBlockId(
+  trip: Trip,
+  before: Trip | undefined,
+  trips: readonly Trip[],
+  network: NetworkIndex,
+): Trip {
+  if (before?.anchor != null || trip.blockId !== '') return trip;
+
+  const blockId = suggestBlockId(trip, trips, network);
+  return blockId === '' ? trip : { ...trip, blockId };
 }
 
 /**
