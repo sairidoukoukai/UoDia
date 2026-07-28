@@ -51,6 +51,13 @@ export interface NetworkIndex {
   readonly def: NetworkDef;
   findStop(stopId: string): Stop | undefined;
   findPattern(patternId: string): StopPattern | undefined;
+  /**
+   * すべてのパターンの索引。定義の順に並ぶ。
+   *
+   * 1 つずつ引く `patternIndex` と違い、**必ず在る**ものとして扱える。
+   * パターンを走査する側が「見つからない場合」を書かずに済む。
+   */
+  readonly patternIndexes: readonly PatternIndex[];
   /** 有向区間の所要時間（分）。区間表に無ければ `undefined`。 */
   runMinutes(fromStopId: string, toStopId: string): number | undefined;
   patternIndex(patternId: string): PatternIndex | undefined;
@@ -82,6 +89,7 @@ export function buildNetworkIndex(def: NetworkDef): NetworkIndex {
     findPattern: (patternId) => patterns.get(patternId),
     runMinutes,
     patternIndex: (patternId) => patternIndexes.get(patternId),
+    patternIndexes: [...patternIndexes.values()],
   };
 }
 

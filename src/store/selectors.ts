@@ -130,9 +130,10 @@ const tripsByDirectionOf = memoizeByIdentity(
     directionId: DirectionId,
   ): readonly Trip[] => {
     if (network === null) return NO_TRIPS;
-    return trips.filter(
-      (trip) => network.patternIndex(trip.patternId)?.pattern.directionId === directionId,
-    );
+    return trips.filter((trip) => {
+      const pattern = network.patternIndex(trip.patternId)?.pattern;
+      return pattern !== undefined && !pattern.isDeadhead && pattern.directionId === directionId;
+    });
   },
 );
 
@@ -140,6 +141,9 @@ const tripsByDirectionOf = memoizeByIdentity(
  * 指定した方向の便（仕様書 §6.1.1 の方向タブ）。
  *
  * 方向は便ではなく停車パターンが持つため、ネットワーク定義を引いて判定する。
+ *
+ * **回送便は含めない。** 回送は列にせず、営業便の前運用・後運用の欄に畳み込んで
+ * 表示する（§6.1.7）。回送を列にすると、確かめたい継ぎ目が 2 つの列に分かれる。
  */
 export function selectTripsByDirection(state: AppState, directionId: DirectionId): readonly Trip[] {
   return tripsByDirectionOf(selectTrips(state), selectNetwork(state), directionId);

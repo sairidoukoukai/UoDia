@@ -60,6 +60,18 @@ function makeNetwork(): NetworkDef {
   };
 }
 
+describe('patternIndexes', () => {
+  it('**すべてのパターンの索引を定義の順に返す**', () => {
+    const network = buildNetworkIndex(makeNetwork());
+    expect(network.patternIndexes.map((index) => index.pattern.patternId)).toEqual(['P0', 'P1']);
+  });
+
+  it('1 つずつ引いたものと同じ索引である', () => {
+    const network = buildNetworkIndex(makeNetwork());
+    expect(network.patternIndexes[0]).toBe(network.patternIndex('P0'));
+  });
+});
+
 describe('buildNetworkIndex — 停留所とパターンの索引', () => {
   const index = buildNetworkIndex(makeNetwork());
 

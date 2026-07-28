@@ -19,7 +19,13 @@ import { loadNetworkDef, type NetworkIndex } from '@/domain/network';
 import { fromHM, type Seconds } from '@/domain/time';
 import { allTimes, numberTrips } from '@/domain/trip';
 import type { CellPosition } from './editing';
-import { blockColorsOf, buildTimetable, stopsForDirection } from './model';
+import {
+  blockColorsOf,
+  buildTimetable,
+  buildTripLinks,
+  stopsForDirection,
+  type TripLinks,
+} from './model';
 import { TimetableGrid, type CommitResult } from './TimetableGrid';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -70,6 +76,17 @@ interface RenderExtras {
   readonly onSelectTrip?: (tripId: string, additive: boolean) => void;
   readonly onRemoveSelection?: () => void;
   readonly onChangeBlockId?: (tripId: string, blockId: string) => void;
+  readonly links?: ReadonlyMap<string, TripLinks>;
+  /**
+   * 前後の繋がりと便番号を求めるときに見る便。既定は表に出す便。
+   *
+   * 回送便を列にしないのはセレクタの役目であり（`selectTripsByDirection`）、
+   * 表は渡されたものをそのまま描く。回送や別方向の便を繋がりに入れたいときは、
+   * ここへ渡す。
+   */
+  readonly allTrips?: readonly Trip[];
+  readonly onTogglePullOut?: (tripId: string) => void;
+  readonly onTogglePullIn?: (tripId: string) => void;
 }
 
 function render(
@@ -80,7 +97,15 @@ function render(
   const times = new Map<string, ReadonlyMap<string, Seconds>>(
     trips.map((trip) => [trip.tripId, allTimes(trip, network)]),
   );
-  const timetable = buildTimetable(trips, stopsForDirection(network, 0), network, times);
+  const all = extras.allTrips ?? trips;
+  const numbers = numberTrips(all, network);
+  const timetable = buildTimetable(
+    trips,
+    stopsForDirection(network, 0),
+    network,
+    times,
+    extras.links ?? buildTripLinks(all, network, numbers),
+  );
 
   const root = createRoot(container);
   act(() => {
@@ -93,7 +118,9 @@ function render(
         onRemoveSelection={extras.onRemoveSelection ?? (() => undefined)}
         blockColors={blockColorsOf(trips)}
         onChangeBlockId={extras.onChangeBlockId ?? (() => undefined)}
-        tripNumbers={numberTrips(trips, network)}
+        tripNumbers={numbers}
+        onTogglePullOut={extras.onTogglePullOut ?? (() => undefined)}
+        onTogglePullIn={extras.onTogglePullIn ?? (() => undefined)}
       />,
     );
   });
@@ -108,6 +135,11 @@ function headTexts(): (string | null)[] {
     const field = td.querySelector('input');
     return field === null ? td.textContent : field.value;
   });
+}
+
+/** 停留所の行の見出し。前運用・後運用の行（T-50）は除く。 */
+function stopHeadings(): (string | null)[] {
+  return [...container.querySelectorAll('tbody .timetable__stop')].map((th) => th.textContent);
 }
 
 /** 列見出し（便番号）の文字列。先頭は隅の「停留所」。 */
@@ -270,21 +302,21 @@ describe('升目（受入条件）', () => {
 });
 
 describe('並び', () => {
-  it('行は縦軸の順、営業所は最後', () => {
+  it('行は縦軸の順。**営業所の行は無い**（T-50）', () => {
     render([makeTrip('S1', 8, 0)]);
-    expect([...container.querySelectorAll('tbody th')].map((th) => th.textContent)).toEqual([
+    expect(stopHeadings()).toEqual([
       '豊中学舎',
       '箕面学舎',
       'コンベンションセンター前',
       '工学部前',
-      '千里営業所',
     ]);
   });
 
   it('停留所名の列は横スクロールしても残す', () => {
     render([makeTrip('S1', 8, 0)]);
     // 位置の固定は CSS が行う。ここでは目印が付いていることだけを確かめる。
-    expect(container.querySelector('tbody th')?.className).toContain('timetable__stop');
+    expect(container.querySelector('tbody .timetable__stop')).not.toBeNull();
+    expect(container.querySelector('tbody th')?.className).toContain('timetable__link-head');
     expect(container.querySelector('.timetable__scroll')).not.toBeNull();
   });
 });
@@ -656,5 +688,79 @@ describe('運用番号欄（T-22、受入条件）', () => {
       blockField(0).focus();
     });
     expect(container.querySelector('.timetable__cell--sameBlock')).toBeNull();
+  });
+});
+
+describe('前運用・後運用（T-50、仕様書 §6.1.7）', () => {
+  /** 前運用・後運用の欄。 */
+  function linkCells(title: string): (string | null)[] {
+    return [...container.querySelectorAll<HTMLElement>(`[aria-label$="の${title}"]`)].map(
+      (button) => button.textContent,
+    );
+  }
+
+  it('**上端が前運用、下端が後運用**', () => {
+    render([makeTrip('S1', 8, 0)]);
+    const headings = [...container.querySelectorAll('tbody th')].map((th) => th.textContent);
+    expect(headings[0]).toBe('前運用');
+    expect(headings.at(-1)).toBe('後運用');
+  });
+
+  it('**回送が繋がっていれば車庫側の時刻を出す**', () => {
+    // 車庫 7:40 発 → 豊中 8:00（出区）、工学部前 8:30 → 車庫 8:50（入区）。
+    const pullOut = makeTrip('DT-out', 7, 40, { blockId: 'A' });
+    const trip = makeTrip('S1', 8, 0, { blockId: 'A' });
+    const pullIn = makeTrip('DS-in', 8, 30, { blockId: 'A' });
+    render([trip], undefined, { allTrips: [pullOut, trip, pullIn] });
+
+    expect(linkCells('前運用')).toEqual(['7:40']);
+    expect(linkCells('後運用')).toEqual(['8:50']);
+  });
+
+  it('**営業便が繋がっていれば便番号を出す**', () => {
+    // S1（豊中 8:00 → 工学部前 8:30）の次に T1（工学部前 8:40 → 豊中 9:10）。
+    const trip = makeTrip('S1', 8, 0, { blockId: 'A' });
+    const westbound = makeTrip('T1', 8, 40, { blockId: 'A' });
+    render([trip], undefined, { allTrips: [trip, westbound] });
+
+    // 表に出るのは吹田方面の便だけ。その後運用に豊中方面の便番号が出る。
+    expect(linkCells('後運用')).toEqual(['W1']);
+    expect(linkCells('前運用')).toEqual(['']);
+  });
+
+  it('繋がっていなければ空欄', () => {
+    render([makeTrip('S1', 8, 0)]);
+    expect(linkCells('前運用')).toEqual(['']);
+    expect(linkCells('後運用')).toEqual(['']);
+  });
+
+  it('**押すと出区・入区を切り替える**', () => {
+    const onTogglePullOut = vi.fn<(tripId: string) => void>();
+    const onTogglePullIn = vi.fn<(tripId: string) => void>();
+    const trips = [makeTrip('S1', 8, 0)];
+    render(trips, undefined, { onTogglePullOut, onTogglePullIn });
+
+    const press = (title: string): void => {
+      const button = container.querySelector<HTMLElement>(`[aria-label$="の${title}"]`);
+      act(() => {
+        button?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      });
+    };
+    press('前運用');
+    press('後運用');
+
+    expect(onTogglePullOut).toHaveBeenCalledWith(trips[0]?.tripId);
+    expect(onTogglePullIn).toHaveBeenCalledWith(trips[0]?.tripId);
+  });
+
+  it('回送が付いている欄は押された状態で示す', () => {
+    const pullOut = makeTrip('DT-out', 7, 40, { blockId: 'A' });
+    const trip = makeTrip('S1', 8, 0, { blockId: 'A' });
+    render([trip], undefined, { allTrips: [pullOut, trip] });
+
+    const before = container.querySelector('[aria-label$="の前運用"]');
+    const after = container.querySelector('[aria-label$="の後運用"]');
+    expect(before?.getAttribute('aria-pressed')).toBe('true');
+    expect(after?.getAttribute('aria-pressed')).toBe('false');
   });
 });

@@ -21,11 +21,14 @@ import {
   addTrip,
   changeTripsPattern,
   copyTripsToService,
+  createPullIn,
+  createPullOut,
   defaultPatternId,
   duplicateTrips,
   removeTrips,
   shiftTrips,
   sortTripsByOrigin,
+  tripIdMinter,
 } from '@/domain/service';
 import {
   selectActiveDirection,
@@ -40,7 +43,14 @@ import {
   useAppStore,
 } from '@/store';
 import { commitCellInput, type CellPosition } from './editing';
-import { DIRECTION_LABEL, blockColorsOf, buildTimetable, stopsForDirection } from './model';
+import {
+  DIRECTION_LABEL,
+  blockColorsOf,
+  buildTimetable,
+  buildTripLinks,
+  stopsForDirection,
+  type TripLinks,
+} from './model';
 import { TimetableGrid, type CommitResult } from './TimetableGrid';
 import { TimetableToolbar } from './TimetableToolbar';
 
@@ -53,6 +63,8 @@ const CANNOT = {
   shift: 'ずらせません（時刻が 0:00〜47:55 を外れるか、5 分の倍数ではありません）',
   pattern: 'そのパターンには変えられません',
   copy: '複製できません',
+  depot:
+    '車庫との行き来を作れません（時刻が 0:00〜47:55 を外れるか、繋がる回送が定義にありません）',
 } as const;
 
 export function Timetable(): ReactElement {
@@ -87,10 +99,20 @@ export function Timetable(): ReactElement {
   // 方向によって違う色になる（仕様書 §5.8）。
   const blockColors = useMemo(() => blockColorsOf(serviceTrips), [serviceTrips]);
 
+  // 前運用・後運用はダイヤの全便から決まる。運用は方向をまたぐため、表示中の
+  // 方向だけを見ると繋がりの半分を見失う（仕様書 §6.1.7）。
+  const links = useMemo<ReadonlyMap<string, TripLinks>>(
+    () =>
+      network === null
+        ? new Map<string, TripLinks>()
+        : buildTripLinks(serviceTrips, network, tripNumbers),
+    [serviceTrips, network, tripNumbers],
+  );
+
   const timetable = useMemo(() => {
     if (network === null) return null;
-    return buildTimetable(shownTrips, stopsForDirection(network, direction), network, times);
-  }, [network, shownTrips, direction, times]);
+    return buildTimetable(shownTrips, stopsForDirection(network, direction), network, times, links);
+  }, [network, shownTrips, direction, times, links]);
 
   /**
    * 升目の入力を便に反映する。
@@ -243,6 +265,43 @@ export function Timetable(): ReactElement {
     );
   };
 
+  /**
+   * 出区・入区を切り替える（仕様書 §6.1.7）。
+   *
+   * 既にあれば消し、無ければ作る。作る回送に決めるものは無い——経路は接する
+   * 停留所から、時刻は 0 分折返しから、運用番号は営業便から決まる。
+   */
+  const toggleDepotLink = (
+    tripId: string,
+    side: 'previous' | 'next',
+    create: (trip: Trip, network: NetworkIndex, newId: string) => Trip | null,
+    label: string,
+  ): void => {
+    const existing = links.get(tripId)?.[side];
+    if (existing?.kind === 'depot') {
+      replaceTrips(
+        activeServiceId,
+        `${label}の取り消し`,
+        removeTrips(serviceTrips, [existing.tripId]),
+      );
+      setMessage(null);
+      return;
+    }
+
+    const trip = serviceTrips.find((t) => t.tripId === tripId);
+    const created =
+      network === null || trip === undefined
+        ? null
+        : create(trip, network, tripIdMinter(allTrips())());
+    if (created === null) {
+      setMessage(CANNOT.depot);
+      return;
+    }
+
+    replaceTrips(activeServiceId, label, [...serviceTrips, created]);
+    setMessage(null);
+  };
+
   const handleSelectTrip = (tripId: string, additive: boolean): void => {
     if (!additive) {
       setSelection([tripId]);
@@ -269,7 +328,10 @@ export function Timetable(): ReactElement {
     () =>
       network === null
         ? []
-        : network.def.patterns.filter((pattern) => pattern.directionId === direction),
+        : // 回送は選択肢に出さない。出区・入区の切り替えでしか作らない（§6.1.7）。
+          network.def.patterns.filter(
+            (pattern) => pattern.directionId === direction && !pattern.isDeadhead,
+          ),
     [network, direction],
   );
 
@@ -321,6 +383,12 @@ export function Timetable(): ReactElement {
           blockColors={blockColors}
           onChangeBlockId={handleChangeBlockId}
           tripNumbers={tripNumbers}
+          onTogglePullOut={(tripId) => {
+            toggleDepotLink(tripId, 'previous', createPullOut, '出区');
+          }}
+          onTogglePullIn={(tripId) => {
+            toggleDepotLink(tripId, 'next', createPullIn, '入区');
+          }}
         />
       )}
     </section>
