@@ -75,8 +75,21 @@ export interface Timetable {
  * その方向の表に出す停留所（仕様書 §6.1.1）。
  *
  * その方向のいずれかのパターンに含まれる停留所の和集合から、`hiddenInEditor`
- * を除く。並びはダイヤグラムと同じ `axisPosition` の順とする。2 つの画面で
- * 停留所の並びが違うと、T-38 で選択を行き来させたときに目で追えなくなる。
+ * を除く。
+ *
+ * ## 並びは進行方向に従う
+ *
+ * 吹田方面は `axisPosition` の昇順（豊中学舎が上）、豊中方面は降順（工学部前が
+ * 上）。**どちらのタブでも時刻が上から下へ進む。** 表を縦に読む動きと便の走る
+ * 向きを一致させるためである。
+ *
+ * **ダイヤグラムの縦軸は反転しない**（§6.2.1）。両方向を 1 枚に重ねて描くため、
+ * 向きを決められない。時刻表と上下が一致しない場合があるが、2 つの画面の選択は
+ * 停留所ではなく便どうしで結ぶため（T-38）支障はない。
+ *
+ * 千里営業所は縦軸の外側にあり、この規則の例外となる。営業所は方向にかかわらず
+ * 端に置かれるため、吹田方面では出庫回送が、豊中方面では入庫回送が、時刻の進む
+ * 向きと逆になる。
  */
 export function stopsForDirection(
   network: NetworkIndex,
@@ -88,9 +101,12 @@ export function stopsForDirection(
     for (const stop of pattern.stopSequence) served.add(stop.stopId);
   }
 
+  // 豊中方面は工学部前が始発であり、`axisPosition` の昇順だと時刻が下から上へ
+  // 進む。向きを反転させる。
+  const sign = directionId === 0 ? 1 : -1;
   return network.def.stops
     .filter((stop) => served.has(stop.stopId) && !stop.hiddenInEditor)
-    .sort((a, b) => a.axisPosition - b.axisPosition);
+    .sort((a, b) => sign * (a.axisPosition - b.axisPosition));
 }
 
 /**
