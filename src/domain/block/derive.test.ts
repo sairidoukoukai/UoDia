@@ -34,7 +34,6 @@ function trip(patternId: string, hours: number, minutes: number, blockId: string
     patternId,
     anchor: { stopId: pattern.originStopId, time: fromHM(hours, minutes) },
     blockId,
-    tripShortName: '',
   };
 }
 

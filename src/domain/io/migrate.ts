@@ -1,10 +1,6 @@
 /**
  * ファイル形式のマイグレーション（仕様書 §7.3）。
  *
- * **v1 では変換関数が 1 つも無い。** それでも枠組みを先に作るのは、実際に形式を
- * 変える段になってから仕組みを用意すると、その最初の 1 回を「読込処理に条件分岐を
- * 足す」で済ませてしまい、2 回目以降に分岐が積み上がるためである。
- *
  * マイグレーションは**スキーマ検証の前**に走る。古いファイルは現在のスキーマに
  * 適合しないのだから、検証を通してから変換することはできない。したがって変換関数が
  * 受け取るのは `unknown` であり、自分が扱う版の形を自分で確かめる責任を持つ。
@@ -22,11 +18,80 @@ export interface Migration {
 }
 
 /**
+ * オブジェクトとして読める値だけを返す。配列と `null` は除く。
+ *
+ * 変換関数が受け取るのは検証前の `unknown` であり、形が違えば**何もせずに
+ * そのまま返す**。壊れたファイルをここで直そうとしても、直したつもりの形が
+ * スキーマ検証で弾かれるだけである。
+ */
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+/**
+ * 配列として読める値だけを返す。
+ *
+ * `Array.isArray` は `unknown` を `any[]` に絞る。そのまま扱うと、要素に触れた
+ * 先の戻り値まで `any` に染まる。ここで `unknown[]` に受け直す。
+ */
+function asArray(value: unknown): unknown[] | null {
+  return Array.isArray(value) ? (value as unknown[]) : null;
+}
+
+/**
+ * 版数 1 → 2: 便番号（`tripShortName`）を捨てる。
+ *
+ * 便番号は始発時刻から導出される値になった（仕様書 §6.1.6）。保存されていた値を
+ * 復元する必要はなく、むしろ古い番号が残っていると、導出結果と食い違ったまま
+ * ファイルに居座る。
+ *
+ * スキーマは未知のキーを黙って落とすため、値を消すだけなら関数が無くても読み込みは
+ * 通る。それでも書くのは、**版数 1 から 2 への道が無い**と `migrateProjectData` が
+ * 判断してしまうためであり、また「何を捨てたか」を残すためである。
+ *
+ * `meta.formatVersion` もここで繰り上げる。読み込んだあとのプロジェクトが名乗る
+ * 版数は、**変換後の形**でなければならない。保存し直したファイルが「版数 1 だが
+ * 中身は版数 2」になると、次に開いたときに変換をもう一度試みることになる。
+ */
+function dropTripShortName(data: unknown): unknown {
+  const root = asRecord(data);
+  if (root === null) return data;
+
+  const services = asArray(root.services);
+  if (services === null) return data;
+
+  return {
+    ...root,
+    // null の展開は空オブジェクトになる。meta が壊れていても、その事実は
+    // スキーマ検証が拾う。
+    meta: { ...asRecord(root.meta), formatVersion: 2 },
+    services: services.map((service) => {
+      const record = asRecord(service);
+      if (record === null) return service;
+
+      const trips = asArray(record.trips);
+      if (trips === null) return service;
+
+      return {
+        ...record,
+        trips: trips.map((trip) => {
+          const fields = asRecord(trip);
+          if (fields === null) return trip;
+          const { tripShortName: _dropped, ...rest } = fields;
+          return rest;
+        }),
+      };
+    }),
+  };
+}
+
+/**
  * 版数の昇順に並んだ変換の一覧。
  *
- * 形式を変えるときは、ここに `{ from: 1, to: 2, migrate }` を追加する。
+ * 形式を変えるときは、ここに `{ from: n, to: n + 1, migrate }` を追加する。
  */
-export const MIGRATIONS: readonly Migration[] = [];
+export const MIGRATIONS: readonly Migration[] = [{ from: 1, to: 2, migrate: dropTripShortName }];
 
 export type MigrateResult =
   | { readonly ok: true; readonly data: unknown; readonly applied: readonly number[] }

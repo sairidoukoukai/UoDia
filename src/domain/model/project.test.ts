@@ -16,7 +16,6 @@ function makeTrip(overrides: Partial<Trip> = {}): Trip {
     patternId: 'S1',
     anchor: { stopId: '1_0', time: fromHM(8, 0) },
     blockId: 'A',
-    tripShortName: '1',
     ...overrides,
   };
 }
@@ -42,15 +41,9 @@ describe('tripSchema', () => {
     expect(tripSchema.safeParse(makeTrip()).success).toBe(true);
   });
 
-  it('永続化されるのは 5 フィールドのみ（note は任意）', () => {
+  it('永続化されるのは 4 フィールドのみ（note は任意）', () => {
     const parsed = tripSchema.parse(makeTrip());
-    expect(Object.keys(parsed).sort()).toEqual([
-      'anchor',
-      'blockId',
-      'patternId',
-      'tripId',
-      'tripShortName',
-    ]);
+    expect(Object.keys(parsed).sort()).toEqual(['anchor', 'blockId', 'patternId', 'tripId']);
   });
 
   it('停留所時刻を保持しない（アンカーから導出するため。仕様書 §5.6）', () => {

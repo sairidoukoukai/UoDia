@@ -115,7 +115,6 @@ export function addTrip(
     patternId,
     anchor: null,
     blockId: '',
-    tripShortName: '',
   };
   return { trips: [...trips, trip], added: [trip] };
 }
@@ -127,8 +126,8 @@ export function addTrip(
  * 複製元と複製先が遠く離れ、続けて時刻を直すときに目で追えない。
  *
  * 運用番号は引き継ぐ。同じ運用の便を増やすのが複製の主な用途であるため
- * （仕様書 §6.1.4）。便番号は引き継がない。番号は始発時刻順に振り直される
- * 導出値であり（§6.1.6）、2 便が同じ番号を持つ状態を作ってはならない。
+ * （仕様書 §6.1.4）。便番号は便が持たないため、引き継ぐも捨てるもない
+ * （§6.1.6 の導出値である）。
  *
  * 時刻が未入力の便は、未入力のまま複製する。動かす時刻が無いためであり、
  * これは失敗ではない。
@@ -152,7 +151,7 @@ export function duplicateTrips(
   for (const trip of targets) {
     const shifted = shiftCopy(trip, shiftMinutes, network);
     if (shifted === null) return null;
-    copies.set(trip.tripId, { ...shifted, tripId: mint(), tripShortName: '' });
+    copies.set(trip.tripId, { ...shifted, tripId: mint() });
   }
 
   const next: Trip[] = [];
@@ -184,7 +183,7 @@ export function copyTripsToService(
   // ID は写し元と写し先の両方を避ける。同じ ID の便が 2 つのダイヤに現れると、
   // GTFS へ書き出せなくなる。
   const mint = tripIdMinter([...sourceTrips, ...targetTrips]);
-  const added = targets.map((trip): Trip => ({ ...trip, tripId: mint(), tripShortName: '' }));
+  const added = targets.map((trip): Trip => ({ ...trip, tripId: mint() }));
   return { trips: [...targetTrips, ...added], added };
 }
 

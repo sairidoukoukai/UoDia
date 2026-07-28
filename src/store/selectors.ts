@@ -13,7 +13,7 @@ import { deriveBlocks, type BlockDerivation } from '@/domain/block';
 import type { DirectionId, NetworkDef, Project, Service, Trip } from '@/domain/model';
 import { buildNetworkIndex, type NetworkIndex } from '@/domain/network';
 import type { FileHandle } from '@/platform';
-import { allTimes } from '@/domain/trip';
+import { allTimes, numberTrips } from '@/domain/trip';
 import type { Seconds } from '@/domain/time';
 import {
   validateService,
@@ -28,6 +28,7 @@ import type { AppState } from './types';
 const NO_TRIPS: readonly Trip[] = [];
 const NO_ISSUES: readonly ValidationIssue[] = [];
 const NO_SERVICES: readonly Service[] = [];
+const NO_NUMBERS: ReadonlyMap<string, string> = new Map();
 
 const networkOf = memoizeByIdentity((def: NetworkDef | null): NetworkIndex | null =>
   def === null ? null : buildNetworkIndex(def),
@@ -207,6 +208,22 @@ const timesOf = memoizeByIdentity(
  */
 export function selectAllTripTimes(state: AppState): ReadonlyMap<string, Map<string, Seconds>> {
   return timesOf(selectTrips(state), selectNetwork(state));
+}
+
+const tripNumbersOf = memoizeByIdentity(
+  (trips: readonly Trip[], network: NetworkIndex | null): ReadonlyMap<string, string> =>
+    network === null ? NO_NUMBERS : numberTrips(trips, network),
+);
+
+/**
+ * 便番号（仕様書 §6.1.6）。**便は番号を持たない。**
+ *
+ * 便に書き込むと、1 便の時刻を変えるたびに全便が書き換わり、取り消しの単位が
+ * 「1 便の移動」ではなく「全便の書き換え」になる。ここで導出すれば、番号は
+ * 便が変わったときにだけ計算し直される。
+ */
+export function selectTripNumbers(state: AppState): ReadonlyMap<string, string> {
+  return tripNumbersOf(selectTrips(state), selectNetwork(state));
 }
 
 /** ダイヤグラム・時刻表の表示設定（仕様書 §5.10）。 */
