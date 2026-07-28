@@ -343,9 +343,9 @@ function disabled(label: string): boolean {
 }
 
 describe('便番号（T-46、仕様書 §6.1.6）', () => {
-  /** 便番号の行（見出しの 3 行目）。 */
+  /** 列見出し（便番号）。 */
   function numbers(): (string | null)[] {
-    return [...container.querySelectorAll('thead tr:nth-child(4) td')].map((td) => td.textContent);
+    return [...container.querySelectorAll('thead .timetable__column')].map((th) => th.textContent);
   }
 
   it('**時刻を入れると番号が付き、時刻順に詰め直される**', () => {
@@ -389,7 +389,8 @@ describe('便番号（T-46、仕様書 §6.1.6）', () => {
     selectColumn(0);
     fill('停車パターン', 'DT-in');
 
-    expect(numbers()).toEqual(['D1']);
+    // 列見出しには回送の印も並ぶ。
+    expect(numbers()).toEqual(['D1回送']);
   });
 });
 

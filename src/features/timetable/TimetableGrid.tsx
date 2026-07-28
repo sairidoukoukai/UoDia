@@ -225,11 +225,17 @@ export function TimetableGrid(props: TimetableGridProps): ReactElement {
     <div className="timetable__scroll" ref={gridRef}>
       <table className="timetable">
         <thead>
+          {/*
+            見出しは 3 行（列見出し = 便番号・パターン・運用。仕様書 §6.1.1）。
+            **列の位置を示す見出しは置かない。** 位置は便番号でも運用番号でも
+            なく、並べ替えれば変わり、ダイヤグラムとも共有されない。同じ便が
+            画面によって違う名前で呼ばれると、口頭でも文書でも指せなくなる。
+          */}
           <tr>
             <th scope="col" className="timetable__corner">
               停留所
             </th>
-            {columns.map((column, index) => (
+            {columns.map((column) => (
               <th
                 key={column.trip.tripId}
                 scope="col"
@@ -255,7 +261,7 @@ export function TimetableGrid(props: TimetableGridProps): ReactElement {
                     props.onRemoveSelection();
                   }}
                 >
-                  {index + 1}便
+                  {tripNumbers.get(column.trip.tripId) ?? BLANK}
                   {column.pattern?.isDeadhead === true && (
                     <span className="timetable__badge">回送</span>
                   )}
@@ -263,31 +269,17 @@ export function TimetableGrid(props: TimetableGridProps): ReactElement {
               </th>
             ))}
           </tr>
-          {/*
-            見出しは 4 行（パターン・行先・便番号・運用）。回送便は行先の代わりに
-            「回送」と出し、列の色でも分かるようにする。
-          */}
           <tr>
             <th scope="row">パターン</th>
             {columns.map((column) => (
-              <td key={column.trip.tripId} className={columnClass(column.pattern, marks(column))}>
+              <td
+                key={column.trip.tripId}
+                className={columnClass(column.pattern, marks(column))}
+                // 行先はパターンと 1 対 1 であり、行を割いて並べると同じことを
+                // 2 度言うことになる（§6.1.1）。手掛かりとしてだけ残す。
+                title={column.pattern === null ? '参照が壊れています' : column.pattern.patternName}
+              >
                 {column.trip.patternId}
-              </td>
-            ))}
-          </tr>
-          <tr>
-            <th scope="row">行先</th>
-            {columns.map((column) => (
-              <td key={column.trip.tripId} className={columnClass(column.pattern, marks(column))}>
-                {column.pattern === null ? '？' : column.pattern.patternName}
-              </td>
-            ))}
-          </tr>
-          <tr>
-            <th scope="row">便番号</th>
-            {columns.map((column) => (
-              <td key={column.trip.tripId} className={columnClass(column.pattern, marks(column))}>
-                {tripNumbers.get(column.trip.tripId) ?? BLANK}
               </td>
             ))}
           </tr>
