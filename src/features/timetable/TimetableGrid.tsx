@@ -24,6 +24,7 @@ import {
 import {
   HANDLING_MARK,
   NOT_SERVED,
+  type LinkCell,
   type Timetable,
   type TimetableCell,
   type TimetableColumn,
@@ -71,6 +72,14 @@ export interface TimetableGridProps {
    * 全便から決める（`store/selectors.ts` の `selectTripNumbers`）。
    */
   readonly tripNumbers: ReadonlyMap<string, string>;
+  /**
+   * 前運用・後運用の欄が押された（仕様書 §6.1.7）。
+   *
+   * 押すと出区・入区が付き、もう一度押すと外れる。**時刻も経路も決めるものが
+   * 無い**ため、切り替えだけで足りる（0 分折返し）。
+   */
+  readonly onTogglePullOut: (tripId: string) => void;
+  readonly onTogglePullIn: (tripId: string) => void;
 }
 
 /** 丸めを知らせる点滅の長さ（ミリ秒）。 */
@@ -321,6 +330,21 @@ export function TimetableGrid(props: TimetableGridProps): ReactElement {
           </tr>
         </thead>
         <tbody>
+          {/*
+            前運用・後運用の行（仕様書 §6.1.7）。回送便を列にせず、ここに畳み込む。
+            **前は必ず上端、後は必ず下端**にある。豊中方面では停留所の並びが逆に
+            なるが（T-48）、時刻が上から下へ進むことは変わらないため、この位置は
+            どちらのタブでも「手前」「その先」を指す。
+          */}
+          <LinkRow
+            title="前運用"
+            action="出区"
+            columns={columns}
+            cellOf={(column) => column.links.previous}
+            marks={marks}
+            numbers={tripNumbers}
+            onToggle={props.onTogglePullOut}
+          />
           {stops.map((stop, row) => (
             <tr key={stop.stopId}>
               <th scope="row" className="timetable__stop">
@@ -362,10 +386,75 @@ export function TimetableGrid(props: TimetableGridProps): ReactElement {
               })}
             </tr>
           ))}
+          <LinkRow
+            title="後運用"
+            action="入区"
+            columns={columns}
+            cellOf={(column) => column.links.next}
+            marks={marks}
+            numbers={tripNumbers}
+            onToggle={props.onTogglePullIn}
+          />
         </tbody>
       </table>
     </div>
   );
+}
+
+interface LinkRowProps {
+  readonly title: string;
+  /** 押したときに切り替わるもの。押しボタンの説明に使う。 */
+  readonly action: string;
+  readonly columns: readonly TimetableColumn[];
+  readonly cellOf: (column: TimetableColumn) => LinkCell;
+  readonly marks: (column: TimetableColumn) => ColumnMarks;
+  readonly numbers: ReadonlyMap<string, string>;
+  readonly onToggle: (tripId: string) => void;
+}
+
+/** 前運用・後運用の行（仕様書 §6.1.7）。 */
+function LinkRow(props: LinkRowProps): ReactElement {
+  return (
+    <tr>
+      <th scope="row" className="timetable__link-head">
+        {props.title}
+      </th>
+      {props.columns.map((column) => {
+        const cell = props.cellOf(column);
+        const number = props.numbers.get(column.trip.tripId) ?? BLANK;
+        return (
+          <td key={column.trip.tripId} className={linkClass(props.marks(column))}>
+            <button
+              type="button"
+              className="timetable__link"
+              aria-label={`${number}の${props.title}`}
+              aria-pressed={cell.kind === 'depot'}
+              title={`押すと${props.action}を付ける／外す`}
+              onClick={() => {
+                props.onToggle(column.trip.tripId);
+              }}
+            >
+              {linkText(cell)}
+            </button>
+          </td>
+        );
+      })}
+    </tr>
+  );
+}
+
+/** 前運用・後運用の欄に出す文字。 */
+function linkText(cell: LinkCell): string {
+  if (cell.kind === 'depot') return formatTime(cell.time);
+  if (cell.kind === 'trip') return cell.label;
+  return '';
+}
+
+function linkClass(marks: ColumnMarks): string {
+  const classes = ['timetable__link-cell'];
+  if (marks.sameBlock) classes.push('timetable__cell--sameBlock');
+  if (marks.selected) classes.push('timetable__cell--selected');
+  return classes.join(' ');
 }
 
 interface CellProps {

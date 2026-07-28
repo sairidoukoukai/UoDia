@@ -72,15 +72,12 @@ describe('表に出す停留所', () => {
       '2_0',
       '3_0',
       '4_0',
-      '9_0',
     ]);
   });
 
   it('**豊中方面は上下が逆になる**（時刻が上から下へ進む。T-48）', () => {
     // 工学部前（4_0）始発 → 人間科学部前（5_0）→ 箕面（2_0）→ 豊中（1_0）。
-    // 千里営業所（9_0）は縦軸の外側であり、先頭に来る。
     expect(stopsForDirection(network, 1).map((s) => s.stopId)).toEqual([
-      '9_0',
       '4_0',
       '5_0',
       '2_0',
@@ -94,7 +91,6 @@ describe('表に出す停留所', () => {
       '2_0',
       '3_0',
       '4_0',
-      '9_0',
     ]);
   });
 
@@ -102,10 +98,6 @@ describe('表に出す停留所', () => {
     for (const directionId of [0, 1] as const) {
       expect(stopsForDirection(network, directionId).map((s) => s.stopId)).not.toContain('6_0');
     }
-  });
-
-  it('営業所も出す（回送便の時刻を入れる先が要る）', () => {
-    expect(stopsForDirection(network, 0).map((s) => s.stopId)).toContain('9_0');
   });
 });
 
@@ -124,14 +116,9 @@ describe('経由しない停留所（受入条件）', () => {
     expect(cellAt(timetable, 1, '4_0')).toMatchObject({ kind: 'time', time: fromHM(9, 10) });
   });
 
-  it('営業便は営業所を経由しない', () => {
+  it('営業所の行そのものが無い', () => {
     const timetable = build([makeTrip('S1', 8, 0)]);
-    expect(cellAt(timetable, 0, '9_0')).toEqual({ kind: 'notServed' });
-  });
-
-  it('回送便は営業所に時刻が入る', () => {
-    const timetable = build([makeTrip('DT-in', 8, 0)]);
-    expect(cellAt(timetable, 0, '9_0')).toMatchObject({ kind: 'time', time: fromHM(8, 20) });
+    expect(timetable.stops.map((s) => s.stopId)).not.toContain('9_0');
   });
 });
 
