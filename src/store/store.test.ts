@@ -20,6 +20,7 @@ import {
   selectActiveService,
   selectAllTripTimes,
   selectBlocks,
+  selectTripNumbers,
   selectIsDirty,
   selectSelectedTrips,
   selectTrips,
@@ -44,7 +45,6 @@ function makeTrip(patternId: string, hours: number, minutes: number, blockId = '
     patternId,
     anchor: { stopId: pattern.originStopId, time: fromHM(hours, minutes) },
     blockId,
-    tripShortName: '',
   };
 }
 
@@ -307,12 +307,33 @@ describe('セレクタ — 派生値', () => {
     expect(times.get(first?.tripId ?? '')?.get('1_0')).toBe(fromHM(8, 0));
   });
 
+  it('**便番号を導出する**（便は番号を持たない。T-46）', () => {
+    const [eastbound, westbound] = selectTrips(state());
+    const numbers = selectTripNumbers(state());
+
+    expect(numbers.get(eastbound?.tripId ?? '')).toBe('E1');
+    expect(numbers.get(westbound?.tripId ?? '')).toBe('W1');
+  });
+
+  it('便を足すと番号が詰め直される', () => {
+    state().editProject('便を足す', (project) => {
+      project.services[0]?.trips.push(makeTrip('S1', 7, 0));
+    });
+    const trips = selectTrips(state());
+    const numbers = selectTripNumbers(state());
+
+    // 7:00 発が先になり、元の 8:00 発は E2 へ繰り下がる。
+    expect(numbers.get(trips[2]?.tripId ?? '')).toBe('E1');
+    expect(numbers.get(trips[0]?.tripId ?? '')).toBe('E2');
+  });
+
   it('ネットワーク定義が無ければ導出しない', () => {
     const fresh = createAppStore();
     fresh.getState().setProject(makeProject([makeTrip('S1', 8, 0)]));
     expect(selectBlocks(fresh.getState())).toBeNull();
     expect(selectValidation(fresh.getState())).toEqual([]);
     expect(selectAllTripTimes(fresh.getState()).size).toBe(0);
+    expect(selectTripNumbers(fresh.getState()).size).toBe(0);
     expect(selectVisibleStops(fresh.getState())).toEqual([]);
   });
 });

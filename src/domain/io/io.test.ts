@@ -26,7 +26,6 @@ function makeTrip(overrides: Partial<Trip> = {}): Trip {
     patternId: 'S1',
     anchor: { stopId: '1_0', time: fromHM(8, 0) },
     blockId: '1',
-    tripShortName: 'E1',
     ...overrides,
   };
 }
@@ -167,6 +166,11 @@ describe('ラウンドトリップ', () => {
   });
 });
 
+/** 版数だけを差し替える。現在の版数が上がっても書き換えずに済むようにする。 */
+function withFormatVersion(json: string, version: number): string {
+  return json.replace(/"formatVersion": \d+/, `"formatVersion": ${String(version)}`);
+}
+
 describe('loadProject — 失敗する段階を区別する', () => {
   it('JSON として壊れていれば stage: json', () => {
     const result = loadProject('{ これは JSON ではない', network);
@@ -195,20 +199,14 @@ describe('loadProject — 失敗する段階を区別する', () => {
   });
 
   it('**新しすぎる形式は読込を拒否してアプリの更新を促す**（仕様書 §7.3）', () => {
-    const json = serializeProject(makeProject()).replace(
-      '"formatVersion": 1',
-      '"formatVersion": 99',
-    );
+    const json = withFormatVersion(serializeProject(makeProject()), 99);
     const result = loadProject(json, network);
     expect(!result.ok && result.stage).toBe('version');
     expect(!result.ok && result.stage === 'version' && result.message).toContain('更新');
   });
 
   it('変換手順の無い古い形式は理由を添えて拒否する', () => {
-    const json = serializeProject(makeProject()).replace(
-      '"formatVersion": 1',
-      '"formatVersion": 0',
-    );
+    const json = withFormatVersion(serializeProject(makeProject()), 0);
     const result = loadProject(json, network);
     expect(!result.ok && result.stage).toBe('version');
     expect(!result.ok && result.stage === 'version' && result.message).toContain('変換手順');
@@ -293,17 +291,20 @@ describe('loadProject — 警告（仕様書 §7.3）', () => {
     // 版 0 のファイルを版 1 へ引き上げる変換を、その場で与える。
     // 変換が 1 つも無い今の段階でも、読込全体を通して枠組みを確かめる。
     const json = serializeProject(makeProject()).replace(
-      '"formatVersion": 1',
+      `"formatVersion": ${String(CURRENT_FORMAT_VERSION)}`,
       '"formatVersion": 0',
     );
     const result = loadProject(json, network, {
       migrations: [
         {
           from: 0,
-          to: 1,
+          to: CURRENT_FORMAT_VERSION,
           migrate: (data: unknown) => ({
             ...(data as object),
-            meta: { ...(data as { meta: object }).meta, formatVersion: 1 },
+            meta: {
+              ...(data as { meta: object }).meta,
+              formatVersion: CURRENT_FORMAT_VERSION,
+            },
           }),
         },
       ],
@@ -311,7 +312,23 @@ describe('loadProject — 警告（仕様書 §7.3）', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.warnings.map((w) => w.id)).toContain('W-05');
-    expect(result.project.meta.formatVersion).toBe(1);
+    expect(result.project.meta.formatVersion).toBe(CURRENT_FORMAT_VERSION);
+  });
+
+  it('**版数 1 のファイルは、便番号を落として読み込める**（T-46）', () => {
+    const v1 = withFormatVersion(serializeProject(makeProject()), 1).replace(
+      '"blockId": "1"',
+      '"blockId": "1",\n          "tripShortName": "E1"',
+    );
+    const result = loadProject(v1, network);
+    if (!result.ok) throw new Error(`読み込めません（段階: ${result.stage}）`);
+
+    expect(result.project.services[0]?.trips[0]).toEqual(makeTrip());
+    expect(result.project.meta.formatVersion).toBe(CURRENT_FORMAT_VERSION);
+    // 変換したことは伝える（W-05）。黙って形を変えない。
+    expect(result.warnings.map((w) => w.id)).toContain('W-05');
+    // 保存し直したファイルに便番号は残らない。
+    expect(serializeProject(result.project)).not.toContain('tripShortName');
   });
 
   it('壊れた参照があってもファイルは開ける', () => {
@@ -321,8 +338,37 @@ describe('loadProject — 警告（仕様書 §7.3）', () => {
 });
 
 describe('migrateProjectData — マイグレーションの枠組み（仕様書 §7.3）', () => {
-  it('v1 では変換関数を持たない', () => {
-    expect(MIGRATIONS).toEqual([]);
+  it('**版数 1 → 2 で便番号を捨てる**（仕様書 §6.1.6、T-46）', () => {
+    const v1 = {
+      meta: { formatVersion: 1 },
+      services: [{ trips: [{ tripId: 't1', patternId: 'S1', tripShortName: 'E1' }] }],
+    };
+    const result = migrateProjectData(v1, 1);
+    if (!result.ok) throw new Error('変換できるはず');
+
+    const trips = (result.data as { services: { trips: object[] }[] }).services[0]?.trips;
+    expect(trips?.[0]).toEqual({ tripId: 't1', patternId: 'S1' });
+    expect(result.applied).toEqual([2]);
+    // 版数の連なりに穴が無いこと。1 つでも欠けると古いファイルが開けなくなる。
+    expect(MIGRATIONS.map((m) => [m.from, m.to])).toEqual([[1, 2]]);
+  });
+
+  it('ダイヤの並びが読めなければ手を触れない', () => {
+    for (const broken of [null, { services: 'ちがう' }, { a: 1 }]) {
+      const result = migrateProjectData(broken, 1);
+      expect(result.ok && result.data).toEqual(broken);
+    }
+  });
+
+  it('**形の違う中身はそのまま残す**（直そうとせず、スキーマ検証に任せる）', () => {
+    const broken = {
+      meta: { formatVersion: 1 },
+      services: ['ダイヤではない', { trips: 3 }, { trips: ['便ではない'] }],
+    };
+    const result = migrateProjectData(broken, 1);
+    if (!result.ok) throw new Error('変換できるはず');
+
+    expect((result.data as { services: unknown[] }).services).toEqual(broken.services);
   });
 
   it('現在の版数はそのまま通す', () => {

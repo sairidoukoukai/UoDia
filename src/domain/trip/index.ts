@@ -11,4 +11,4 @@ export {
   timeAt,
 } from './times';
 
-export { applyTripNumbers, numberTrips, DIRECTION_PREFIX } from './numbering';
+export { numberTrips, DEADHEAD_PREFIX, DIRECTION_PREFIX } from './numbering';

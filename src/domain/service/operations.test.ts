@@ -54,7 +54,6 @@ function makeTrip(
     patternId,
     anchor: hm === null ? null : { stopId: pattern.originStopId, time: fromHM(hm[0], hm[1]) },
     blockId: '',
-    tripShortName: '',
     ...extra,
   };
 }
@@ -101,9 +100,7 @@ describe('便の追加', () => {
     if (result === null) throw new Error('追加できるはず');
 
     expect(ids(result.trips)).toEqual(['t1', 't2']);
-    expect(result.added).toEqual([
-      { tripId: 't2', patternId: 'S3', anchor: null, blockId: '', tripShortName: '' },
-    ]);
+    expect(result.added).toEqual([{ tripId: 't2', patternId: 'S3', anchor: null, blockId: '' }]);
   });
 
   it('元の配列を書き換えない', () => {
@@ -137,12 +134,11 @@ describe('便の複製', () => {
     expect(copy?.anchor).toEqual({ stopId: TOYONAKA, time: fromHM(8, 15) });
   });
 
-  it('**運用番号は引き継ぎ、便番号は捨てる**', () => {
-    const trips = [makeTrip('t1', 'S1', [8, 0], { blockId: 'A', tripShortName: 'E1' })];
+  it('**運用番号は引き継ぐ**（同じ運用の便を増やすのが複製の用途）', () => {
+    const trips = [makeTrip('t1', 'S1', [8, 0], { blockId: 'A' })];
     const copy = duplicateTrips(trips, ['t1'], 5, network)?.added[0];
 
     expect(copy?.blockId).toBe('A');
-    expect(copy?.tripShortName).toBe('');
   });
 
   it('複数選ぶと、それぞれの隣に入る', () => {
@@ -184,7 +180,7 @@ describe('便の複製', () => {
 });
 
 describe('ダイヤ間コピー', () => {
-  const source = [makeTrip('t1', 'S1', [8, 0], { blockId: 'A', tripShortName: 'E1' })];
+  const source = [makeTrip('t1', 'S1', [8, 0], { blockId: 'A' })];
 
   it('**時刻はそのまま写し先の末尾に付く**', () => {
     const target = [makeTrip('t2', 'S3', [7, 0])];
@@ -193,7 +189,6 @@ describe('ダイヤ間コピー', () => {
     expect(ids(result?.trips ?? [])).toEqual(['t2', 't3']);
     expect(result?.added[0]?.anchor).toEqual({ stopId: TOYONAKA, time: fromHM(8, 0) });
     expect(result?.added[0]?.blockId).toBe('A');
-    expect(result?.added[0]?.tripShortName).toBe('');
   });
 
   it('**ID は写し元とも写し先ともぶつからない**（GTFS の trip_id は全体で一意）', () => {

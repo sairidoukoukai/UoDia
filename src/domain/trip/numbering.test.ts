@@ -1,5 +1,8 @@
 /**
- * 便番号の採番の検証（T-44、仕様書 §6.1.6）。
+ * 便番号の採番の検証（T-44・T-46、仕様書 §6.1.6）。
+ *
+ * 営業便は方向ごとに `E`／`W`、回送便は方向を分けず `D`。いずれも始発時刻の
+ * 昇順であり、**便に書き込まずに対応表を返す**。
  */
 
 import { readFileSync } from 'node:fs';
@@ -8,7 +11,7 @@ import { describe, expect, it } from 'vitest';
 import type { Trip } from '@/domain/model';
 import { loadNetworkDef, type NetworkIndex } from '@/domain/network';
 import { fromHM } from '@/domain/time';
-import { applyTripNumbers, numberTrips } from './numbering';
+import { numberTrips } from './numbering';
 
 const routeJsonPath = fileURLToPath(new URL('../../../data/route.json', import.meta.url));
 const loaded = loadNetworkDef(readFileSync(routeJsonPath, 'utf8'));
@@ -26,16 +29,16 @@ function trip(patternId: string, hours: number, minutes: number): Trip {
     patternId,
     anchor: { stopId: pattern.originStopId, time: fromHM(hours, minutes) },
     blockId: '',
-    tripShortName: '',
   };
 }
 
-/** 便 ID ではなく採番結果だけを見る。 */
+/** 渡した順に、それぞれの便に付いた番号を返す。付かなければ空文字。 */
 function numbersOf(trips: readonly Trip[]): string[] {
-  return applyTripNumbers(trips, network).map((t) => t.tripShortName);
+  const numbers = numberTrips(trips, network);
+  return trips.map((t) => numbers.get(t.tripId) ?? '');
 }
 
-describe('numberTrips — 方向ごとの連番', () => {
+describe('営業便 — 方向ごとの連番', () => {
   it('吹田方面は始発時刻の昇順に E1 から振る', () => {
     const trips = [trip('S1', 8, 0), trip('S1', 9, 0), trip('S1', 10, 0)];
     expect(numbersOf(trips)).toEqual(['E1', 'E2', 'E3']);
@@ -82,17 +85,30 @@ describe('numberTrips — 方向ごとの連番', () => {
   });
 });
 
-describe('numberTrips — 採番しない便', () => {
-  it('**回送便には番号を振らない**（利用者向けの番号であるため）', () => {
-    const trips = [trip('DT-out', 7, 0), trip('S1', 8, 0), trip('DT-in', 9, 0)];
-    expect(numbersOf(trips)).toEqual(['', 'E1', '']);
+describe('回送便（T-46）', () => {
+  it('**始発時刻の昇順に D1 から振る**', () => {
+    const trips = [trip('DS-out', 7, 0), trip('DT-in', 9, 0), trip('DM-out', 8, 0)];
+    expect(numbersOf(trips)).toEqual(['D1', 'D3', 'D2']);
   });
 
-  it('回送便は営業便の連番に影響しない', () => {
+  it('**方向で分けない**（出庫も入庫も一続きに数える）', () => {
+    // DS-out は吹田方面、DT-out は豊中方面。
+    const trips = [trip('DS-out', 7, 0), trip('DT-out', 7, 30)];
+    expect(numbersOf(trips)).toEqual(['D1', 'D2']);
+  });
+
+  it('営業便の連番に影響しない', () => {
     const trips = [trip('S1', 8, 0), trip('DS-out', 8, 30), trip('S1', 9, 0)];
-    expect(numbersOf(trips)).toEqual(['E1', '', 'E2']);
+    expect(numbersOf(trips)).toEqual(['E1', 'D1', 'E2']);
   });
 
+  it('営業便の番号と混ざらない', () => {
+    const trips = [trip('DS-out', 7, 0), trip('S1', 8, 0), trip('T1', 8, 30)];
+    expect(numbersOf(trips)).toEqual(['D1', 'E1', 'W1']);
+  });
+});
+
+describe('番号が付かない便', () => {
   it('時刻が未入力の便には番号を振らない', () => {
     const empty: Trip = { ...trip('S1', 8, 0), anchor: null };
     expect(numbersOf([empty])).toEqual(['']);
@@ -114,7 +130,7 @@ describe('numberTrips — 採番しない便', () => {
   });
 });
 
-describe('applyTripNumbers — 振り直し', () => {
+describe('振り直し', () => {
   it('便を追加すると番号が時刻順に詰め直される', () => {
     const first = trip('S1', 8, 0);
     const third = trip('S1', 10, 0);
@@ -133,29 +149,10 @@ describe('applyTripNumbers — 振り直し', () => {
     expect(numbersOf([a, b, c])).toEqual(['E1', 'E2', 'E3']);
   });
 
-  it('**既存の番号を見ない**（採番は導出であり履歴に依存しない）', () => {
-    const withOldNumbers = [
-      { ...trip('S1', 8, 0), tripShortName: 'E99' },
-      { ...trip('S1', 9, 0), tripShortName: 'まちがい' },
-    ];
-    expect(numbersOf(withOldNumbers)).toEqual(['E1', 'E2']);
-  });
-
-  it('番号が付かなくなった便の番号は空文字に戻す', () => {
-    // 時刻を消した便に、前回の番号が残ってはならない
-    const stale: Trip = { ...trip('S1', 8, 0), anchor: null, tripShortName: 'E1' };
-    expect(numbersOf([stale])).toEqual(['']);
-  });
-
-  it('元の便を書き換えない', () => {
+  it('**便を書き換えない**（番号は便の持ち物ではない）', () => {
     const original = trip('S1', 8, 0);
-    applyTripNumbers([original], network);
-    expect(original.tripShortName).toBe('');
-  });
-
-  it('便番号以外は変えない', () => {
-    const original = trip('S1', 8, 0);
-    const [applied] = applyTripNumbers([original], network);
-    expect(applied).toEqual({ ...original, tripShortName: 'E1' });
+    const snapshot = { ...original };
+    numberTrips([original], network);
+    expect(original).toEqual(snapshot);
   });
 });

@@ -64,6 +64,13 @@ export interface TimetableGridProps {
   readonly blockColors: ReadonlyMap<string, string>;
   /** 運用番号が書き換えられた。 */
   readonly onChangeBlockId: (tripId: string, blockId: string) => void;
+  /**
+   * 便番号（仕様書 §6.1.6）。**便は番号を持たない**ため、外から渡す。
+   *
+   * 表示中の方向だけで採番すると、方向をまたいで番号が重なる。採番はダイヤの
+   * 全便から決める（`store/selectors.ts` の `selectTripNumbers`）。
+   */
+  readonly tripNumbers: ReadonlyMap<string, string>;
 }
 
 /** 丸めを知らせる点滅の長さ（ミリ秒）。 */
@@ -89,7 +96,7 @@ interface Editing {
 const BLANK = '―';
 
 export function TimetableGrid(props: TimetableGridProps): ReactElement {
-  const { timetable, onCommit, selectedTripIds, blockColors } = props;
+  const { timetable, onCommit, selectedTripIds, blockColors, tripNumbers } = props;
   const { stops, columns } = timetable;
   const size = { rows: stops.length, columns: columns.length };
   const selected = new Set(selectedTripIds);
@@ -280,7 +287,7 @@ export function TimetableGrid(props: TimetableGridProps): ReactElement {
             <th scope="row">便番号</th>
             {columns.map((column) => (
               <td key={column.trip.tripId} className={columnClass(column.pattern, marks(column))}>
-                {column.trip.tripShortName === '' ? BLANK : column.trip.tripShortName}
+                {tripNumbers.get(column.trip.tripId) ?? BLANK}
               </td>
             ))}
           </tr>

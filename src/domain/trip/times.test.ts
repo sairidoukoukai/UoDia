@@ -44,7 +44,6 @@ function makeTrip(overrides: Partial<Trip> = {}): Trip {
     patternId: 'S3',
     anchor: { stopId: TOYONAKA, time: fromHM(8, 0) },
     blockId: '1',
-    tripShortName: '101',
     ...overrides,
   };
 }
@@ -206,13 +205,7 @@ describe('setTimeAt — アンカーの更新（仕様書 §5.6、UC-3）', () =
     expect(at(second, TOYONAKA)).toBe('8:40');
     expect(second.anchor).toEqual({ stopId: MINOH, time: fromHM(9, 0) });
     // 便が持つのはアンカー 1 点だけであり、以前の指定を記録する場所がない
-    expect(Object.keys(second).sort()).toEqual([
-      'anchor',
-      'blockId',
-      'patternId',
-      'tripId',
-      'tripShortName',
-    ]);
+    expect(Object.keys(second).sort()).toEqual(['anchor', 'blockId', 'patternId', 'tripId']);
   });
 
   it('同じ停留所に設定し直すと平行移動になる', () => {

@@ -34,6 +34,7 @@ import {
   selectNetwork,
   selectSelectedTrips,
   selectServices,
+  selectTripNumbers,
   selectTrips,
   selectTripsByDirection,
   useAppStore,
@@ -66,6 +67,7 @@ export function Timetable(): ReactElement {
   const serviceTrips = useAppStore(selectTrips);
   const activeServiceId = useAppStore((state) => selectActiveService(state)?.serviceId ?? null);
   const services = useAppStore(selectServices);
+  const tripNumbers = useAppStore(selectTripNumbers);
   const setSelection = useAppStore((state) => state.selectTrips);
   const clearSelection = useAppStore((state) => state.clearSelection);
 
@@ -318,6 +320,7 @@ export function Timetable(): ReactElement {
           onRemoveSelection={handleRemove}
           blockColors={blockColors}
           onChangeBlockId={handleChangeBlockId}
+          tripNumbers={tripNumbers}
         />
       )}
     </section>

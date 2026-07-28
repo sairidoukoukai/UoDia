@@ -40,6 +40,7 @@ export {
   selectSelectedTripIds,
   selectSelectedTrips,
   selectServices,
+  selectTripNumbers,
   selectTrips,
   selectTripsByDirection,
   selectUndoLabel,

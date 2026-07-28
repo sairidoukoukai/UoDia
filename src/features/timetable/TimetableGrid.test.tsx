@@ -17,7 +17,7 @@ import routeJson from '../../../data/route.json?raw';
 import type { Trip } from '@/domain/model';
 import { loadNetworkDef, type NetworkIndex } from '@/domain/network';
 import { fromHM, type Seconds } from '@/domain/time';
-import { allTimes } from '@/domain/trip';
+import { allTimes, numberTrips } from '@/domain/trip';
 import type { CellPosition } from './editing';
 import { blockColorsOf, buildTimetable, stopsForDirection } from './model';
 import { TimetableGrid, type CommitResult } from './TimetableGrid';
@@ -44,7 +44,6 @@ function makeTrip(
     patternId,
     anchor: { stopId: pattern.originStopId, time: fromHM(hours, minutes) },
     blockId: '',
-    tripShortName: '',
     ...extra,
   };
 }
@@ -94,6 +93,7 @@ function render(
         onRemoveSelection={extras.onRemoveSelection ?? (() => undefined)}
         blockColors={blockColorsOf(trips)}
         onChangeBlockId={extras.onChangeBlockId ?? (() => undefined)}
+        tripNumbers={numberTrips(trips, network)}
       />,
     );
   });
@@ -185,7 +185,7 @@ function rowOf(stopName: string): (string | null)[] {
 
 describe('見出し', () => {
   it('パターン・行先・便番号・運用を出す', () => {
-    render([makeTrip('S1', 8, 0, { tripShortName: 'E1', blockId: 'A' })]);
+    render([makeTrip('S1', 8, 0, { blockId: 'A' })]);
 
     const headings = [...container.querySelectorAll('thead th[scope="row"]')].map(
       (th) => th.textContent,
@@ -195,11 +195,21 @@ describe('見出し', () => {
     expect(headTexts()).toEqual(['S1', '直行吹田', 'E1', 'A']);
   });
 
-  it('便番号が空なら印を出す（空欄と区別する）', () => {
-    render([makeTrip('S1', 8, 0)]);
+  it('便番号が付かない便は印を出す（空欄と区別する）', () => {
+    // 時刻が未入力の便には番号が付かない（仕様書 §6.1.6）。
+    render([makeTrip('S1', 8, 0, { anchor: null })]);
     expect(headTexts()).toEqual(['S1', '直行吹田', '―', '']);
     // 運用は記入欄であるため、空であることを薄い印で見せる（§6.1.3）。
     expect(blockField(0).placeholder).toBe('―');
+  });
+
+  it('**回送便には D の便番号が付く**（営業便とは別に数える。T-46）', () => {
+    render([makeTrip('S1', 8, 0), makeTrip('DT-in', 7, 0), makeTrip('S1', 9, 0)]);
+
+    const numbers = [...container.querySelectorAll('thead tr:nth-child(4) td')].map(
+      (td) => td.textContent,
+    );
+    expect(numbers).toEqual(['E1', 'D1', 'E2']);
   });
 
   it('**回送便の列は見出しで分かる**', () => {

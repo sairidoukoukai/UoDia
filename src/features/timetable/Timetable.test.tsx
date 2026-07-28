@@ -342,6 +342,57 @@ function disabled(label: string): boolean {
   return found?.disabled ?? false;
 }
 
+describe('便番号（T-46、仕様書 §6.1.6）', () => {
+  /** 便番号の行（見出しの 3 行目）。 */
+  function numbers(): (string | null)[] {
+    return [...container.querySelectorAll('thead tr:nth-child(4) td')].map((td) => td.textContent);
+  }
+
+  it('**時刻を入れると番号が付き、時刻順に詰め直される**', () => {
+    mount();
+    press('便を追加');
+    expect(numbers()).toEqual(['―']);
+
+    setTime(0, fromHM(9, 0));
+    expect(numbers()).toEqual(['E1']);
+
+    // あとから早い便を足すと、番号が入れ替わる。
+    press('便を追加');
+    setTime(1, fromHM(8, 0));
+    expect(numbers()).toEqual(['E2', 'E1']);
+  });
+
+  it('**1 便の時刻を変えても、取り消しはその 1 便で戻る**（採番が履歴に載らない）', () => {
+    mount();
+    press('便を追加');
+    setTime(0, fromHM(9, 0));
+    press('便を追加');
+    setTime(1, fromHM(8, 0));
+
+    const before = selectTrips(useAppStore.getState());
+    // 1 便目を 7:00 へ動かすと、番号が入れ替わる。
+    setTime(0, fromHM(7, 0));
+    expect(numbers()).toEqual(['E1', 'E2']);
+
+    undo();
+    const after = selectTrips(useAppStore.getState());
+    expect(after[0]?.anchor?.time).toBe(fromHM(9, 0));
+    // 動かしていない便は**同じ参照のまま**である。全便を書き換えていない証拠。
+    expect(after[1]).toBe(before[1]);
+    expect(numbers()).toEqual(['E2', 'E1']);
+  });
+
+  it('回送便は営業便と別に数える', () => {
+    mount();
+    press('便を追加');
+    setTime(0, fromHM(8, 0));
+    selectColumn(0);
+    fill('停車パターン', 'DT-in');
+
+    expect(numbers()).toEqual(['D1']);
+  });
+});
+
 describe('運用番号の記入（T-22）', () => {
   /** その列の運用番号欄。 */
   function blockField(index: number): HTMLInputElement {

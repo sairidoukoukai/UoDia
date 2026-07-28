@@ -10,7 +10,7 @@ import { fromHM } from '@/domain/time';
 import { directionIdSchema, idSchema, isoDateTimeSchema, secondsSchema } from './primitives';
 
 /** 現在のファイル形式の版数。破壊的変更のたびに繰り上げる（仕様書 §7.3）。 */
-export const CURRENT_FORMAT_VERSION = 1;
+export const CURRENT_FORMAT_VERSION = 2;
 
 /**
  * 基準時刻（仕様書 §5.6）。**便の時刻を決める唯一の入力。**
@@ -42,9 +42,12 @@ export const tripSchema = z.object({
   anchor: anchorSchema.nullable(),
   /** 運用番号。GTFS `block_id`。空文字は未割当を意味する。 */
   blockId: z.string(),
-  /** 便番号。GTFS `trip_short_name`。 */
-  tripShortName: z.string(),
   note: z.string().optional(),
+  /*
+   * 便番号は持たない（仕様書 §6.1.6）。始発時刻の昇順から導出される値であり、
+   * 保存すると 1 便を動かすたびに全便を書き換えることになる。取り消しの単位が
+   * 「1 便の移動」ではなく「全便の書き換え」になってしまう。
+   */
 });
 export type Trip = z.infer<typeof tripSchema>;
 

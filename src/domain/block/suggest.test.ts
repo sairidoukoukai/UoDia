@@ -40,7 +40,6 @@ function makeTrip(
     patternId,
     anchor: hm === null ? null : { stopId: pattern.originStopId, time: fromHM(hm[0], hm[1]) },
     blockId,
-    tripShortName: '',
   };
 }
 
