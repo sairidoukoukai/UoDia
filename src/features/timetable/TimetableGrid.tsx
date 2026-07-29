@@ -23,7 +23,6 @@ import {
   type Move,
 } from './editing';
 import {
-  HANDLING_MARK,
   NOT_SERVED,
   type LinkCell,
   type Timetable,
@@ -663,8 +662,10 @@ function Cell(props: CellProps): ReactElement {
 function content(cell: TimetableCell): string {
   // 経由しないことを空欄で表さない。空欄は「まだ入れていない」に見える。
   if (cell.kind === 'notServed') return NOT_SERVED;
-  if (cell.kind === 'empty') return HANDLING_MARK[cell.handling];
-  return `${HANDLING_MARK[cell.handling]}${formatTime(cell.time)}`;
+  // 取扱区分の記号（△・▽）は出さない（仕様書 §6.1.1、v4.13）。表に出ている
+  // 範囲では位置から決まり、時刻の桁をずらすだけである。
+  if (cell.kind === 'empty') return '';
+  return formatTime(cell.time);
 }
 
 /** 画面読み上げに升目の意味を伝える。 */

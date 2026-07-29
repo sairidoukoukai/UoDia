@@ -320,18 +320,19 @@ describe('升目（受入条件）', () => {
 
     const anchors = [...container.querySelectorAll('.timetable__cell--anchor')];
     expect(anchors).toHaveLength(1);
-    expect(anchors[0]?.textContent).toBe('△8:00');
+    expect(anchors[0]?.textContent).toBe('8:00');
   });
 
-  it('取扱区分の記号を時刻に添える', () => {
+  it('**取扱区分の記号は出さない**（T-54、仕様書 §6.1.1）', () => {
     // 箕面学舎は S2 では始発（乗車のみ）、M2 では終着（降車のみ）。
+    // どちらも時刻だけを出す——列を見れば始発か終着かは分かる。
     render([makeTrip('S2', 8, 0), makeTrip('M2', 8, 0)]);
-    expect(rowOf('箕面学舎')).toEqual(['△8:00', '▽8:20']);
+    expect(rowOf('箕面学舎')).toEqual(['8:00', '8:20']);
   });
 
   it('時刻が未入力なら空欄にする（`−` とは違う）', () => {
     render([makeTrip('S1', 8, 0, { anchor: null })]);
-    expect(rowOf('豊中学舎')).toEqual(['△']);
+    expect(rowOf('豊中学舎')).toEqual(['']);
     expect(rowOf('箕面学舎')).toEqual(['−']);
   });
 });

@@ -18,20 +18,6 @@ export const DIRECTION_LABEL: Readonly<Record<DirectionId, string>> = {
   1: '豊中方面',
 };
 
-/**
- * 取扱区分の記号（仕様書 §6.1.1）。
- *
- * **記号は行ではなく升目に付く。** 取扱区分は停留所ではなく「そのパターンが
- * その停留所をどう扱うか」であり、同じ停留所でも便によって変わる。実際、
- * 箕面学舎は吹田方面だけを見ても S2 では乗車のみ・M2 では降車のみ・S3 では
- * 乗降であり、行の見出しに 1 つ書くと必ずどれかが嘘になる。
- */
-export const HANDLING_MARK: Readonly<Record<Handling, string>> = {
-  stop: '',
-  boardOnly: '△',
-  alightOnly: '▽',
-};
-
 /** 経由しない停留所に出す印（仕様書 §6.1.1）。 */
 export const NOT_SERVED = '−';
 
