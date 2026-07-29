@@ -522,7 +522,7 @@ describe('運用番号の自動採番（T-23、仕様書 §6.1.5）', () => {
   });
 });
 
-describe('出区・入区（T-50、仕様書 §6.1.7）', () => {
+describe('出区・入区（T-51、仕様書 §6.1.7）', () => {
   /** 前運用・後運用の欄を押す。 */
   function toggle(title: string, column = 0): void {
     const buttons = container.querySelectorAll<HTMLElement>(`[aria-label$="の${title}"]`);
@@ -540,10 +540,10 @@ describe('出区・入区（T-50、仕様書 §6.1.7）', () => {
     );
   }
 
-  /** ダイヤの便を「パターン:始発時刻」で表す。 */
+  /** ダイヤの便を「パターン:出区:入区」で表す。**回送便は保存されない。** */
   function trips(): string[] {
     return selectTrips(useAppStore.getState()).map(
-      (trip) => `${trip.patternId}:${trip.anchor === null ? '未' : String(trip.anchor.time)}`,
+      (trip) => `${trip.patternId}:${String(trip.pullOut)}:${String(trip.pullIn)}`,
     );
   }
 
@@ -555,26 +555,16 @@ describe('出区・入区（T-50、仕様書 §6.1.7）', () => {
     fill(`${String(column + 1)}便の運用番号`, blockId);
   }
 
-  it('**押すと出区の回送便ができ、車庫発の時刻が出る**', () => {
+  it('**押すと出区が付き、車庫発の時刻が出る**', () => {
     mount();
     addTripAt(8, 0, 'A');
     expect(linkText('前運用')).toBe('');
 
     toggle('前運用');
 
-    // 車庫発は 20 分前（0 分折返し）。
+    // 車庫発は 20 分前（0 分折返し）。便は増えない。
     expect(linkText('前運用')).toBe('7:40');
-    expect(trips()).toEqual([`S3:${String(fromHM(8, 0))}`, `DT-out:${String(fromHM(8, 0))}`]);
-  });
-
-  it('**アンカーは営業便と接する停留所に置く**（区間の改定で継ぎ目がずれない）', () => {
-    mount();
-    addTripAt(8, 0, 'A');
-    toggle('前運用');
-
-    const pullOut = selectTrips(useAppStore.getState())[1];
-    expect(pullOut?.anchor).toEqual({ stopId: '1_0', time: fromHM(8, 0) });
-    expect(pullOut?.blockId).toBe('A');
+    expect(trips()).toEqual(['S3:true:false']);
   });
 
   it('**もう一度押すと外れる**', () => {
@@ -584,7 +574,18 @@ describe('出区・入区（T-50、仕様書 §6.1.7）', () => {
     toggle('前運用');
 
     expect(linkText('前運用')).toBe('');
-    expect(trips()).toEqual([`S3:${String(fromHM(8, 0))}`]);
+    expect(trips()).toEqual(['S3:false:false']);
+  });
+
+  it('**何度押しても回送は増えない**（#87）', () => {
+    mount();
+    addTripAt(8, 0, 'A');
+    toggle('前運用');
+    toggle('前運用');
+    toggle('前運用');
+
+    expect(linkText('前運用')).toBe('7:40');
+    expect(trips()).toEqual(['S3:true:false']);
   });
 
   it('**取り消しで戻る**', () => {
@@ -593,7 +594,8 @@ describe('出区・入区（T-50、仕様書 §6.1.7）', () => {
     toggle('前運用');
     undo();
 
-    expect(trips()).toEqual([`S3:${String(fromHM(8, 0))}`]);
+    expect(trips()).toEqual(['S3:false:false']);
+    expect(linkText('前運用')).toBe('');
   });
 
   it('入区は終着の 20 分後に車庫へ着く', () => {
@@ -603,17 +605,37 @@ describe('出区・入区（T-50、仕様書 §6.1.7）', () => {
 
     // S3 は豊中 8:00 発・工学部前 8:40 着。
     expect(linkText('後運用')).toBe('9:00');
+    expect(trips()).toEqual(['S3:false:true']);
   });
 
-  it('**運用番号が空欄でも作れる**（運用は同じ空欄のまま繋がらない）', () => {
+  it('**運用番号が空欄でも設定できる**（#87 の症状 1〜3）', () => {
     mount();
     press('便を追加');
     setTime(0, fromHM(8, 0));
     toggle('前運用');
 
-    // 回送はできるが、運用番号が空欄どうしでは繋がらないため欄は空のまま。
-    expect(trips()).toHaveLength(2);
-    expect(linkText('前運用')).toBe('');
+    expect(linkText('前運用')).toBe('7:40');
+    expect(trips()).toEqual(['S3:true:false']);
+  });
+
+  it('**時刻をずらすと出区も動く**（導出値だから追随する）', () => {
+    mount();
+    addTripAt(8, 0, 'A');
+    toggle('前運用');
+    expect(linkText('前運用')).toBe('7:40');
+
+    setTime(0, fromHM(9, 0));
+    expect(linkText('前運用')).toBe('8:40');
+  });
+
+  it('**便を消すと出区も消える**', () => {
+    mount();
+    addTripAt(8, 0, 'A');
+    toggle('前運用');
+    selectColumn(0);
+    press('削除');
+
+    expect(trips()).toEqual([]);
   });
 
   it('**一度入区してから再び出区する運用を表せる**', () => {

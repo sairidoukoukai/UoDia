@@ -115,6 +115,8 @@ export function addTrip(
     patternId,
     anchor: null,
     blockId: '',
+    pullOut: false,
+    pullIn: false,
   };
   return { trips: [...trips, trip], added: [trip] };
 }

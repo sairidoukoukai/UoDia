@@ -21,14 +21,11 @@ import {
   addTrip,
   changeTripsPattern,
   copyTripsToService,
-  createPullIn,
-  createPullOut,
   defaultPatternId,
   duplicateTrips,
   removeTrips,
   shiftTrips,
   sortTripsByOrigin,
-  tripIdMinter,
 } from '@/domain/service';
 import {
   selectActiveDirection,
@@ -63,8 +60,6 @@ const CANNOT = {
   shift: 'ずらせません（時刻が 0:00〜47:55 を外れるか、5 分の倍数ではありません）',
   pattern: 'そのパターンには変えられません',
   copy: '複製できません',
-  depot:
-    '車庫との行き来を作れません（時刻が 0:00〜47:55 を外れるか、繋がる回送が定義にありません）',
 } as const;
 
 export function Timetable(): ReactElement {
@@ -268,37 +263,17 @@ export function Timetable(): ReactElement {
   /**
    * 出区・入区を切り替える（仕様書 §6.1.7）。
    *
-   * 既にあれば消し、無ければ作る。作る回送に決めるものは無い——経路は接する
-   * 停留所から、時刻は 0 分折返しから、運用番号は営業便から決まる。
+   * **書き換えるのは真偽値 1 つだけ**である。回送便は保存されず、この値から
+   * 展開される（`domain/trip/deadhead.ts`）。経路も時刻も運用番号も、営業便が
+   * 決まっていれば決まる（0 分折返し）。
    */
-  const toggleDepotLink = (
-    tripId: string,
-    side: 'previous' | 'next',
-    create: (trip: Trip, network: NetworkIndex, newId: string) => Trip | null,
-    label: string,
-  ): void => {
-    const existing = links.get(tripId)?.[side];
-    if (existing?.kind === 'depot') {
-      replaceTrips(
-        activeServiceId,
-        `${label}の取り消し`,
-        removeTrips(serviceTrips, [existing.tripId]),
-      );
-      setMessage(null);
-      return;
-    }
-
-    const trip = serviceTrips.find((t) => t.tripId === tripId);
-    const created =
-      network === null || trip === undefined
-        ? null
-        : create(trip, network, tripIdMinter(allTrips())());
-    if (created === null) {
-      setMessage(CANNOT.depot);
-      return;
-    }
-
-    replaceTrips(activeServiceId, label, [...serviceTrips, created]);
+  const toggleDepotLink = (tripId: string, side: 'pullOut' | 'pullIn', label: string): void => {
+    editProject(label, (project) => {
+      for (const service of project.services) {
+        const trip = service.trips.find((t) => t.tripId === tripId);
+        if (trip !== undefined) trip[side] = !trip[side];
+      }
+    });
     setMessage(null);
   };
 
@@ -384,10 +359,10 @@ export function Timetable(): ReactElement {
           onChangeBlockId={handleChangeBlockId}
           tripNumbers={tripNumbers}
           onTogglePullOut={(tripId) => {
-            toggleDepotLink(tripId, 'previous', createPullOut, '出区');
+            toggleDepotLink(tripId, 'pullOut', '出区の切り替え');
           }}
           onTogglePullIn={(tripId) => {
-            toggleDepotLink(tripId, 'next', createPullIn, '入区');
+            toggleDepotLink(tripId, 'pullIn', '入区の切り替え');
           }}
         />
       )}

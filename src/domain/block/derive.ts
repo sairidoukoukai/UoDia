@@ -18,7 +18,7 @@
 import type { Trip } from '@/domain/model';
 import type { NetworkIndex } from '@/domain/network';
 import { compareTime, diffMinutes, type Seconds } from '@/domain/time';
-import { originTime, terminalTime } from '@/domain/trip';
+import { expandDeadheads, originTime, terminalTime } from '@/domain/trip';
 import { adjacentPairs } from '@/domain/util';
 
 /** 運用の中の 1 便と、そこから導出される値。 */
@@ -93,26 +93,33 @@ export interface BlockDerivation {
   readonly unresolved: readonly Trip[];
 }
 
-/** 便を運用に分解する。 */
+/**
+ * 便を運用に分解する。
+ *
+ * **回送便はここで展開する**（仕様書 §6.1.7、T-51）。渡すのは保存されている
+ * 営業便であり、出区・入区は `pullOut` / `pullIn` から作られて行路に加わる。
+ * 展開を呼び出し側の責任にすると、どこか 1 か所が忘れた瞬間に「回送を数えない
+ * 運用」が生まれ、折返し時分も出入庫時刻も静かにずれる。
+ */
 export function deriveBlocks(trips: readonly Trip[], network: NetworkIndex): BlockDerivation {
-  const unassigned: Trip[] = [];
-  const unanchored: Trip[] = [];
-  const unresolved: Trip[] = [];
-  const byBlockId = new Map<string, NonEmptyTrips>();
-
   // 3 つの分類は互いに排他ではない。運用番号が空欄で、かつ時刻も未入力の便は
   // 両方に現れる。どちらも「まだ埋まっていない」という別々の事実であり、
   // 片方だけ報告すると、直したあとにもう片方が現れて二度手間になる。
-  for (const trip of trips) {
-    if (trip.blockId === '') unassigned.push(trip);
+  //
+  // **数えるのは保存されている便だけ**である。展開した回送便は営業便の写しで
+  // あり、そこまで数えると「運用番号が空欄の便が 3 件」——実は 1 便とその出入区
+  // ——のような報告になる。
+  const unassigned = trips.filter((trip) => trip.blockId === '');
+  const unanchored = trips.filter((trip) => trip.anchor === null);
+  const unresolved: Trip[] = [];
+  const byBlockId = new Map<string, NonEmptyTrips>();
 
-    if (trip.anchor === null) {
-      unanchored.push(trip);
-      continue;
-    }
+  for (const trip of expandDeadheads(trips, network)) {
+    if (trip.anchor === null) continue;
 
     const resolved = resolveTrip(trip, network);
     if (resolved === null) {
+      // 展開した回送便はここに落ちない。作れた時点で時刻まで解けている。
       unresolved.push(trip);
       continue;
     }

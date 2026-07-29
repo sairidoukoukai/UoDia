@@ -2,7 +2,7 @@
  * プロジェクト（`.uodia` ファイル）のスキーマ。仕様書 §5.6〜§5.10、§7.2。
  *
  * 停留所・区間・パターンの定義は含まない（`route.json` から読む）。
- * 1 便あたりの永続化データは 5 フィールドのみで、100 便でも数十 KB に収まる。
+ * 1 便あたりの永続化データは 6 フィールドのみで、100 便でも数十 KB に収まる。
  */
 
 import { z } from 'zod';
@@ -10,7 +10,7 @@ import { fromHM } from '@/domain/time';
 import { directionIdSchema, idSchema, isoDateTimeSchema, secondsSchema } from './primitives';
 
 /** 現在のファイル形式の版数。破壊的変更のたびに繰り上げる（仕様書 §7.3）。 */
-export const CURRENT_FORMAT_VERSION = 2;
+export const CURRENT_FORMAT_VERSION = 3;
 
 /**
  * 基準時刻（仕様書 §5.6）。**便の時刻を決める唯一の入力。**
@@ -42,6 +42,16 @@ export const tripSchema = z.object({
   anchor: anchorSchema.nullable(),
   /** 運用番号。GTFS `block_id`。空文字は未割当を意味する。 */
   blockId: z.string(),
+  /**
+   * この便の前に車庫から出るか（出区）。仕様書 §6.1.7。
+   *
+   * **回送便そのものは持たない。** 0 分折返しの制約により、回送便の停車パターン・
+   * 時刻・運用番号はすべてこの便から決まる。持つべき情報はこの真偽値だけであり、
+   * 回送便は要る場面で展開する（`domain/service/deadhead.ts`）。
+   */
+  pullOut: z.boolean().default(false),
+  /** この便の後に車庫へ入るか（入区）。仕様書 §6.1.7。 */
+  pullIn: z.boolean().default(false),
   note: z.string().optional(),
   /*
    * 便番号は持たない（仕様書 §6.1.6）。始発時刻の昇順から導出される値であり、
@@ -57,7 +67,7 @@ export const serviceSchema = z.object({
   serviceId: idSchema,
   /** 例: 授業期間平日ダイヤ */
   serviceName: z.string().min(1),
-  /** 両方向・営業便・回送便のすべてを含む。 */
+  /** 両方向の営業便。**回送便は含まない**（導出値。仕様書 §6.1.7）。 */
   trips: z.array(tripSchema),
 });
 export type Service = z.infer<typeof serviceSchema>;

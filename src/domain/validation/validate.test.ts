@@ -32,6 +32,8 @@ function trip(patternId: string, hours: number, minutes: number, blockId = ''): 
     patternId,
     anchor: { stopId: pattern.originStopId, time: fromHM(hours, minutes) },
     blockId,
+    pullOut: false,
+    pullIn: false,
   };
 }
 
@@ -231,6 +233,32 @@ describe('V-04: 参照が壊れていて時刻を導出できない', () => {
     expect(ids).toContain('V-04');
     // 時刻が無い便は便間隔（V-06）の対象にならない
     expect(ids).not.toContain('V-06');
+  });
+
+  it('**車庫発が範囲を外れる出区を検出する**（T-51、仕様書 §6.1.7）', () => {
+    // 0:10 発の便の出区は前日 23:50 となり、表せない。
+    const early: Trip = { ...trip('S1', 0, 10, '1'), pullOut: true };
+    const found = validateService([early], network).find((i) => i.id === 'V-04');
+
+    expect(found?.message).toContain('出区');
+    expect(found?.target.tripId).toBe(early.tripId);
+  });
+
+  it('**車庫着が範囲を外れる入区を検出する**', () => {
+    const late: Trip = { ...trip('S1', 47, 20, '1'), pullIn: true };
+    expect(validateService([late], network).find((i) => i.id === 'V-04')?.message).toContain(
+      '入区',
+    );
+  });
+
+  it('作れる出区・入区は報告しない', () => {
+    const trips: Trip[] = [{ ...trip('S1', 8, 0, '1'), pullOut: true, pullIn: true }];
+    expect(idsOf(trips)).not.toContain('V-04');
+  });
+
+  it('時刻が未入力の便の出区は報告しない（回送の時刻も決まらないのは当然）', () => {
+    const empty: Trip = { ...trip('S1', 8, 0, '1'), anchor: null, pullOut: true, pullIn: true };
+    expect(idsOf([empty])).not.toContain('V-04');
   });
 
   it('エラーとして報告する（データが壊れている）', () => {

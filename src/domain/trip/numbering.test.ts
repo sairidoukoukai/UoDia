@@ -29,6 +29,8 @@ function trip(patternId: string, hours: number, minutes: number): Trip {
     patternId,
     anchor: { stopId: pattern.originStopId, time: fromHM(hours, minutes) },
     blockId: '',
+    pullOut: false,
+    pullIn: false,
   };
 }
 
@@ -85,26 +87,14 @@ describe('営業便 — 方向ごとの連番', () => {
   });
 });
 
-describe('回送便（T-46）', () => {
-  it('**始発時刻の昇順に D1 から振る**', () => {
-    const trips = [trip('DS-out', 7, 0), trip('DT-in', 9, 0), trip('DM-out', 8, 0)];
-    expect(numbersOf(trips)).toEqual(['D1', 'D3', 'D2']);
+describe('回送便（T-51）', () => {
+  it('**回送便には番号を振らない**', () => {
+    expect(numbersOf([trip('DS-out', 7, 0), trip('DT-in', 9, 0)])).toEqual(['', '']);
   });
 
-  it('**方向で分けない**（出庫も入庫も一続きに数える）', () => {
-    // DS-out は吹田方面、DT-out は豊中方面。
-    const trips = [trip('DS-out', 7, 0), trip('DT-out', 7, 30)];
-    expect(numbersOf(trips)).toEqual(['D1', 'D2']);
-  });
-
-  it('営業便の連番に影響しない', () => {
+  it('**回送便は営業便の連番を飛ばさない**（数に入れない）', () => {
     const trips = [trip('S1', 8, 0), trip('DS-out', 8, 30), trip('S1', 9, 0)];
-    expect(numbersOf(trips)).toEqual(['E1', 'D1', 'E2']);
-  });
-
-  it('営業便の番号と混ざらない', () => {
-    const trips = [trip('DS-out', 7, 0), trip('S1', 8, 0), trip('T1', 8, 30)];
-    expect(numbersOf(trips)).toEqual(['D1', 'E1', 'W1']);
+    expect(numbersOf(trips)).toEqual(['E1', '', 'E2']);
   });
 });
 

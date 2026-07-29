@@ -13,6 +13,7 @@
  */
 
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
+import type { StopPattern } from '@/domain/model';
 import { formatTime } from '@/domain/time';
 import {
   initialEditText,
@@ -271,9 +272,6 @@ export function TimetableGrid(props: TimetableGridProps): ReactElement {
                   }}
                 >
                   {tripNumbers.get(column.trip.tripId) ?? BLANK}
-                  {column.pattern?.isDeadhead === true && (
-                    <span className="timetable__badge">回送</span>
-                  )}
                 </button>
               </th>
             ))}
@@ -356,7 +354,6 @@ export function TimetableGrid(props: TimetableGridProps): ReactElement {
                   <Cell
                     key={column.trip.tripId}
                     cell={column.cells[row] ?? { kind: 'notServed' }}
-                    deadhead={column.pattern?.isDeadhead === true}
                     selected={marks(column).selected}
                     sameBlock={marks(column).sameBlock}
                     at={at}
@@ -424,11 +421,16 @@ function LinkRow(props: LinkRowProps): ReactElement {
         const number = props.numbers.get(column.trip.tripId) ?? BLANK;
         return (
           <td key={column.trip.tripId} className={linkClass(props.marks(column))}>
+            {/*
+              **繋がる営業便が出ている欄も押せる。** 運用の途中で車庫へ帰る運用は
+              そこから作る（仕様書 §6.1.7）。押した直後は繋がりが切れた状態に
+              なるが、それは V-01 が伝える。
+            */}
             <button
               type="button"
               className="timetable__link"
               aria-label={`${number}の${props.title}`}
-              aria-pressed={cell.kind === 'depot'}
+              aria-pressed={cell.kind === 'depot' || cell.kind === 'depotUnresolvable'}
               title={`押すと${props.action}を付ける／外す`}
               onClick={() => {
                 props.onToggle(column.trip.tripId);
@@ -446,6 +448,8 @@ function LinkRow(props: LinkRowProps): ReactElement {
 /** 前運用・後運用の欄に出す文字。 */
 function linkText(cell: LinkCell): string {
   if (cell.kind === 'depot') return formatTime(cell.time);
+  // 時刻を出せないまま空欄にすると「押しても何も起きない」に見える。
+  if (cell.kind === 'depotUnresolvable') return '!';
   if (cell.kind === 'trip') return cell.label;
   return '';
 }
@@ -459,7 +463,6 @@ function linkClass(marks: ColumnMarks): string {
 
 interface CellProps {
   readonly cell: TimetableCell;
-  readonly deadhead: boolean;
   readonly selected: boolean;
   readonly sameBlock: boolean;
   readonly at: CellPosition;
@@ -474,10 +477,9 @@ interface CellProps {
 }
 
 function Cell(props: CellProps): ReactElement {
-  const { cell, deadhead, selected, sameBlock, at, focused, editing, flashing } = props;
+  const { cell, selected, sameBlock, at, focused, editing, flashing } = props;
 
   const classes = ['timetable__cell'];
-  if (deadhead) classes.push('timetable__cell--deadhead');
   if (sameBlock) classes.push('timetable__cell--sameBlock');
   if (selected) classes.push('timetable__cell--selected');
   if (flashing) classes.push('timetable__cell--rounded');
@@ -562,11 +564,14 @@ interface ColumnMarks {
   readonly sameBlock: boolean;
 }
 
-/** 回送便の列と、参照が壊れている列を見分けられるようにする。 */
-function columnClass(pattern: { readonly isDeadhead: boolean } | null, marks: ColumnMarks): string {
+/**
+ * 参照が壊れている列を見分けられるようにする。
+ *
+ * 回送便の列を区別する必要は無い。**列になるのは営業便だけ**である（§6.1.7）。
+ */
+function columnClass(pattern: StopPattern | null, marks: ColumnMarks): string {
   const classes = ['timetable__head'];
   if (pattern === null) classes.push('timetable__head--broken');
-  else if (pattern.isDeadhead) classes.push('timetable__head--deadhead');
   if (marks.sameBlock) classes.push('timetable__head--sameBlock');
   if (marks.selected) classes.push('timetable__head--selected');
   return classes.join(' ');

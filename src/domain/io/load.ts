@@ -19,6 +19,7 @@ import {
   type Trip,
 } from '@/domain/model';
 import type { NetworkIndex } from '@/domain/network';
+import { originStopId, originTime, terminalStopId, terminalTime } from '@/domain/trip';
 import { parseJson } from '@/domain/util';
 import { MIGRATIONS, migrateProjectData, type Migration } from './migrate';
 
@@ -33,7 +34,9 @@ export type ProjectWarningId =
   /** 知らないキーがあったので読み飛ばした。 */
   | 'W-04'
   /** マイグレーションを適用した。 */
-  | 'W-05';
+  | 'W-05'
+  /** 営業便に畳めない回送便があったので取り除いた（版数 3 への移行）。 */
+  | 'W-06';
 
 export interface ProjectWarning {
   readonly id: ProjectWarningId;
@@ -124,7 +127,9 @@ export function loadProjectData(
   warnings.push(...checkRouteVersion(parsed.value, network));
 
   const repaired = repairReferences(parsed.value, network, warnings);
-  return { ok: true, project: repaired, warnings };
+  // 畳むのは修復のあとである。パターンの参照が直っていなければ、その便が回送
+  // なのかどうかも決められない。
+  return { ok: true, project: foldDeadheads(repaired, network, warnings), warnings };
 }
 
 /** スキーマ検証の前に版数だけを覗く。古いファイルは現在のスキーマに適合しない。 */
@@ -239,6 +244,106 @@ interface RepairContext {
   readonly warnings: ProjectWarning[];
   readonly fallbackPatternId: string | undefined;
   readonly path: string;
+}
+
+/**
+ * 保存されている回送便を営業便の `pullOut` / `pullIn` へ畳む（仕様書 §7.3、T-51）。
+ *
+ * 版数 2 以前のファイルには回送便が便として入っている。版数 3 では回送便を
+ * 保存しないため、接している営業便の真偽値に移し替えて取り除く。
+ *
+ * 接点は**停留所と時刻の一致**で見る。0 分折返しの制約により、繋がっている回送は
+ * 必ず営業便の始発・終着とぴたり一致する（§6.1.7）。運用番号が違えば繋がって
+ * いない。
+ *
+ * **畳めなかった回送便は黙って捨てない。** 運用番号が空欄のもの、接点が合わない
+ * もの、既に畳んだ側と重複しているもの——いずれも本アプリでは作れず、V-01 や
+ * V-07 が既に報告していた壊れたデータである。それでも「開いたら便が減っていた」
+ * とだけ言われては、何が起きたのか分からない。
+ */
+function foldDeadheads(
+  project: Project,
+  network: NetworkIndex,
+  warnings: ProjectWarning[],
+): Project {
+  const services = project.services.map((service, index) =>
+    foldServiceDeadheads(service, network, warnings, `services[${String(index)}].trips`),
+  );
+  return { ...project, services };
+}
+
+function foldServiceDeadheads(
+  service: Service,
+  network: NetworkIndex,
+  warnings: ProjectWarning[],
+  path: string,
+): Service {
+  const isDeadhead = (trip: Trip): boolean =>
+    network.patternIndex(trip.patternId)?.pattern.isDeadhead === true;
+
+  const deadheads = service.trips.filter(isDeadhead);
+  // 回送便が 1 つも無ければ写しを作らない。版数 3 のファイルはここを素通りする。
+  if (deadheads.length === 0) return service;
+
+  const kept = service.trips.filter((trip) => !isDeadhead(trip)).map((trip) => ({ ...trip }));
+
+  for (const [index, deadhead] of deadheads.entries()) {
+    if (!fold(deadhead, kept, network)) {
+      warnings.push({
+        id: 'W-06',
+        message:
+          `回送便 ${deadhead.tripId}（${deadhead.patternId}）を繋がる営業便に畳めませんでした。` +
+          `取り除きます`,
+        path: `${path}[${String(index)}]`,
+      });
+    }
+  }
+
+  return { ...service, trips: kept };
+}
+
+/**
+ * 回送便 1 本を、接している営業便へ畳む。畳めれば `true`。
+ *
+ * 車庫を出る回送は次の営業便の**始発**に、車庫へ入る回送は前の営業便の**終着**に
+ * 接する。どちらの向きかを営業所の位置で調べる必要は無い。**接点が一致するかを
+ * 両方向で試せば足りる**——営業便が営業所を発着することはなく（R-07）、2 つの
+ * 向きが取り違えられることはない。
+ *
+ * 既にその側が立っている便は選ばない。同じ場所に回送が 2 本あったということで
+ * あり、2 本目は畳めなかったものとして報告する。
+ */
+function fold(deadhead: Trip, revenue: Trip[], network: NetworkIndex): boolean {
+  // 運用番号が空欄の回送はどの便とも繋がらない（仕様書 §6.1.3）。
+  if (deadhead.blockId === '') return false;
+
+  const sameBlock = (trip: Trip): boolean => trip.blockId === deadhead.blockId;
+
+  const next = revenue.find(
+    (trip) =>
+      !trip.pullOut &&
+      sameBlock(trip) &&
+      originStopId(trip, network) === terminalStopId(deadhead, network) &&
+      originTime(trip, network) === terminalTime(deadhead, network),
+  );
+  if (next !== undefined) {
+    next.pullOut = true;
+    return true;
+  }
+
+  const previous = revenue.find(
+    (trip) =>
+      !trip.pullIn &&
+      sameBlock(trip) &&
+      terminalStopId(trip, network) === originStopId(deadhead, network) &&
+      terminalTime(trip, network) === originTime(deadhead, network),
+  );
+  if (previous !== undefined) {
+    previous.pullIn = true;
+    return true;
+  }
+
+  return false;
 }
 
 function repairTrip(trip: Trip, context: RepairContext): Trip {

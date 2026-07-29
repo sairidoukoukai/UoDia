@@ -11,4 +11,13 @@ export {
   timeAt,
 } from './times';
 
-export { numberTrips, DEADHEAD_PREFIX, DIRECTION_PREFIX } from './numbering';
+export { numberTrips, DIRECTION_PREFIX } from './numbering';
+
+export {
+  createPullIn,
+  createPullOut,
+  expandDeadheads,
+  pullInPatternFor,
+  pullOutPatternFor,
+  sourceTripId,
+} from './deadhead';

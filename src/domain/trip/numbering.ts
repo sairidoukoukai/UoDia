@@ -1,18 +1,20 @@
 /**
  * 便番号の採番（仕様書 §6.1.6）。
  *
- * 営業便は方向ごとに、回送便は方向を分けず、いずれも始発時刻の昇順に振る。
+ * 営業便に方向ごと、始発時刻の昇順で振る。
  *
  * | 便の種別 | 例 |
  * | --- | --- |
  * | 営業便・吹田方面（`directionId: 0`） | `E1` `E2` `E3` … |
  * | 営業便・豊中方面（`directionId: 1`） | `W1` `W2` `W3` … |
- * | 回送便 | `D1` `D2` `D3` … |
  *
- * **回送便を方向で分けないのは、回送が案内の対象ではないからである。** 営業便の
- * 番号は利用者に示すものであり、行き先の向きが意味を持つ。回送に必要なのは
- * 「その日の何本目の回送か」だけであり、出庫と入庫を別々に数えると、営業所を
- * 経由しない回送（車両の差し替え）を表せなくなる。
+ * **回送便には番号を振らない**（仕様書 §6.1.6、T-51）。番号は便を指すために
+ * あり、指す必要が生じるのは画面に出るものだけである。回送便は列にならず
+ * （§6.1.7）、前運用・後運用の欄に時刻として、ダイヤグラムでは営業便に続く
+ * 破線として現れる。どちらも隣の営業便を指せば足りる。
+ *
+ * 展開した回送便が混じった並びを渡されても差し支えないよう、回送は**数えずに
+ * 飛ばす**。数に入れると営業便の番号がずれる。
  *
  * ## 便番号は持ち物ではない
  *
@@ -38,14 +40,12 @@ export const DIRECTION_PREFIX: Readonly<Record<0 | 1, string>> = {
   1: 'W', // 豊中方面（西行き）
 };
 
-/** 回送便の接頭辞。方向で分けない。 */
-export const DEADHEAD_PREFIX = 'D';
-
 /**
  * 便番号を採番する。
  *
  * 番号が付かない便は表に含まれない。
  *
+ * - **回送便**は番号を持たない
  * - 時刻が未入力の便は時刻順に並べようがないため採番しない
  * - `patternId` が解決できない便、時刻が表せる範囲を外れる便も同様
  */
@@ -56,18 +56,15 @@ export function numberTrips(trips: readonly Trip[], network: NetworkIndex): Map<
   }
   const eastbound: Departure[] = [];
   const westbound: Departure[] = [];
-  const deadhead: Departure[] = [];
 
   for (const trip of trips) {
     const pattern = network.patternIndex(trip.patternId);
-    if (pattern === undefined) continue;
+    if (pattern === undefined || pattern.pattern.isDeadhead) continue;
     const time = originTime(trip, network);
     if (time === null) continue;
 
     const departure = { tripId: trip.tripId, time };
-    if (pattern.pattern.isDeadhead) {
-      deadhead.push(departure);
-    } else if (pattern.pattern.directionId === 0) {
+    if (pattern.pattern.directionId === 0) {
       eastbound.push(departure);
     } else {
       westbound.push(departure);
@@ -78,7 +75,6 @@ export function numberTrips(trips: readonly Trip[], network: NetworkIndex): Map<
   for (const [prefix, departures] of [
     [DIRECTION_PREFIX[0], eastbound],
     [DIRECTION_PREFIX[1], westbound],
-    [DEADHEAD_PREFIX, deadhead],
   ] as const) {
     // 同時刻の便があっても採番が入力の並びで変わらないよう、便 ID で決着させる。
     departures.sort((a, b) => compareTime(a.time, b.time) || a.tripId.localeCompare(b.tripId));

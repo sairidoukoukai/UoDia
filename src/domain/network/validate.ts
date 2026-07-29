@@ -14,7 +14,7 @@ import { adjacentPairs } from '@/domain/util';
 
 /** 検証規則の識別子。仕様書 §5.5.2 の表に対応する。 */
 export type NetworkRule =
-  'R-01' | 'R-02' | 'R-03' | 'R-04' | 'R-05' | 'R-06' | 'R-07' | 'R-08' | 'R-09' | 'R-10';
+  'R-01' | 'R-02' | 'R-03' | 'R-04' | 'R-05' | 'R-06' | 'R-07' | 'R-08' | 'R-09' | 'R-10' | 'R-11';
 
 /** 問題のある要素への参照。 */
 export type NetworkIssueTarget =
@@ -53,6 +53,7 @@ export function validateNetwork(network: NetworkDef): NetworkIssue[] {
     ...checkDepotPatterns(network),
     ...checkDuplicatePatternIds(network),
     ...checkDuplicateStopsInPattern(network),
+    ...checkConnectingDeadheads(network),
   ];
 }
 
@@ -261,6 +262,57 @@ function checkDuplicateStopsInPattern(network: NetworkDef): NetworkIssue[] {
         });
       }
     });
+  }
+
+  return issues;
+}
+
+/**
+ * R-11: すべての営業パターンに、繋がる出庫回送と入庫回送があること。
+ *
+ * 回送便は保存されず、営業便の始発・終着停留所から引かれる（仕様書 §6.1.7）。
+ * 引けないパターンがあると、**利用者が出区を押した瞬間に「作れません」と言う
+ * ほかなくなる**。それは編集中に起こる不具合ではなく `route.json` の不備であり、
+ * 起動時に判る場所へ移す。
+ */
+function checkConnectingDeadheads(network: NetworkDef): NetworkIssue[] {
+  const depotIds = new Set(network.stops.filter((s) => s.isDepot).map((s) => s.stopId));
+  const deadheads = network.patterns.filter((p) => p.isDeadhead);
+
+  const ends = (pattern: StopPattern): { origin: string; terminal: string } | null => {
+    const origin = pattern.stopSequence.at(0)?.stopId;
+    const terminal = pattern.stopSequence.at(-1)?.stopId;
+    // 停留所が 2 件に満たないパターンは R-06 が報告する。ここでは黙って見送る。
+    return origin === undefined || terminal === undefined ? null : { origin, terminal };
+  };
+
+  const issues: NetworkIssue[] = [];
+
+  for (const pattern of network.patterns) {
+    if (pattern.isDeadhead) continue;
+    const service = ends(pattern);
+    if (service === null) continue;
+
+    const hasPullOut = deadheads.some((d) => {
+      const e = ends(d);
+      return e !== null && depotIds.has(e.origin) && e.terminal === service.origin;
+    });
+    const hasPullIn = deadheads.some((d) => {
+      const e = ends(d);
+      return e !== null && e.origin === service.terminal && depotIds.has(e.terminal);
+    });
+
+    for (const [ok, what, stopId] of [
+      [hasPullOut, '出庫', service.origin],
+      [hasPullIn, '入庫', service.terminal],
+    ] as const) {
+      if (ok) continue;
+      issues.push({
+        rule: 'R-11',
+        message: `営業パターン ${pattern.patternId} に繋がる${what}回送がありません（${stopId} と営業所を結ぶ回送パターンが要ります）`,
+        target: { kind: 'pattern', patternId: pattern.patternId },
+      });
+    }
   }
 
   return issues;

@@ -54,6 +54,8 @@ function makeTrip(
     patternId,
     anchor: hm === null ? null : { stopId: pattern.originStopId, time: fromHM(hm[0], hm[1]) },
     blockId: '',
+    pullOut: false,
+    pullIn: false,
     ...extra,
   };
 }
@@ -100,7 +102,9 @@ describe('便の追加', () => {
     if (result === null) throw new Error('追加できるはず');
 
     expect(ids(result.trips)).toEqual(['t1', 't2']);
-    expect(result.added).toEqual([{ tripId: 't2', patternId: 'S3', anchor: null, blockId: '' }]);
+    expect(result.added).toEqual([
+      { tripId: 't2', patternId: 'S3', anchor: null, blockId: '', pullOut: false, pullIn: false },
+    ]);
   });
 
   it('元の配列を書き換えない', () => {

@@ -87,11 +87,34 @@ function dropTripShortName(data: unknown): unknown {
 }
 
 /**
+ * 版数 2 → 3: 版数だけを繰り上げる。
+ *
+ * 版数 3 で回送便を保存しないことにしたが（仕様書 §7.3、T-51）、**回送便を
+ * 営業便へ畳む処理はここに置かない**。畳むには停車パターンと区間所要時間が要り、
+ * それはネットワーク定義にしかない。変換関数が受け取るのは検証前の `unknown`
+ * だけである。
+ *
+ * 畳むのは参照の修復と同じ段階（`load.ts` の `foldDeadheads`）であり、そこでは
+ * 便が型として揃っており、警告（W-06）を並べる先もある。
+ *
+ * `pullOut` / `pullIn` はスキーマの既定値（`false`）で埋まるため、ここで足す
+ * 必要はない。
+ */
+function bumpToVersion3(data: unknown): unknown {
+  const root = asRecord(data);
+  if (root === null) return data;
+  return { ...root, meta: { ...asRecord(root.meta), formatVersion: 3 } };
+}
+
+/**
  * 版数の昇順に並んだ変換の一覧。
  *
  * 形式を変えるときは、ここに `{ from: n, to: n + 1, migrate }` を追加する。
  */
-export const MIGRATIONS: readonly Migration[] = [{ from: 1, to: 2, migrate: dropTripShortName }];
+export const MIGRATIONS: readonly Migration[] = [
+  { from: 1, to: 2, migrate: dropTripShortName },
+  { from: 2, to: 3, migrate: bumpToVersion3 },
+];
 
 export type MigrateResult =
   | { readonly ok: true; readonly data: unknown; readonly applied: readonly number[] }

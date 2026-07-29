@@ -26,6 +26,8 @@ function makeTrip(overrides: Partial<Trip> = {}): Trip {
     patternId: 'S1',
     anchor: { stopId: '1_0', time: fromHM(8, 0) },
     blockId: '1',
+    pullOut: false,
+    pullIn: false,
     ...overrides,
   };
 }
@@ -337,6 +339,85 @@ describe('loadProject — 警告（仕様書 §7.3）', () => {
   });
 });
 
+describe('回送便を畳む（版数 3 への移行。仕様書 §7.3、T-51）', () => {
+  /** 版数 2 のファイル。回送便が便として入っている。 */
+  function version2(trips: readonly Trip[]): string {
+    const project = makeProject(trips);
+    return JSON.stringify({
+      ...project,
+      meta: { ...project.meta, formatVersion: 2 },
+      services: [{ ...project.services[0], trips }],
+    });
+  }
+
+  /** 出区 7:40→8:00 / 営業 8:00→8:30 / 入区 8:30→8:50 の 3 便。 */
+  const pullOut: Trip = { ...makeTrip(), tripId: 'd1', patternId: 'DT-out' };
+  const revenue: Trip = { ...makeTrip(), tripId: 't1', patternId: 'S1' };
+  const pullIn: Trip = {
+    ...makeTrip(),
+    tripId: 'd2',
+    patternId: 'DS-in',
+    anchor: { stopId: '4_0', time: fromHM(8, 30) },
+  };
+
+  it('**接している回送便を営業便のフラグへ移す**', () => {
+    const { project, warnings } = loadOrThrow(version2([pullOut, revenue, pullIn]));
+    const trips = project.services[0]?.trips ?? [];
+
+    expect(trips).toHaveLength(1);
+    expect(trips[0]?.tripId).toBe('t1');
+    expect(trips[0]?.pullOut).toBe(true);
+    expect(trips[0]?.pullIn).toBe(true);
+    expect(warnings.map((w) => w.id)).not.toContain('W-06');
+  });
+
+  it('**保存し直したファイルに回送便は現れない**', () => {
+    const { project } = loadOrThrow(version2([pullOut, revenue, pullIn]));
+    const json = serializeProject(project);
+
+    expect(json).not.toContain('DT-out');
+    expect(json).toContain('"pullOut": true');
+  });
+
+  it('**畳めない回送便は取り除き、必ず伝える**（W-06）', () => {
+    // 運用番号が違うため、どの営業便にも繋がらない。
+    const orphan: Trip = { ...pullOut, blockId: 'ちがう運用' };
+    const { project, warnings } = loadOrThrow(version2([orphan, revenue]));
+
+    expect(project.services[0]?.trips).toHaveLength(1);
+    expect(project.services[0]?.trips[0]?.pullOut).toBe(false);
+    expect(warnings.map((w) => w.id)).toContain('W-06');
+  });
+
+  it('接点の時刻がずれている回送便も畳めない', () => {
+    const early: Trip = { ...pullOut, anchor: { stopId: '1_0', time: fromHM(7, 0) } };
+    const { warnings } = loadOrThrow(version2([early, revenue]));
+    expect(warnings.map((w) => w.id)).toContain('W-06');
+  });
+
+  it('**同じ場所の 2 本目は畳めない**（#87 で増えた回送）', () => {
+    const duplicate: Trip = { ...pullOut, tripId: 'd1b' };
+    const { project, warnings } = loadOrThrow(version2([pullOut, duplicate, revenue]));
+
+    expect(project.services[0]?.trips[0]?.pullOut).toBe(true);
+    expect(warnings.filter((w) => w.id === 'W-06')).toHaveLength(1);
+  });
+
+  it('運用番号が空欄の回送便は畳めない', () => {
+    const unassigned: Trip = { ...pullOut, blockId: '' };
+    const { project, warnings } = loadOrThrow(version2([unassigned, revenue]));
+
+    expect(project.services[0]?.trips[0]?.pullOut).toBe(false);
+    expect(warnings.map((w) => w.id)).toContain('W-06');
+  });
+
+  it('回送便が無ければ何も起きない', () => {
+    const { project, warnings } = loadOrThrow(version2([revenue]));
+    expect(project.services[0]?.trips).toHaveLength(1);
+    expect(warnings.map((w) => w.id)).not.toContain('W-06');
+  });
+});
+
 describe('migrateProjectData — マイグレーションの枠組み（仕様書 §7.3）', () => {
   it('**版数 1 → 2 で便番号を捨てる**（仕様書 §6.1.6、T-46）', () => {
     const v1 = {
@@ -348,14 +429,35 @@ describe('migrateProjectData — マイグレーションの枠組み（仕様�
 
     const trips = (result.data as { services: { trips: object[] }[] }).services[0]?.trips;
     expect(trips?.[0]).toEqual({ tripId: 't1', patternId: 'S1' });
-    expect(result.applied).toEqual([2]);
+    // 版数 3 まで引き上げられる。
+    expect(result.applied).toEqual([2, 3]);
     // 版数の連なりに穴が無いこと。1 つでも欠けると古いファイルが開けなくなる。
-    expect(MIGRATIONS.map((m) => [m.from, m.to])).toEqual([[1, 2]]);
+    expect(MIGRATIONS.map((m) => [m.from, m.to])).toEqual([
+      [1, 2],
+      [2, 3],
+    ]);
+  });
+
+  it('**版数 2 → 3 は版数だけを繰り上げる**（回送便を畳むのは読込時。T-51）', () => {
+    const v2 = { meta: { formatVersion: 2 }, services: [{ trips: [{ tripId: 't1' }] }] };
+    const result = migrateProjectData(v2, 2);
+    if (!result.ok) throw new Error('変換できるはず');
+
+    expect(result.data).toEqual({
+      meta: { formatVersion: 3 },
+      services: [{ trips: [{ tripId: 't1' }] }],
+    });
+  });
+
+  it('版数 2 → 3 も、形の違う中身には手を触れない', () => {
+    const result = migrateProjectData(null, 2);
+    expect(result.ok && result.data).toBeNull();
   });
 
   it('ダイヤの並びが読めなければ手を触れない', () => {
     for (const broken of [null, { services: 'ちがう' }, { a: 1 }]) {
-      const result = migrateProjectData(broken, 1);
+      // 版数 2 からの変換は meta を触るため、1 → 2 の段だけで見る。
+      const result = migrateProjectData(broken, 1, MIGRATIONS, 2);
       expect(result.ok && result.data).toEqual(broken);
     }
   });

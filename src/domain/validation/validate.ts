@@ -13,7 +13,7 @@ import type { Trip } from '@/domain/model';
 import type { NetworkIndex, PatternIndex } from '@/domain/network';
 import { deriveBlocks, type Block } from '@/domain/block';
 import { diffMinutes, formatTime, type Seconds } from '@/domain/time';
-import { allTimes } from '@/domain/trip';
+import { allTimes, createPullIn, createPullOut, sourceTripId } from '@/domain/trip';
 import { adjacentPairs } from '@/domain/util';
 import {
   DEFAULT_THRESHOLDS,
@@ -50,6 +50,7 @@ export function validateService(
         },
       ),
     ),
+    ...checkDeadheads(trips, network),
     ...blocks.flatMap((block) => checkBlockEnds(block)),
     ...checkHeadway(service, thresholds),
     ...unassigned.map((trip) => issue('V-07', '運用番号が空欄です', { tripId: trip.tripId })),
@@ -58,8 +59,52 @@ export function validateService(
   ];
 }
 
+/**
+ * 指摘を 1 件作る。
+ *
+ * **指し先は保存されている便に戻す**（`sourceTripId`）。運用の中で問題を起こして
+ * いるのが展開した回送便であることは珍しくないが、回送便には列が無い
+ * （仕様書 §6.1.7）。`t3#out` を指されても、利用者はどこも見られない。
+ */
 function issue(id: ValidationId, message: string, target: ValidationTarget): ValidationIssue {
-  return { id, severity: SEVERITY_OF[id], message, target };
+  return {
+    id,
+    severity: SEVERITY_OF[id],
+    message,
+    target:
+      target.tripId === undefined ? target : { ...target, tripId: sourceTripId(target.tripId) },
+  };
+}
+
+/**
+ * V-04: 出区・入区の車庫側の時刻が表せる範囲を外れていないこと（仕様書 §6.1.7）。
+ *
+ * 0:10 発の便に出区を付けると車庫発は前日 23:50 となり、表せない。回送便は
+ * 展開されないまま消えるため、**黙っていると「押したのに何も起きない」に
+ * なる**。時刻が未入力の便は対象外——回送の時刻も決まらないのは当然である。
+ */
+function checkDeadheads(trips: readonly Trip[], network: NetworkIndex): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+
+  for (const trip of trips) {
+    if (trip.anchor === null) continue;
+    if (trip.pullOut && createPullOut(trip, network) === null) {
+      issues.push(
+        issue('V-04', 'この便の出区を作れません（車庫発の時刻を表せません）', {
+          tripId: trip.tripId,
+        }),
+      );
+    }
+    if (trip.pullIn && createPullIn(trip, network) === null) {
+      issues.push(
+        issue('V-04', 'この便の入区を作れません（車庫着の時刻を表せません）', {
+          tripId: trip.tripId,
+        }),
+      );
+    }
+  }
+
+  return issues;
 }
 
 /**
