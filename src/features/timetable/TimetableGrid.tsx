@@ -303,9 +303,13 @@ export function TimetableGrid(props: TimetableGridProps): ReactElement {
             画面によって違う名前で呼ばれると、口頭でも文書でも指せなくなる。
           */}
           <tr>
-            <th scope="col" className="timetable__corner">
-              停留所
-            </th>
+            {/*
+              左の列は**行の名前**を並べる列である（便番号・パターン・運用・
+              前運用・停留所名・後運用）。停留所名の列ではないため「停留所」とは
+              名乗らない。停留所名の升目そのものが行見出しであり（`scope="row"`）、
+              この列に列見出しは要らない。
+            */}
+            <th scope="row">便番号</th>
             {slots.map((column, index) => (
               <th
                 key={column?.trip.tripId ?? `empty-${String(index)}`}

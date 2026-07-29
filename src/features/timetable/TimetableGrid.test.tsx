@@ -246,11 +246,12 @@ describe('見出し', () => {
   it('**見出しは 3 行**（列見出し = 便番号・パターン・運用。T-47）', () => {
     render([makeTrip('S1', 8, 0, { blockId: 'A' })]);
 
+    // 左の列は行の名前を並べる。**3 行すべてに名前がある**（T-55）。
     const headings = [...container.querySelectorAll('thead th[scope="row"]')].map(
       (th) => th.textContent,
     );
-    expect(headings).toEqual(['パターン', '運用']);
-    expect(columnHeaders()).toEqual(['停留所', 'E1']);
+    expect(headings).toEqual(['便番号', 'パターン', '運用']);
+    expect(columnHeaders()).toEqual(['便番号', 'E1']);
     expect(headTexts()).toEqual(['S1', 'A']);
   });
 
@@ -287,7 +288,7 @@ describe('見出し', () => {
   it('便番号が付かない便は印を出す（空欄と区別する）', () => {
     // 時刻が未入力の便には番号が付かない（仕様書 §6.1.6）。
     render([makeTrip('S1', 8, 0, { anchor: null })]);
-    expect(columnHeaders()).toEqual(['停留所', '―']);
+    expect(columnHeaders()).toEqual(['便番号', '―']);
     expect(headTexts()).toEqual(['S1', '']);
     // 運用は記入欄であるため、空であることを薄い印で見せる（§6.1.3）。
     expect(blockField(0).placeholder).toBe('―');
@@ -295,7 +296,7 @@ describe('見出し', () => {
 
   it('**列になるのは営業便だけ**（回送は前運用・後運用の欄に出る。T-51）', () => {
     render([makeTrip('S1', 8, 0, { pullOut: true }), makeTrip('S1', 9, 0)]);
-    expect(columnHeaders()).toEqual(['停留所', 'E1', 'E2']);
+    expect(columnHeaders()).toEqual(['便番号', 'E1', 'E2']);
   });
 
   it('参照が壊れた列は目印を付ける', () => {
@@ -362,7 +363,7 @@ describe('便が無いとき', () => {
     render([], undefined, { emptyColumns: 3 });
 
     expect(container.querySelector('table')).not.toBeNull();
-    expect(columnHeaders()).toEqual(['停留所', '', '', '']);
+    expect(columnHeaders()).toEqual(['便番号', '', '', '']);
     // どの升目にも打てる。`−`（経由しない）は出さない。
     expect(rowOf('豊中学舎')).toEqual(['', '', '']);
   });
@@ -375,7 +376,8 @@ describe('多数の便', () => {
     );
     render(trips);
 
-    expect(container.querySelectorAll('thead tr:first-child th[scope="col"]')).toHaveLength(101);
+    // 列見出し（便番号）は 100 本。左端の行見出しは scope="row" であり含まない。
+    expect(container.querySelectorAll('thead tr:first-child th[scope="col"]')).toHaveLength(100);
     expect(rowOf('豊中学舎')).toHaveLength(100);
   });
 });
@@ -734,7 +736,7 @@ describe('空の列（T-52、仕様書 §6.1.1）', () => {
   it('**便の右に空の列が並ぶ**', () => {
     render([makeTrip('S1', 8, 0)], undefined, { emptyColumns: 2 });
 
-    expect(columnHeaders()).toEqual(['停留所', 'E1', '', '']);
+    expect(columnHeaders()).toEqual(['便番号', 'E1', '', '']);
     // 直行便は箕面学舎を経由しないが、空の列は `−` を出さない。
     expect(rowOf('箕面学舎')).toEqual(['−', '', '']);
   });
