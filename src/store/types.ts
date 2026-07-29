@@ -25,7 +25,7 @@
  * （`selectNetwork`）。
  */
 
-import type { NetworkDef, Project } from '@/domain/model';
+import type { NetworkDef, Project, Trip } from '@/domain/model';
 import type { FileHandle } from '@/platform';
 import type { History } from './history';
 
@@ -33,6 +33,17 @@ import type { History } from './history';
 export interface UiState {
   /** 選択中の便。時刻表とダイヤグラムで共有する（仕様書 §6.3.1）。 */
   readonly selectedTripIds: readonly string[];
+  /**
+   * 写した便（仕様書 §6.1.4、§8.1、T-53）。貼り付けるまで持つ。
+   *
+   * **便そのものを持つ。** ID の一覧にすると、写したあとに元の便を消したり
+   * 直したりしたときに、貼り付けたものが変わってしまう。写した時点の姿を
+   * 貼るのが「コピー」である。
+   *
+   * ファイルにも履歴にも入れない。切り取り（コピー＋削除）のうち履歴に載るのは
+   * 削除だけであり、**取り消しても写したものは消えない。**
+   */
+  readonly clipboard: readonly Trip[];
 }
 
 /**

@@ -4,7 +4,7 @@ export {
   changeTripsPattern,
   copyTripsToService,
   patternForStop,
-  duplicateTrips,
+  pasteTrips,
   removeTrips,
   shiftTrips,
   sortTripsByOrigin,

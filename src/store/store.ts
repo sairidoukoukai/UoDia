@@ -22,7 +22,7 @@
 
 import { applyPatches, enablePatches, produceWithPatches, type Patch } from 'immer';
 import { create } from 'zustand';
-import type { NetworkDef, Project } from '@/domain/model';
+import type { NetworkDef, Project, Trip } from '@/domain/model';
 import { validateNetwork, type NetworkIssue } from '@/domain/network';
 import type { FileHandle } from '@/platform';
 import {
@@ -124,6 +124,14 @@ export interface AppActions {
   /** 選択に加える。<kbd>Ctrl</kbd> + クリックに対応する。 */
   readonly addToSelection: (tripId: string) => void;
   readonly clearSelection: () => void;
+
+  /**
+   * 便を写す（仕様書 §8.1 の <kbd>Ctrl</kbd>+<kbd>C</kbd>、T-53）。
+   *
+   * 履歴に載せない。写すことは編集ではなく、取り消しで戻ってきてほしいもので
+   * もない（選択と同じ扱い）。
+   */
+  readonly copyTrips: (trips: readonly Trip[]) => void;
 }
 
 export type AppStore = AppState & AppActions;
@@ -143,7 +151,7 @@ export interface AppStoreHook {
 const INITIAL_STATE: AppState = {
   networkDef: null,
   project: null,
-  ui: { selectedTripIds: [] },
+  ui: { selectedTripIds: [], clipboard: [] },
   history: createHistory(),
   file: { handle: null, savedProject: null },
 };
@@ -238,7 +246,7 @@ export function createAppStore(): AppStoreHook {
           project,
           history: createHistory(get().history.limit),
           // 別のプロジェクトの便を選んだままにしない。
-          ui: { selectedTripIds: [] },
+          ui: { selectedTripIds: [], clipboard: [] },
           file: { handle, savedProject: project },
         });
       },
@@ -247,7 +255,7 @@ export function createAppStore(): AppStoreHook {
         set({
           project,
           history: createHistory(get().history.limit),
-          ui: { selectedTripIds: [] },
+          ui: { selectedTripIds: [], clipboard: [] },
           // savedProject を null にすることで未保存になる（`selectIsDirty`）。
           file: { handle: null, savedProject: null },
         });
@@ -258,17 +266,21 @@ export function createAppStore(): AppStoreHook {
       },
 
       selectTrips: (tripIds): void => {
-        set({ ui: { selectedTripIds: [...tripIds] } });
+        set({ ui: { ...get().ui, selectedTripIds: [...tripIds] } });
       },
 
       addToSelection: (tripId): void => {
-        const { selectedTripIds } = get().ui;
-        if (selectedTripIds.includes(tripId)) return;
-        set({ ui: { selectedTripIds: [...selectedTripIds, tripId] } });
+        const { ui } = get();
+        if (ui.selectedTripIds.includes(tripId)) return;
+        set({ ui: { ...ui, selectedTripIds: [...ui.selectedTripIds, tripId] } });
       },
 
       clearSelection: (): void => {
-        set({ ui: { selectedTripIds: [] } });
+        set({ ui: { ...get().ui, selectedTripIds: [] } });
+      },
+
+      copyTrips: (trips): void => {
+        set({ ui: { ...get().ui, clipboard: [...trips] } });
       },
     };
   });

@@ -91,6 +91,9 @@ interface RenderExtras {
   readonly onTogglePullIn?: (tripId: string) => void;
   readonly onChangePattern?: (tripId: string, patternId: string) => void;
   readonly onClearTime?: (tripId: string) => void;
+  readonly onCopy?: () => void;
+  readonly onCut?: () => void;
+  readonly onPaste?: () => void;
   /**
    * 便の右に並べる空の列の数（T-52）。
    *
@@ -134,6 +137,9 @@ function render(
         patterns={network.def.patterns.filter((p) => p.directionId === 0 && !p.isDeadhead)}
         onChangePattern={extras.onChangePattern ?? (() => undefined)}
         onClearTime={extras.onClearTime ?? (() => undefined)}
+        onCopy={extras.onCopy ?? (() => undefined)}
+        onCut={extras.onCut ?? (() => undefined)}
+        onPaste={extras.onPaste ?? (() => undefined)}
         onTogglePullOut={extras.onTogglePullOut ?? (() => undefined)}
         onTogglePullIn={extras.onTogglePullIn ?? (() => undefined)}
       />,
@@ -792,6 +798,57 @@ describe('時刻を消す（T-52、仕様書 §6.1.2）', () => {
     press('Delete');
 
     expect(onClearTime).not.toHaveBeenCalled();
+  });
+});
+
+describe('コピー・切り取り・貼り付け（T-53、仕様書 §8.1）', () => {
+  function handlers() {
+    return { onCopy: vi.fn(), onCut: vi.fn(), onPaste: vi.fn() };
+  }
+
+  it('**表の上の Ctrl+C / X / V を拾う**', () => {
+    const spies = handlers();
+    render([makeTrip('S1', 8, 0)], undefined, spies);
+
+    click(ROW.toyonaka, 0);
+    press('c', { ctrlKey: true });
+    press('x', { ctrlKey: true });
+    press('v', { ctrlKey: true });
+
+    expect(spies.onCopy).toHaveBeenCalledTimes(1);
+    expect(spies.onCut).toHaveBeenCalledTimes(1);
+    expect(spies.onPaste).toHaveBeenCalledTimes(1);
+  });
+
+  it('列見出しの上でも拾う', () => {
+    const spies = handlers();
+    render([makeTrip('S1', 8, 0)], undefined, spies);
+
+    act(() => {
+      columnButton(0).focus();
+    });
+    press('c', { ctrlKey: true });
+    expect(spies.onCopy).toHaveBeenCalledTimes(1);
+  });
+
+  it('**記入欄の中では拾わない**（そこでのコピーは文字のコピー）', () => {
+    const spies = handlers();
+    render([makeTrip('S1', 8, 0)], undefined, spies);
+
+    act(() => {
+      blockField(0).focus();
+    });
+    press('c', { ctrlKey: true });
+    expect(spies.onCopy).not.toHaveBeenCalled();
+  });
+
+  it('Ctrl を伴わない打鍵は拾わない', () => {
+    const spies = handlers();
+    render([makeTrip('S1', 8, 0)], undefined, spies);
+
+    click(ROW.toyonaka, 0);
+    press('c');
+    expect(spies.onCopy).not.toHaveBeenCalled();
   });
 });
 

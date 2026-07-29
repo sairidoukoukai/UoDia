@@ -80,8 +80,24 @@ describe('状態の形', () => {
   });
 
   it('表示設定は project.view にあり、ui には無い（二重管理を避ける）', () => {
-    expect(Object.keys(state().ui)).toEqual(['selectedTripIds']);
+    // ui に置くのは保存しないもの（選択と写した便）だけである。
+    expect(Object.keys(state().ui).sort()).toEqual(['clipboard', 'selectedTripIds']);
     expect(state().project?.view.activeDirection).toBe(0);
+  });
+
+  it('**写した便は履歴に載らない**（取り消しても消えない。T-53）', () => {
+    const trip = makeTrip('S1', 8, 0);
+    state().copyTrips([trip]);
+    expect(state().ui.clipboard).toEqual([trip]);
+
+    state().undo();
+    expect(state().ui.clipboard).toEqual([trip]);
+  });
+
+  it('選択を変えても写したものは残る', () => {
+    state().copyTrips([makeTrip('S1', 8, 0)]);
+    state().clearSelection();
+    expect(state().ui.clipboard).toHaveLength(1);
   });
 
   it('初期状態では何も読み込まれていない', () => {
