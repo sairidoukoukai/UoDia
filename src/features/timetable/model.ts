@@ -6,11 +6,11 @@
  * 利用者が気づけない部分を React 抜きで確かめられる。
  */
 
-import { assignBlockColors, blockNeighbors } from '@/domain/block';
+import { assignBlockColors, blockNeighbors, neighborsOf } from '@/domain/block';
 import type { DirectionId, Handling, StopPattern, Stop, Trip } from '@/domain/model';
 import type { NetworkIndex } from '@/domain/network';
 import type { Seconds } from '@/domain/time';
-import { isAnchored, originStopId, originTime, terminalStopId, terminalTime } from '@/domain/trip';
+import { createPullIn, createPullOut, isAnchored, originTime, terminalTime } from '@/domain/trip';
 
 /** 方向タブの見出し（仕様書 §6.1.1）。 */
 export const DIRECTION_LABEL: Readonly<Record<DirectionId, string>> = {
@@ -58,12 +58,15 @@ export type TimetableCell =
 /**
  * 前運用・後運用の欄（仕様書 §6.1.7）。
  *
- * 同じ運用の直前・直後にあるものを映す。回送なら車庫側の時刻、営業便ならその
- * 便番号。
+ * その便自身の `pullOut` / `pullIn` を第一に映し、立っていなければ同じ運用の
+ * 直前・直後にある営業便の便番号を映す。**出区・入区の表示は運用番号に依存
+ * しない。** 繋がる相手を映すほうだけが運用を要する。
  */
 export type LinkCell =
-  /** 出区・入区の回送。`tripId` はその回送便を消すために持つ。 */
-  | { readonly kind: 'depot'; readonly time: Seconds; readonly tripId: string }
+  /** 出区・入区。車庫側の時刻。 */
+  | { readonly kind: 'depot'; readonly time: Seconds }
+  /** 出区・入区は付いているが、車庫側の時刻を表せない（V-04）。 */
+  | { readonly kind: 'depotUnresolvable' }
   /** 同じ運用の営業便。 */
   | { readonly kind: 'trip'; readonly label: string }
   /** 何も繋がっていない。 */
@@ -102,12 +105,18 @@ export function buildTripLinks(
   network: NetworkIndex,
   numbers: ReadonlyMap<string, string>,
 ): Map<string, TripLinks> {
+  const neighbors = blockNeighbors(trips, network);
   const links = new Map<string, TripLinks>();
 
-  for (const [tripId, { previous, next }] of blockNeighbors(trips, network)) {
-    links.set(tripId, {
-      previous: linkTo(previous, network, numbers, 'previous'),
-      next: linkTo(next, network, numbers, 'next'),
+  for (const trip of trips) {
+    const { previous, next } = neighborsOf(neighbors, trip.tripId);
+    links.set(trip.tripId, {
+      previous: trip.pullOut
+        ? depotCell(trip, createPullOut(trip, network), originTime, network)
+        : revenueCell(previous, network, numbers),
+      next: trip.pullIn
+        ? depotCell(trip, createPullIn(trip, network), terminalTime, network)
+        : revenueCell(next, network, numbers),
     });
   }
 
@@ -115,44 +124,39 @@ export function buildTripLinks(
 }
 
 /**
- * 前後の欄に何を出すか。
+ * 出区・入区の欄。車庫側の時刻を出す。
  *
- * **回送なら何でも時刻を出すわけではない。** 前運用に出すのは車庫から来る回送
- * （出庫）だけ、後運用に出すのは車庫へ向かう回送（入庫）だけである。向きの合わ
- * ない回送が隣にある状態は運用として破綻しており（V-01 が拾う）、そこに時刻を
- * 出すと「繋がっている」と読めてしまう。空欄にしておけば、押して出区・入区を
- * 付け直せる。
+ * **時刻がまだ入っていない便では空欄にする。** 回送の時刻も決まらないのは当然で
+ * あり、そこに「時刻を出せません」と出すのは、入力の途中である正常な状態を
+ * 異常として見せることになる（仕様書 §6.1.7）。表せる範囲を外れている場合だけ
+ * 知らせる。
  */
-function linkTo(
+function depotCell(
+  trip: Trip,
+  deadhead: Trip | null,
+  timeOf: (trip: Trip, network: NetworkIndex) => Seconds | null,
+  network: NetworkIndex,
+): LinkCell {
+  if (!isAnchored(trip)) return NO_LINK;
+  if (deadhead === null) return { kind: 'depotUnresolvable' };
+  const time = timeOf(deadhead, network);
+  return time === null ? { kind: 'depotUnresolvable' } : { kind: 'depot', time };
+}
+
+/**
+ * 繋がる相手の欄。
+ *
+ * 出すのは**営業便の便番号だけ**である。隣が回送だということは、その回送を
+ * 作った便との間に自分が挟まっているということであり、運用として破綻している
+ * （V-01 が拾う）。そこに時刻を出すと「繋がっている」と読めてしまう。
+ */
+function revenueCell(
   trip: Trip | null,
   network: NetworkIndex,
   numbers: ReadonlyMap<string, string>,
-  side: 'previous' | 'next',
 ): LinkCell {
-  if (trip === null) return NO_LINK;
-
-  if (network.findPattern(trip.patternId)?.isDeadhead !== true) {
-    return { kind: 'trip', label: numbers.get(trip.tripId) ?? '' };
-  }
-
-  // 前運用は車庫を出る時刻、後運用は車庫に着く時刻。
-  const time =
-    side === 'previous'
-      ? depotSide(trip, network, originStopId, originTime)
-      : depotSide(trip, network, terminalStopId, terminalTime);
-  return time === null ? NO_LINK : { kind: 'depot', time, tripId: trip.tripId };
-}
-
-/** その端が営業所であれば、その時刻。違えば `null`。 */
-function depotSide(
-  trip: Trip,
-  network: NetworkIndex,
-  stopOf: (trip: Trip, network: NetworkIndex) => string | null,
-  timeOf: (trip: Trip, network: NetworkIndex) => Seconds | null,
-): Seconds | null {
-  const stopId = stopOf(trip, network);
-  if (stopId === null || network.findStop(stopId)?.isDepot !== true) return null;
-  return timeOf(trip, network);
+  if (trip === null || network.findPattern(trip.patternId)?.isDeadhead !== false) return NO_LINK;
+  return { kind: 'trip', label: numbers.get(trip.tripId) ?? '' };
 }
 
 export interface Timetable {

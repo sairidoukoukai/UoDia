@@ -50,6 +50,8 @@ function makeTrip(
     patternId,
     anchor: { stopId: pattern.originStopId, time: fromHM(hours, minutes) },
     blockId: '',
+    pullOut: false,
+    pullIn: false,
     ...extra,
   };
 }
@@ -250,17 +252,9 @@ describe('見出し', () => {
     expect(blockField(0).placeholder).toBe('―');
   });
 
-  it('**回送便には D の便番号が付く**（営業便とは別に数える。T-46）', () => {
-    render([makeTrip('S1', 8, 0), makeTrip('DT-in', 7, 0), makeTrip('S1', 9, 0)]);
-    expect(columnHeaders()).toEqual(['停留所', 'E1', 'D1回送', 'E2']);
-  });
-
-  it('**回送便の列は見出しで分かる**', () => {
-    render([makeTrip('S1', 8, 0), makeTrip('DT-in', 8, 0)]);
-
-    const tops = [...container.querySelectorAll('thead tr:first-child th[scope="col"]')];
-    expect(tops.map((th) => th.textContent)).toEqual(['停留所', 'E1', 'D1回送']);
-    expect(tops[2]?.className).toContain('deadhead');
+  it('**列になるのは営業便だけ**（回送は前運用・後運用の欄に出る。T-51）', () => {
+    render([makeTrip('S1', 8, 0, { pullOut: true }), makeTrip('S1', 9, 0)]);
+    expect(columnHeaders()).toEqual(['停留所', 'E1', 'E2']);
   });
 
   it('参照が壊れた列は目印を付ける', () => {
@@ -691,7 +685,7 @@ describe('運用番号欄（T-22、受入条件）', () => {
   });
 });
 
-describe('前運用・後運用（T-50、仕様書 §6.1.7）', () => {
+describe('前運用・後運用（T-51、仕様書 §6.1.7）', () => {
   /** 前運用・後運用の欄。 */
   function linkCells(title: string): (string | null)[] {
     return [...container.querySelectorAll<HTMLElement>(`[aria-label$="の${title}"]`)].map(
@@ -706,15 +700,29 @@ describe('前運用・後運用（T-50、仕様書 §6.1.7）', () => {
     expect(headings.at(-1)).toBe('後運用');
   });
 
-  it('**回送が繋がっていれば車庫側の時刻を出す**', () => {
-    // 車庫 7:40 発 → 豊中 8:00（出区）、工学部前 8:30 → 車庫 8:50（入区）。
-    const pullOut = makeTrip('DT-out', 7, 40, { blockId: 'A' });
-    const trip = makeTrip('S1', 8, 0, { blockId: 'A' });
-    const pullIn = makeTrip('DS-in', 8, 30, { blockId: 'A' });
-    render([trip], undefined, { allTrips: [pullOut, trip, pullIn] });
+  it('**出区・入区が付いていれば車庫側の時刻を出す**', () => {
+    // 豊中 8:00 発・工学部前 8:30 着。車庫はその 20 分前と 20 分後。
+    render([makeTrip('S1', 8, 0, { pullOut: true, pullIn: true })]);
 
     expect(linkCells('前運用')).toEqual(['7:40']);
     expect(linkCells('後運用')).toEqual(['8:50']);
+  });
+
+  it('**運用番号が空欄でも時刻が出る**（出区の表示は運用に依らない。T-51）', () => {
+    render([makeTrip('S1', 8, 0, { blockId: '', pullOut: true })]);
+    expect(linkCells('前運用')).toEqual(['7:40']);
+  });
+
+  it('**時刻が未入力の便では空欄のまま**（入力の途中を異常として見せない）', () => {
+    const empty: Trip = { ...makeTrip('S1', 8, 0, { pullOut: true }), anchor: null };
+    render([empty]);
+    expect(linkCells('前運用')).toEqual(['']);
+  });
+
+  it('**車庫側の時刻を表せなければ空欄にせず知らせる**（V-04）', () => {
+    // 0:10 発の便の出区は前日 23:50 となり、表せない。
+    render([makeTrip('S1', 0, 10, { pullOut: true })]);
+    expect(linkCells('前運用')).toEqual(['!']);
   });
 
   it('**営業便が繋がっていれば便番号を出す**', () => {
@@ -753,14 +761,26 @@ describe('前運用・後運用（T-50、仕様書 §6.1.7）', () => {
     expect(onTogglePullIn).toHaveBeenCalledWith(trips[0]?.tripId);
   });
 
-  it('回送が付いている欄は押された状態で示す', () => {
-    const pullOut = makeTrip('DT-out', 7, 40, { blockId: 'A' });
-    const trip = makeTrip('S1', 8, 0, { blockId: 'A' });
-    render([trip], undefined, { allTrips: [pullOut, trip] });
+  it('出区が付いている欄は押された状態で示す', () => {
+    render([makeTrip('S1', 8, 0, { pullOut: true })]);
 
     const before = container.querySelector('[aria-label$="の前運用"]');
     const after = container.querySelector('[aria-label$="の後運用"]');
     expect(before?.getAttribute('aria-pressed')).toBe('true');
     expect(after?.getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('**繋がる営業便が出ている欄も押せる**（そこから車庫へ帰す。仕様書 §6.1.7）', () => {
+    const onTogglePullIn = vi.fn<(tripId: string) => void>();
+    const trip = makeTrip('S1', 8, 0, { blockId: 'A' });
+    const westbound = makeTrip('T1', 8, 40, { blockId: 'A' });
+    render([trip], undefined, { allTrips: [trip, westbound], onTogglePullIn });
+
+    const after = container.querySelector<HTMLButtonElement>('[aria-label$="の後運用"]');
+    expect(after?.disabled).toBe(false);
+    act(() => {
+      after?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(onTogglePullIn).toHaveBeenCalledWith(trip.tripId);
   });
 });

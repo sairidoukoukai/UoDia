@@ -192,21 +192,8 @@ body {
   text-align: left;
 }
 
-.timetable__head--deadhead,
-.timetable__cell--deadhead {
-  color: var(--color-fg-muted);
-}
-
 .timetable__head--broken {
   color: var(--color-error);
-}
-
-.timetable__badge {
-  margin-left: 0.25rem;
-  padding: 0 0.25rem;
-  border-radius: 0.25rem;
-  background: var(--color-border);
-  font-size: 0.75rem;
 }
 
 /* 経由しない停留所。空欄（未入力）と見分けられるようにする。 */

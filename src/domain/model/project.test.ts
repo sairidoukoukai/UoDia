@@ -16,6 +16,8 @@ function makeTrip(overrides: Partial<Trip> = {}): Trip {
     patternId: 'S1',
     anchor: { stopId: '1_0', time: fromHM(8, 0) },
     blockId: 'A',
+    pullOut: false,
+    pullIn: false,
     ...overrides,
   };
 }
@@ -41,9 +43,23 @@ describe('tripSchema', () => {
     expect(tripSchema.safeParse(makeTrip()).success).toBe(true);
   });
 
-  it('永続化されるのは 4 フィールドのみ（note は任意）', () => {
+  it('永続化されるのは 6 フィールドのみ（note は任意）', () => {
     const parsed = tripSchema.parse(makeTrip());
-    expect(Object.keys(parsed).sort()).toEqual(['anchor', 'blockId', 'patternId', 'tripId']);
+    expect(Object.keys(parsed).sort()).toEqual([
+      'anchor',
+      'blockId',
+      'patternId',
+      'pullIn',
+      'pullOut',
+      'tripId',
+    ]);
+  });
+
+  it('**出区・入区は既定で付かない**（版数 2 のファイルにも無い。T-51）', () => {
+    const { pullOut: _out, pullIn: _in, ...withoutFlags } = makeTrip();
+    const parsed = tripSchema.parse(withoutFlags);
+    expect(parsed.pullOut).toBe(false);
+    expect(parsed.pullIn).toBe(false);
   });
 
   it('停留所時刻を保持しない（アンカーから導出するため。仕様書 §5.6）', () => {

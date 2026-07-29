@@ -5,7 +5,8 @@ import { formatNetworkIssues, segmentKey, validateNetwork, type NetworkRule } fr
 /**
  * 検証を通過する最小のネットワーク。
  *
- * 停留所 A → B（営業）と、営業所 D からの入出庫を持つ。各規則の違反テストは
+ * 停留所 A → B（営業・両方向）と、その 4 つの端すべてに繋がる入出庫を持つ
+ * （R-11）。各規則の違反テストは
  * これを 1 箇所だけ壊して行う。壊す前が通ることを最初に確かめておくことで、
  * 「別の理由で失敗した」という誤検出を避ける。
  */
@@ -51,6 +52,8 @@ function makeValidNetwork(): NetworkDef {
       { fromStopId: 'B', toStopId: 'A', runMinutes: 10 },
       { fromStopId: 'D', toStopId: 'A', runMinutes: 5 },
       { fromStopId: 'B', toStopId: 'D', runMinutes: 5 },
+      { fromStopId: 'D', toStopId: 'B', runMinutes: 5 },
+      { fromStopId: 'A', toStopId: 'D', runMinutes: 5 },
     ],
     patterns: [
       makePattern({ patternId: 'P0', directionId: 0, isDefault: true, stops: ['A', 'B'] }),
@@ -68,6 +71,21 @@ function makeValidNetwork(): NetworkDef {
         isDefault: false,
         isDeadhead: true,
         stops: ['B', 'D'],
+      }),
+      // 逆方向（P1）の出入庫。R-11 はどちらの向きにも回送を要求する。
+      makePattern({
+        patternId: 'OUT-B',
+        directionId: 1,
+        isDefault: false,
+        isDeadhead: true,
+        stops: ['D', 'B'],
+      }),
+      makePattern({
+        patternId: 'IN-A',
+        directionId: 0,
+        isDefault: false,
+        isDeadhead: true,
+        stops: ['A', 'D'],
       }),
     ],
   };
