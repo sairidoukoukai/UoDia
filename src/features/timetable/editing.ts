@@ -16,7 +16,7 @@ import type { Trip } from '@/domain/model';
 import type { NetworkIndex } from '@/domain/network';
 import { parseTimeInput, type Seconds } from '@/domain/time';
 import { setTimeAt } from '@/domain/trip';
-import type { Timetable } from './model';
+import { columnCount, type Timetable } from './model';
 
 /** 升目の位置。行は停留所、列は便。 */
 export interface CellPosition {
@@ -81,16 +81,31 @@ export type CommitFailure =
   | 'unrepresentable';
 
 export type CommitOutcome =
-  | { readonly ok: true; readonly trip: Trip; readonly rounded: boolean }
+  /** 既にある便の時刻を変える。 */
+  | { readonly ok: true; readonly kind: 'update'; readonly trip: Trip; readonly rounded: boolean }
+  /**
+   * 空の列に打たれた。**この時刻でこの停留所を通る便を作る**（仕様書 §6.1.2）。
+   *
+   * 便そのものはここで作らない。便 ID の採番も経路の決定も、ダイヤ全体を知って
+   * いる側の仕事である（`Timetable.tsx`）。ここが決めるのは「どの停留所の何時か」
+   * までとする。
+   */
+  | {
+      readonly ok: true;
+      readonly kind: 'create';
+      readonly stopId: string;
+      readonly time: Seconds;
+      readonly rounded: boolean;
+    }
   | { readonly ok: false; readonly reason: CommitFailure }
   /** 何も打たれていない。取り消しと同じに扱う。 */
   | { readonly ok: false; readonly reason: null };
 
 /**
- * 升目への入力を、書き換えた便に変える。
+ * 升目への入力を、便への変更に変える。
  *
- * **空の入力は取り消しとして扱う。** 時刻を消す操作は決まっていないため、
- * 何も打たずに確定したときに文句を言う理由がない。
+ * **空の入力は取り消しとして扱う。** 時刻を消すのは <kbd>Delete</kbd> の役目で
+ * あり（仕様書 §6.1.2）、何も打たずに確定したときに文句を言う理由がない。
  */
 export function commitCellInput(
   timetable: Timetable,
@@ -100,20 +115,34 @@ export function commitCellInput(
 ): CommitOutcome {
   if (text.trim() === '') return { ok: false, reason: null };
 
-  const column = timetable.columns[at.column];
   const stop = timetable.stops[at.row];
-  if (column === undefined || stop === undefined) return { ok: false, reason: 'notEditable' };
-  if (column.cells[at.row]?.kind === 'notServed') return { ok: false, reason: 'notEditable' };
+  if (stop === undefined || at.column >= columnCount(timetable)) {
+    return { ok: false, reason: 'notEditable' };
+  }
+
+  const column = timetable.columns[at.column];
+  if (column?.cells[at.row]?.kind === 'notServed') return { ok: false, reason: 'notEditable' };
 
   const parsed = parseTimeInput(text, previousTimeInRow(timetable, at));
   if (parsed === null) return { ok: false, reason: 'unparsable' };
+
+  // 空の列。便がまだ無い（§6.1.1）。
+  if (column === undefined) {
+    return {
+      ok: true,
+      kind: 'create',
+      stopId: stop.stopId,
+      time: parsed.value,
+      rounded: parsed.rounded,
+    };
+  }
 
   const trip = setTimeAt(column.trip, stop.stopId, parsed.value, network);
   // 表せる範囲を外れる。始発が 0:00 より前になる場合と、終着が 47:55 を超える
   // 場合の両方がここに来る。
   if (trip === null) return { ok: false, reason: 'unrepresentable' };
 
-  return { ok: true, trip, rounded: parsed.rounded };
+  return { ok: true, kind: 'update', trip, rounded: parsed.rounded };
 }
 
 /** 編集を始めるときに升目へ最初から入れておく文字列。 */

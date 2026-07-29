@@ -164,6 +164,27 @@ export interface Timetable {
   readonly stops: readonly Stop[];
   /** 列。便の並びは利用者が決めたものであり、並べ替えない。 */
   readonly columns: readonly TimetableColumn[];
+  /**
+   * 便の右に並べる**空の列**の数（仕様書 §6.1.1、T-52）。
+   *
+   * 空の列は便ではない。打った時点でそれが便になるため、「便を追加する」という
+   * 操作が要らなくなる。
+   */
+  readonly emptyColumns: number;
+}
+
+/**
+ * 既定で並べる空の列の数。
+ *
+ * 表示領域の幅から本数を計算しない。計算するには列幅の実測と `ResizeObserver`
+ * が要り、**表を描く前に幅を知る**必要が出る。1 画面ぶんに足りる本数を置いて
+ * 残りを横スクロールに委ねるほうが単純であり、利用者から見た違いも無い。
+ */
+export const EMPTY_COLUMNS = 24;
+
+/** 表に並ぶ列の総数。空の列を含む。 */
+export function columnCount(timetable: Timetable): number {
+  return timetable.columns.length + timetable.emptyColumns;
 }
 
 /**
@@ -226,6 +247,7 @@ export function blockColorsOf(trips: readonly Trip[]): ReadonlyMap<string, strin
  * @param stops 出す停留所。`stopsForDirection` の結果
  * @param times 便ごとの時刻。ストアのセレクタが計算済みのものを渡す
  * @param links 前後の繋がり（`buildTripLinks`）。渡さなければ前後は空欄になる
+ * @param emptyColumns 便の右に並べる空の列の数（§6.1.1）
  */
 export function buildTimetable(
   trips: readonly Trip[],
@@ -233,12 +255,14 @@ export function buildTimetable(
   network: NetworkIndex,
   times: ReadonlyMap<string, ReadonlyMap<string, Seconds>>,
   links: ReadonlyMap<string, TripLinks> = new Map(),
+  emptyColumns = EMPTY_COLUMNS,
 ): Timetable {
   return {
     stops,
     columns: trips.map((trip) =>
       buildColumn(trip, stops, network, times.get(trip.tripId), links.get(trip.tripId) ?? NO_LINKS),
     ),
+    emptyColumns,
   };
 }
 

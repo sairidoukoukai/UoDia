@@ -89,6 +89,15 @@ interface RenderExtras {
   readonly allTrips?: readonly Trip[];
   readonly onTogglePullOut?: (tripId: string) => void;
   readonly onTogglePullIn?: (tripId: string) => void;
+  readonly onChangePattern?: (tripId: string, patternId: string) => void;
+  readonly onClearTime?: (tripId: string) => void;
+  /**
+   * 便の右に並べる空の列の数（T-52）。
+   *
+   * 既定は 0 とする。**空の列そのものを試す場合以外は邪魔になる**ためであり、
+   * 実際の画面では `EMPTY_COLUMNS` が使われる。
+   */
+  readonly emptyColumns?: number;
 }
 
 function render(
@@ -107,6 +116,7 @@ function render(
     network,
     times,
     extras.links ?? buildTripLinks(all, network, numbers),
+    extras.emptyColumns ?? 0,
   );
 
   const root = createRoot(container);
@@ -121,6 +131,9 @@ function render(
         blockColors={blockColorsOf(trips)}
         onChangeBlockId={extras.onChangeBlockId ?? (() => undefined)}
         tripNumbers={numbers}
+        patterns={network.def.patterns.filter((p) => p.directionId === 0 && !p.isDeadhead)}
+        onChangePattern={extras.onChangePattern ?? (() => undefined)}
+        onClearTime={extras.onClearTime ?? (() => undefined)}
         onTogglePullOut={extras.onTogglePullOut ?? (() => undefined)}
         onTogglePullIn={extras.onTogglePullIn ?? (() => undefined)}
       />,
@@ -134,8 +147,8 @@ function render(
  */
 function headTexts(): (string | null)[] {
   return [...container.querySelectorAll('thead td')].map((td) => {
-    const field = td.querySelector('input');
-    return field === null ? td.textContent : field.value;
+    const field = td.querySelector('input, select');
+    return field === null ? td.textContent : (field as HTMLInputElement | HTMLSelectElement).value;
   });
 }
 
@@ -239,8 +252,30 @@ describe('見出し', () => {
     render([makeTrip('S1', 8, 0)]);
 
     const pattern = container.querySelector('thead tr:nth-child(2) td');
-    expect(pattern?.textContent).toBe('S1');
+    expect(pattern?.querySelector('select')?.value).toBe('S1');
     expect(pattern?.getAttribute('title')).toBe('直行吹田');
+  });
+
+  it('**パターンは一覧から選ぶ**（打ち込めないものは選べない。T-52）', () => {
+    const onChangePattern = vi.fn<(tripId: string, patternId: string) => void>();
+    const trips = [makeTrip('S1', 8, 0)];
+    render(trips, undefined, { onChangePattern });
+
+    const select = container.querySelector<HTMLSelectElement>('.timetable__pattern');
+    // 出るのはその方向の営業パターンだけ。回送は無い（§6.1.7）。
+    expect([...(select?.options ?? [])].map((option) => option.value)).toEqual([
+      'S1',
+      'S3',
+      'S2',
+      'M2',
+    ]);
+
+    act(() => {
+      const descriptor = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value');
+      descriptor?.set?.bind(select)('S3');
+      select?.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    expect(onChangePattern).toHaveBeenCalledWith(trips[0]?.tripId, 'S3');
   });
 
   it('便番号が付かない便は印を出す（空欄と区別する）', () => {
@@ -316,10 +351,13 @@ describe('並び', () => {
 });
 
 describe('便が無いとき', () => {
-  it('表ではなく案内を出す', () => {
-    render([]);
-    expect(container.querySelector('table')).toBeNull();
-    expect(container.textContent).toContain('まだありません');
+  it('**便が 0 本でも表を出す**（空の列に打てば便になる。T-52）', () => {
+    render([], undefined, { emptyColumns: 3 });
+
+    expect(container.querySelector('table')).not.toBeNull();
+    expect(columnHeaders()).toEqual(['停留所', '', '', '']);
+    // どの升目にも打てる。`−`（経由しない）は出さない。
+    expect(rowOf('豊中学舎')).toEqual(['', '', '']);
   });
 });
 
@@ -682,6 +720,78 @@ describe('運用番号欄（T-22、受入条件）', () => {
       blockField(0).focus();
     });
     expect(container.querySelector('.timetable__cell--sameBlock')).toBeNull();
+  });
+});
+
+describe('空の列（T-52、仕様書 §6.1.1）', () => {
+  it('**便の右に空の列が並ぶ**', () => {
+    render([makeTrip('S1', 8, 0)], undefined, { emptyColumns: 2 });
+
+    expect(columnHeaders()).toEqual(['停留所', 'E1', '', '']);
+    // 直行便は箕面学舎を経由しないが、空の列は `−` を出さない。
+    expect(rowOf('箕面学舎')).toEqual(['−', '', '']);
+  });
+
+  it('**空の列は便ではない**（選べず、パターンも運用も無い）', () => {
+    render([makeTrip('S1', 8, 0)], undefined, { emptyColumns: 2 });
+
+    expect(container.querySelectorAll('.timetable__column')).toHaveLength(1);
+    expect(container.querySelectorAll('.timetable__pattern')).toHaveLength(1);
+    expect(container.querySelectorAll('.timetable__block')).toHaveLength(1);
+  });
+
+  it('空の列の升目にも打てる', () => {
+    const onCommit = stubCommit();
+    render([makeTrip('S1', 8, 0)], onCommit, { emptyColumns: 2 });
+
+    click(ROW.toyonaka, 1);
+    press('F2');
+    type('9:30');
+    press('Enter');
+
+    expect(onCommit).toHaveBeenCalledWith({ row: ROW.toyonaka, column: 1 }, '9:30');
+  });
+
+  it('矢印キーは空の列へも動ける', () => {
+    render([makeTrip('S1', 8, 0)], undefined, { emptyColumns: 2 });
+
+    click(ROW.toyonaka, 0);
+    press('ArrowRight');
+    expect(focused()).toBe(`${String(ROW.toyonaka)}:1`);
+  });
+});
+
+describe('時刻を消す（T-52、仕様書 §6.1.2）', () => {
+  it('**升目の Delete でその便の時刻が消える**', () => {
+    const onClearTime = vi.fn<(tripId: string) => void>();
+    const trips = [makeTrip('S1', 8, 0)];
+    render(trips, undefined, { onClearTime });
+
+    click(ROW.toyonaka, 0);
+    press('Delete');
+
+    expect(onClearTime).toHaveBeenCalledWith(trips[0]?.tripId);
+  });
+
+  it('空の列では何も起きない', () => {
+    const onClearTime = vi.fn<(tripId: string) => void>();
+    render([], undefined, { onClearTime, emptyColumns: 2 });
+
+    click(ROW.toyonaka, 0);
+    press('Delete');
+
+    expect(onClearTime).not.toHaveBeenCalled();
+  });
+
+  it('**編集中の Delete は文字を消す**（便の時刻は消さない）', () => {
+    const onClearTime = vi.fn<(tripId: string) => void>();
+    render([makeTrip('S1', 8, 0)], undefined, { onClearTime });
+
+    click(ROW.toyonaka, 0);
+    press('F2');
+    press('Delete');
+
+    expect(onClearTime).not.toHaveBeenCalled();
   });
 });
 

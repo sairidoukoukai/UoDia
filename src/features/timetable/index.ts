@@ -1,9 +1,11 @@
 export {
   DIRECTION_LABEL,
+  EMPTY_COLUMNS,
   HANDLING_MARK,
   NOT_SERVED,
   blockColorsOf,
   buildTimetable,
+  columnCount,
   buildTripLinks,
   stopsForDirection,
   type EmptyReason,

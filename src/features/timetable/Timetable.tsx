@@ -13,16 +13,17 @@
  * どうかは、状態に触れる前に分かる。
  */
 
-import { useCallback, useMemo, useState, type ReactElement } from 'react';
+import { useMemo, useState, type ReactElement } from 'react';
 import { suggestBlockId } from '@/domain/block';
 import type { DirectionId, Trip } from '@/domain/model';
 import type { NetworkIndex } from '@/domain/network';
+import { diffMinutes } from '@/domain/time';
+import { originTime } from '@/domain/trip';
 import {
-  addTrip,
+  addTripAt,
   changeTripsPattern,
   copyTripsToService,
-  defaultPatternId,
-  duplicateTrips,
+  patternForStop,
   removeTrips,
   shiftTrips,
   sortTripsByOrigin,
@@ -55,9 +56,8 @@ const DIRECTIONS: readonly DirectionId[] = [0, 1];
 
 /** 操作が成り立たなかったときに出す言葉。 */
 const CANNOT = {
-  add: '便を追加できません（この方向の既定パターンがありません）',
-  duplicate: '複製できません（時刻が 0:00〜47:55 を外れます）',
-  shift: 'ずらせません（時刻が 0:00〜47:55 を外れるか、5 分の倍数ではありません）',
+  create: 'この升目には便を作れません（時刻が 0:00〜47:55 を外れます）',
+  shift: 'ずらせません（選んだ便のどれかが 0:00〜47:55 を外れます）',
   pattern: 'そのパターンには変えられません',
   copy: '複製できません',
 } as const;
@@ -109,42 +109,6 @@ export function Timetable(): ReactElement {
     return buildTimetable(shownTrips, stopsForDirection(network, direction), network, times, links);
   }, [network, shownTrips, direction, times, links]);
 
-  /**
-   * 升目の入力を便に反映する。
-   *
-   * 書き換えるのは 1 便だけであり、他の升目は計算し直さない。**時刻は
-   * アンカーから導かれる純粋な関数**であるため（T-08）、便が変われば同じ列の
-   * 表示は次の描画でひとりでに揃う。
-   */
-  const handleCommit = useCallback(
-    (at: CellPosition, text: string): CommitResult => {
-      if (network === null || timetable === null) return { ok: false, reason: 'notEditable' };
-
-      const outcome = commitCellInput(timetable, at, text, network);
-      if (!outcome.ok) return { ok: false, reason: outcome.reason };
-
-      const trip = withSuggestedBlockId(
-        outcome.trip,
-        timetable.columns[at.column]?.trip,
-        serviceTrips,
-        network,
-      );
-      editProject(
-        '時刻の入力',
-        (project) => {
-          for (const service of project.services) {
-            const index = service.trips.findIndex((t) => t.tripId === trip.tripId);
-            if (index >= 0) service.trips[index] = trip;
-          }
-        },
-        // 同じ升目への打ち直しは 1 回の取り消しでまとめて戻す（仕様書 §6.7）。
-        `time:${trip.tripId}:${String(at.row)}`,
-      );
-      return { ok: true, rounded: outcome.rounded };
-    },
-    [network, timetable, editProject, serviceTrips],
-  );
-
   /** ダイヤの便を丸ごと入れ替える。 */
   const replaceTrips = (serviceId: string | null, label: string, next: readonly Trip[]): void => {
     editProject(label, (project) => {
@@ -161,36 +125,89 @@ export function Timetable(): ReactElement {
   const allTrips = (): readonly Trip[] =>
     useAppStore.getState().project?.services.flatMap((service) => service.trips) ?? [];
 
-  const handleAdd = (): void => {
-    const patternId = network === null ? null : defaultPatternId(network, direction);
-    const result =
-      network === null || patternId === null
-        ? null
-        : addTrip(serviceTrips, patternId, network, allTrips());
-    if (result === null) {
-      setMessage(CANNOT.add);
-      return;
+  /**
+   * 升目の入力を便に反映する（仕様書 §6.1.2）。
+   *
+   * 3 つの場合がある。
+   *
+   * | 打った先 | 起きること |
+   * | --- | --- |
+   * | 便の升目 | その便のアンカーがその停留所へ移る |
+   * | **空の列** | **その時刻でその停留所を通る便ができる** |
+   * | 便の升目・複数選択中 | 選んだ便が**同じ差分だけ**動く（一括シフトの置き換え） |
+   *
+   * 書き換えた便以外の升目は計算し直さない。**時刻はアンカーから導かれる純粋な
+   * 関数**であるため（T-08）、便が変われば同じ列の表示は次の描画でひとりでに揃う。
+   */
+  const handleCommit = (at: CellPosition, text: string): CommitResult => {
+    if (network === null || timetable === null) return { ok: false, reason: 'notEditable' };
+
+    const outcome = commitCellInput(timetable, at, text, network);
+    if (!outcome.ok) return { ok: false, reason: outcome.reason };
+
+    if (outcome.kind === 'create') {
+      const patternId = patternForStop(network, direction, outcome.stopId);
+      const result =
+        patternId === null
+          ? null
+          : addTripAt(serviceTrips, patternId, outcome.stopId, outcome.time, network, allTrips());
+      if (result === null) {
+        setMessage(CANNOT.create);
+        return { ok: false, reason: 'unrepresentable' };
+      }
+
+      replaceTrips(
+        activeServiceId,
+        '便の入力',
+        result.trips.map((trip) =>
+          result.added.includes(trip)
+            ? withSuggestedBlockId(trip, undefined, serviceTrips, network)
+            : trip,
+        ),
+      );
+      setMessage(null);
+      return { ok: true, rounded: outcome.rounded };
     }
 
-    replaceTrips(activeServiceId, '便の追加', result.trips);
-    // 追加した便を選んでおく。続けてパターンを変える・複製する、という流れが
-    // そのまま繋がる。
-    setSelection(result.added.map((trip) => trip.tripId));
+    const before = timetable.columns[at.column]?.trip;
+    const trip = withSuggestedBlockId(outcome.trip, before, serviceTrips, network);
+
+    // 選択中の便がまとめて動く（§6.1.2）。打った便は打った時刻になり、
+    // ほかは同じ差分だけ動く。**1 便でも範囲を外れるなら何も動かさない。**
+    const others = selectedTripIds.filter((id) => id !== trip.tripId);
+    const moved =
+      before === undefined || others.length === 0 || !selectedTripIds.includes(trip.tripId)
+        ? serviceTrips
+        : shiftTrips(serviceTrips, others, shiftMinutes(before, trip, network), network);
+    if (moved === null) {
+      setMessage(CANNOT.shift);
+      return { ok: false, reason: 'unrepresentable' };
+    }
+
+    editProject(
+      '時刻の入力',
+      (project) => {
+        for (const service of project.services) {
+          if (service.serviceId === activeServiceId) service.trips = moved as Trip[];
+          const index = service.trips.findIndex((t) => t.tripId === trip.tripId);
+          if (index >= 0) service.trips[index] = trip;
+        }
+      },
+      // 同じ升目への打ち直しは 1 回の取り消しでまとめて戻す（仕様書 §6.7）。
+      `time:${trip.tripId}:${String(at.row)}`,
+    );
     setMessage(null);
+    return { ok: true, rounded: outcome.rounded };
   };
 
-  const handleDuplicate = (minutes: number): void => {
-    const result =
-      network === null
-        ? null
-        : duplicateTrips(serviceTrips, selectedTripIds, minutes, network, allTrips());
-    if (result === null) {
-      setMessage(CANNOT.duplicate);
-      return;
-    }
-
-    replaceTrips(activeServiceId, '便の複製', result.trips);
-    setSelection(result.added.map((trip) => trip.tripId));
+  /** その便に時刻を消す（仕様書 §6.1.2）。便は残る。 */
+  const handleClearTime = (tripId: string): void => {
+    editProject('時刻を消す', (project) => {
+      for (const service of project.services) {
+        const trip = service.trips.find((t) => t.tripId === tripId);
+        if (trip !== undefined) trip.anchor = null;
+      }
+    });
     setMessage(null);
   };
 
@@ -200,23 +217,9 @@ export function Timetable(): ReactElement {
     setMessage(null);
   };
 
-  const handleShift = (minutes: number): void => {
+  const handleChangePattern = (tripId: string, patternId: string): void => {
     const next =
-      network === null ? null : shiftTrips(serviceTrips, selectedTripIds, minutes, network);
-    if (next === null) {
-      setMessage(CANNOT.shift);
-      return;
-    }
-
-    replaceTrips(activeServiceId, '一括シフト', next);
-    setMessage(null);
-  };
-
-  const handleChangePattern = (patternId: string): void => {
-    const next =
-      network === null
-        ? null
-        : changeTripsPattern(serviceTrips, selectedTripIds, patternId, network);
+      network === null ? null : changeTripsPattern(serviceTrips, [tripId], patternId, network);
     if (next === null) {
       setMessage(CANNOT.pattern);
       return;
@@ -333,14 +336,7 @@ export function Timetable(): ReactElement {
 
       <TimetableToolbar
         selectedCount={selectedTripIds.length}
-        selectedPatternId={commonPatternId(selectedTrips)}
-        patterns={patterns}
         otherServices={services.filter((service) => service.serviceId !== activeServiceId)}
-        onAdd={handleAdd}
-        onDuplicate={handleDuplicate}
-        onRemove={handleRemove}
-        onChangePattern={handleChangePattern}
-        onShift={handleShift}
         onSort={handleSort}
         onCopyTo={handleCopyTo}
         message={message}
@@ -357,6 +353,9 @@ export function Timetable(): ReactElement {
           onRemoveSelection={handleRemove}
           blockColors={blockColors}
           onChangeBlockId={handleChangeBlockId}
+          patterns={patterns}
+          onChangePattern={handleChangePattern}
+          onClearTime={handleClearTime}
           tripNumbers={tripNumbers}
           onTogglePullOut={(tripId) => {
             toggleDepotLink(tripId, 'pullOut', '出区の切り替え');
@@ -368,6 +367,14 @@ export function Timetable(): ReactElement {
       )}
     </section>
   );
+}
+
+/** 打ち直しで便が動いた分（分）。一括シフトに使う（仕様書 §6.1.2）。 */
+function shiftMinutes(before: Trip, after: Trip, network: NetworkIndex): number {
+  const from = originTime(before, network);
+  const to = originTime(after, network);
+  // 時刻が入っていなかった便は「動いた」とは言えない。ほかの便は動かさない。
+  return from === null || to === null ? 0 : diffMinutes(to, from);
 }
 
 /**
@@ -392,16 +399,4 @@ function withSuggestedBlockId(
 
   const blockId = suggestBlockId(trip, trips, network);
   return blockId === '' ? trip : { ...trip, blockId };
-}
-
-/**
- * 選択中の便に共通するパターン。混ざっていれば空文字。
- *
- * 混在を「先頭の便のパターン」と表示すると、選び直していないのに違うパターンへ
- * 変わったように見える。
- */
-function commonPatternId(selectedTrips: readonly Trip[]): string {
-  const patternIds = new Set(selectedTrips.map((trip) => trip.patternId));
-  const [only] = patternIds;
-  return patternIds.size === 1 && only !== undefined ? only : '';
 }

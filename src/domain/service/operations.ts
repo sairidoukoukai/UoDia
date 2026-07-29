@@ -27,8 +27,8 @@
 
 import type { DirectionId, Trip } from '@/domain/model';
 import type { NetworkIndex } from '@/domain/network';
-import { GRAIN_SECONDS, SECONDS_PER_MINUTE, compareTime } from '@/domain/time';
-import { changePattern, originTime, shiftTrip } from '@/domain/trip';
+import { GRAIN_SECONDS, SECONDS_PER_MINUTE, compareTime, type Seconds } from '@/domain/time';
+import { changePattern, originTime, setTimeAt, shiftTrip } from '@/domain/trip';
 
 /** 時刻を動かせる最小の単位（分）。5 分格子（仕様書 §2.1）。 */
 export const GRAIN_MINUTES = GRAIN_SECONDS / SECONDS_PER_MINUTE;
@@ -74,43 +74,57 @@ export function tripIdMinter(existing: readonly Trip[]): () => string {
 }
 
 /**
- * その方向で便を作るときの既定パターン（仕様書 §6.1.4「既定パターンの空便」）。
+ * その停留所から出る便に付けるパターン（仕様書 §6.1.2、T-52）。
  *
- * どれを既定とするかは**ネットワーク定義が決める**（`isDefault`）。アプリが
- * 「先頭のパターン」のように推測すると、`route.json` で並びを入れ替えただけで
- * 新規便の経路が変わる。回送便は既定になり得ない（R-05）。
+ * 空の列の升目に時刻を打つと便ができる。そのとき経路を決めるのは**打った行の
+ * 停留所**である。吹田方面の既定は S1（直行）だが、箕面学舎の行に打った利用者が
+ * 求めているのは箕面学舎を通る便である。既定パターンで作ると、打った時刻が
+ * その場から消えるか `−` の行へ移ることになる。
  *
- * R-05 は各方向にちょうど 1 つ存在することを求めており、検証を通った定義しか
- * 状態に入らないため（`store/selectors.ts`）、実際に `null` が返るのは
- * 検証を通していない定義を直接渡したときだけである。
+ * その停留所を経由する営業パターンのうち、**既定のもの**を優先する。既定が
+ * 経由しないときは定義の順で最初に経由するものを採る。どれを既定とするかは
+ * ネットワーク定義が決める（`isDefault`。R-05）。アプリが「先頭のパターン」の
+ * ように推測すると、`route.json` で並びを入れ替えただけで新規便の経路が変わる。
  */
-export function defaultPatternId(network: NetworkIndex, directionId: DirectionId): string | null {
-  const found = network.def.patterns.find(
-    (pattern) => pattern.directionId === directionId && pattern.isDefault && !pattern.isDeadhead,
+export function patternForStop(
+  network: NetworkIndex,
+  directionId: DirectionId,
+  stopId: string,
+): string | null {
+  const candidates = network.patternIndexes.filter(
+    (index) =>
+      index.pattern.directionId === directionId &&
+      !index.pattern.isDeadhead &&
+      index.includes(stopId),
   );
-  return found === undefined ? null : found.patternId;
+
+  const chosen = candidates.find((index) => index.pattern.isDefault) ?? candidates.at(0);
+  return chosen?.pattern.patternId ?? null;
 }
 
 /**
- * 便を 1 つ加える（仕様書 §6.1.4）。**時刻は入れない。**
+ * 時刻を入れた便を 1 つ加える（仕様書 §6.1.2）。
  *
- * `anchor: null` の便として末尾に置く。仮の時刻を入れないのは、それが
- * 「本当に 0:00 発なのか、まだ入力していないのか」を消してしまうからである
- * （仕様書 §5.6）。並びを気にする必要は無い。時刻を入れてから
- * {@link sortTripsByOrigin} を掛ければ収まる。
+ * 空の列に打ち込んだときに呼ばれる。**便は時刻を打つことで生まれる**ため、
+ * 時刻を持たない便を作る操作は無い（T-52 で「便の追加」を廃止した）。
+ *
+ * 置く場所は末尾——すなわち便の右端である。飛び離れた空の列に打っても、
+ * 間に空の便ができるわけではない。
  *
  * @param among ID の重複を避けるために見る便。既定は編集対象の便。ダイヤを
  *   またいで ID を一意にしたいときに、全ダイヤの便を渡す。
  */
-export function addTrip(
+export function addTripAt(
   trips: readonly Trip[],
   patternId: string,
+  stopId: string,
+  time: Seconds,
   network: NetworkIndex,
   among: readonly Trip[] = trips,
 ): TripInsertion | null {
   if (network.findPattern(patternId) === undefined) return null;
 
-  const trip: Trip = {
+  const empty: Trip = {
     tripId: tripIdMinter(among)(),
     patternId,
     anchor: null,
@@ -118,6 +132,10 @@ export function addTrip(
     pullOut: false,
     pullIn: false,
   };
+  // 表せる範囲（0:00〜47:55）に収まるかは setTimeAt が確かめる。
+  const trip = setTimeAt(empty, stopId, time, network);
+  if (trip === null) return null;
+
   return { trips: [...trips, trip], added: [trip] };
 }
 
