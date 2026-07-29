@@ -591,7 +591,8 @@ describe('運用番号の記入（T-22）', () => {
     typeBlockId(0, 'A12');
 
     undo();
-    expect(selectTrips(useAppStore.getState())[0]?.blockId).toBe('');
+    // 便を作ったときに入った番号（§6.1.5）まで戻る。
+    expect(selectTrips(useAppStore.getState())[0]?.blockId).toBe('A');
   });
 
   it('**同じ運用の便が同じ色になり、空欄は色を持たない**', () => {
@@ -599,8 +600,9 @@ describe('運用番号の記入（T-22）', () => {
     newTrip(8, 0);
     newTrip(9, 0);
     newTrip(10, 0);
-    typeBlockId(0, 'A');
+    // 自動では A・B・C が入る。1 便目と 3 便目を同じ運用にし、2 便目は消す。
     typeBlockId(2, 'A');
+    typeBlockId(1, '');
 
     const shadow = (i: number) => blockField(i).parentElement?.style.boxShadow ?? '';
     expect(shadow(0)).toBe(shadow(2));
@@ -638,15 +640,20 @@ describe('運用番号の自動採番（T-23、仕様書 §6.1.5）', () => {
     expect(blockIds()).toEqual(['A', 'A']);
   });
 
-  it('**継げる運用が無ければ空欄のまま**', () => {
+  it('**継げる運用が無ければ新しい運用番号が入る**（#87）', () => {
     mount();
     newTrip(8, 0);
-    fill('1便の運用番号', 'A');
 
     // 同じ方向の後続便。豊中学舎発であり、工学部前で終わる A には継げない。
     newTrip(9, 0);
 
-    expect(blockIds()).toEqual(['A', '']);
+    expect(blockIds()).toEqual(['A', 'B']);
+  });
+
+  it('**白紙のプロジェクトでも運用番号が付く**（#87 の症状 1）', () => {
+    mount();
+    newTrip(8, 0);
+    expect(blockIds()).toEqual(['A']);
   });
 
   it('**時刻を打ち直しても、消した運用番号は書き戻さない**', () => {
