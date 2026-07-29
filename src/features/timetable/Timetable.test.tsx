@@ -115,142 +115,203 @@ function message(): string | null {
   return container.querySelector('.timetable__toolbar-status')?.textContent ?? null;
 }
 
-describe('便の追加', () => {
-  it('**既定パターンの、時刻の入っていない便が増える**', () => {
+describe('便を作る（T-52、仕様書 §6.1.2）', () => {
+  it('**空の列に時刻を打つと便ができる**', () => {
     mount();
-    press('便を追加');
+    newTrip(8, 0);
 
-    expect(trips()).toEqual(['S3:未']);
+    expect(trips()).toEqual([`S3:${String(fromHM(8, 0))}`]);
     expect(columns()).toBe(1);
   });
 
-  it('追加した便が選ばれる（続けて操作できる）', () => {
+  it('**打った行の停留所を経由するパターンになる**', () => {
     mount();
-    press('便を追加');
-    expect(selectSelectedTripIds(useAppStore.getState())).toHaveLength(1);
+    // 吹田方面の既定 S3 は箕面学舎を経由する。工学部前の行（3 行目）に打っても
+    // その停留所を通るパターンが選ばれる。
+    newTrip(9, 0, 3);
+
+    const trip = selectTrips(useAppStore.getState())[0];
+    expect(trip?.patternId).toBe('S3');
+    expect(trip?.anchor?.stopId).toBe('4_0');
   });
 
   it('**取り消すと消える**', () => {
     mount();
-    press('便を追加');
+    newTrip(8, 0);
     undo();
     expect(trips()).toEqual([]);
   });
-});
 
-describe('便の複製', () => {
-  it('**5 分後の便が隣に増える**', () => {
+  it('打つたびに右へ増える', () => {
     mount();
-    press('便を追加');
-    press('複製');
-
-    // 時刻が未入力の便は、未入力のまま複製される。
-    expect(trips()).toEqual(['S3:未', 'S3:未']);
+    newTrip(8, 0);
+    newTrip(9, 0);
+    expect(trips()).toEqual([`S3:${String(fromHM(8, 0))}`, `S3:${String(fromHM(9, 0))}`]);
   });
 
-  it('時刻の入った便は、指定した分だけずれて複製される', () => {
+  it('**「便を追加」の押しボタンは無い**', () => {
     mount();
-    press('便を追加');
-    setTime(0, fromHM(8, 0));
-    fill('ずらす分', '30');
-    selectColumn(0);
-    press('複製');
-
-    expect(trips()).toEqual([`S3:${String(fromHM(8, 0))}`, `S3:${String(fromHM(8, 30))}`]);
-  });
-
-  it('取り消すと元の 1 便に戻る', () => {
-    mount();
-    press('便を追加');
-    press('複製');
-    undo();
-    expect(trips()).toEqual(['S3:未']);
-  });
-
-  it('選んでいなければ押せない', () => {
-    mount();
-    expect(disabled('複製')).toBe(true);
+    const labels = [...container.querySelectorAll('button')].map((b) => b.textContent.trim());
+    expect(labels).not.toContain('便を追加');
+    expect(labels).not.toContain('複製');
+    expect(labels).not.toContain('ずらす');
+    expect(labels).not.toContain('削除');
   });
 });
 
 describe('便の削除', () => {
-  it('選んだ便が消え、取り消すと戻る', () => {
+  it('**列見出しの Delete で消え、取り消すと戻る**', () => {
     mount();
-    press('便を追加');
-    press('便を追加');
-    selectColumn(0);
-    press('削除');
-
-    expect(columns()).toBe(1);
-    undo();
-    expect(columns()).toBe(2);
-  });
-
-  it('**列見出しの Delete でも消える**', () => {
-    mount();
-    press('便を追加');
+    newTrip(8, 0);
+    newTrip(9, 0);
     selectColumn(0);
 
     const button = container.querySelector<HTMLButtonElement>('thead .timetable__column');
     act(() => {
       button?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete', bubbles: true }));
     });
-    expect(columns()).toBe(0);
+
+    expect(columns()).toBe(1);
+    undo();
+    expect(columns()).toBe(2);
   });
 });
 
-describe('一括シフト', () => {
-  it('**選んだ便だけが動き、取り消すと戻る**', () => {
+describe('時刻を消す（T-52、仕様書 §6.1.2）', () => {
+  it('**升目の Delete で便の時刻が消える**（便は残る）', () => {
     mount();
-    press('便を追加');
-    setTime(0, fromHM(8, 0));
-    press('便を追加');
-    setTime(1, fromHM(9, 0));
+    newTrip(8, 0);
+
+    const cell = container.querySelector<HTMLElement>('[data-cell="0:0"]');
+    act(() => {
+      cell?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    });
+    act(() => {
+      cell?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete', bubbles: true }));
+    });
+
+    expect(trips()).toEqual(['S3:未']);
+    expect(columns()).toBe(1);
+  });
+
+  it('取り消すと時刻が戻る', () => {
+    mount();
+    newTrip(8, 0);
+    const cell = container.querySelector<HTMLElement>('[data-cell="0:0"]');
+    act(() => {
+      cell?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    });
+    act(() => {
+      cell?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete', bubbles: true }));
+    });
+
+    undo();
+    expect(trips()).toEqual([`S3:${String(fromHM(8, 0))}`]);
+  });
+});
+
+describe('選んだ便がまとめて動く（T-52、仕様書 §6.1.2）', () => {
+  it('**選択中の便が同じ差分だけ動く**（一括シフトの置き換え）', () => {
+    mount();
+    newTrip(8, 0);
+    newTrip(9, 0);
 
     selectColumn(0);
-    fill('ずらす分', '15');
-    press('ずらす');
+    selectColumn(1, true);
+    // 1 便目に 8:30 と打つ。30 分の差分が両方に効く。
+    setTime(0, fromHM(8, 30));
 
-    expect(trips()).toEqual([`S3:${String(fromHM(8, 15))}`, `S3:${String(fromHM(9, 0))}`]);
+    expect(trips()).toEqual([`S3:${String(fromHM(8, 30))}`, `S3:${String(fromHM(9, 30))}`]);
+  });
+
+  it('取り消すと両方とも戻る', () => {
+    mount();
+    newTrip(8, 0);
+    newTrip(9, 0);
+    selectColumn(0);
+    selectColumn(1, true);
+    setTime(0, fromHM(8, 30));
+
     undo();
     expect(trips()).toEqual([`S3:${String(fromHM(8, 0))}`, `S3:${String(fromHM(9, 0))}`]);
   });
 
-  it('**表せる範囲を外れるときは、理由を伝えて何もしない**', () => {
+  it('**選んでいない便は動かない**', () => {
     mount();
-    press('便を追加');
-    setTime(0, fromHM(47, 0));
+    newTrip(8, 0);
+    newTrip(9, 0);
 
     selectColumn(0);
-    fill('ずらす分', '30');
-    press('ずらす');
+    setTime(0, fromHM(8, 30));
 
-    expect(trips()).toEqual([`S3:${String(fromHM(47, 0))}`]);
+    expect(trips()).toEqual([`S3:${String(fromHM(8, 30))}`, `S3:${String(fromHM(9, 0))}`]);
+  });
+
+  it('**打った便が選択に無ければ、その便だけが動く**', () => {
+    mount();
+    newTrip(8, 0);
+    newTrip(9, 0);
+
+    selectColumn(1);
+    setTime(0, fromHM(8, 30));
+
+    expect(trips()).toEqual([`S3:${String(fromHM(8, 30))}`, `S3:${String(fromHM(9, 0))}`]);
+  });
+
+  it('**1 便でも範囲を外れるなら何も動かさない**', () => {
+    mount();
+    newTrip(8, 0);
+    newTrip(47, 0);
+
+    selectColumn(0);
+    selectColumn(1, true);
+    setTime(0, fromHM(9, 0));
+
+    expect(trips()).toEqual([`S3:${String(fromHM(8, 0))}`, `S3:${String(fromHM(47, 0))}`]);
     expect(message()).toContain('ずらせません');
   });
 });
 
-describe('パターンの変更', () => {
-  it('**選んだ便のパターンが変わり、取り消すと戻る**', () => {
+describe('パターンの変更（T-52）', () => {
+  /** その列のパターン欄で別のパターンを選ぶ。 */
+  function choosePattern(index: number, patternId: string): void {
+    const fields = container.querySelectorAll<HTMLSelectElement>('.timetable__pattern');
+    const field = fields[index];
+    if (field === undefined) throw new Error(`${String(index)} 列目のパターン欄がありません`);
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set?.call(
+        field,
+        patternId,
+      );
+      field.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  }
+
+  it('**その列のパターンが変わり、取り消すと戻る**', () => {
     mount();
-    press('便を追加');
-    setTime(0, fromHM(8, 0));
-    selectColumn(0);
-    fill('停車パターン', 'S1');
+    newTrip(8, 0);
+    choosePattern(0, 'S1');
 
     expect(trips()).toEqual([`S1:${String(fromHM(8, 0))}`]);
     undo();
     expect(trips()).toEqual([`S3:${String(fromHM(8, 0))}`]);
+  });
+
+  it('**選択は要らない**（触っている列が対象である）', () => {
+    mount();
+    newTrip(8, 0);
+    newTrip(9, 0);
+    choosePattern(1, 'S1');
+
+    expect(trips()).toEqual([`S3:${String(fromHM(8, 0))}`, `S1:${String(fromHM(9, 0))}`]);
   });
 });
 
 describe('並べ替え', () => {
   it('**始発時刻の昇順に並び、取り消すと元の並びに戻る**', () => {
     mount();
-    press('便を追加');
-    setTime(0, fromHM(9, 0));
-    press('便を追加');
-    setTime(1, fromHM(8, 0));
+    newTrip(9, 0);
+    newTrip(8, 0);
 
     press('始発時刻順に並べ替え');
     expect(trips()).toEqual([`S3:${String(fromHM(8, 0))}`, `S3:${String(fromHM(9, 0))}`]);
@@ -271,8 +332,7 @@ describe('ダイヤ間コピー', () => {
 
   it('**選んだ便が別のダイヤへ写り、取り消すと戻る**', () => {
     mount(twoServices());
-    press('便を追加');
-    setTime(0, fromHM(8, 0));
+    newTrip(8, 0);
     selectColumn(0);
     fill('複製先のダイヤ', 'saturday');
 
@@ -296,7 +356,8 @@ describe('ダイヤ間コピー', () => {
 describe('方向の切り替え', () => {
   it('**見えなくなる便の選択を解く**', () => {
     mount();
-    press('便を追加');
+    newTrip(8, 0);
+    selectColumn(0);
     expect(selectSelectedTripIds(useAppStore.getState())).toHaveLength(1);
 
     press('豊中方面');
@@ -330,16 +391,19 @@ function setTime(column: number, time: number, row = 0): void {
   });
 }
 
-function formatForInput(time: number): string {
-  return `${String(Math.floor(time / 3600))}:${String(Math.floor((time % 3600) / 60)).padStart(2, '0')}`;
+/**
+ * 空の列に時刻を打って便を作る（T-52、仕様書 §6.1.2）。
+ *
+ * 打つ先は今ある便の右隣——最初の空の列である。**「便を追加」という操作は
+ * もう無い。**
+ */
+function newTrip(hour: number, minute: number, row = 0): void {
+  const column = container.querySelectorAll('thead .timetable__column').length;
+  setTime(column, fromHM(hour, minute), row);
 }
 
-/** その押しボタンが押せない状態か。 */
-function disabled(label: string): boolean {
-  const found = [...container.querySelectorAll('button')].find(
-    (button) => button.textContent.trim() === label,
-  );
-  return found?.disabled ?? false;
+function formatForInput(time: number): string {
+  return `${String(Math.floor(time / 3600))}:${String(Math.floor((time % 3600) / 60)).padStart(2, '0')}`;
 }
 
 describe('便番号（T-46、仕様書 §6.1.6）', () => {
@@ -348,26 +412,20 @@ describe('便番号（T-46、仕様書 §6.1.6）', () => {
     return [...container.querySelectorAll('thead .timetable__column')].map((th) => th.textContent);
   }
 
-  it('**時刻を入れると番号が付き、時刻順に詰め直される**', () => {
+  it('**時刻順に番号が詰め直される**', () => {
     mount();
-    press('便を追加');
-    expect(numbers()).toEqual(['―']);
-
-    setTime(0, fromHM(9, 0));
+    newTrip(9, 0);
     expect(numbers()).toEqual(['E1']);
 
     // あとから早い便を足すと、番号が入れ替わる。
-    press('便を追加');
-    setTime(1, fromHM(8, 0));
+    newTrip(8, 0);
     expect(numbers()).toEqual(['E2', 'E1']);
   });
 
   it('**1 便の時刻を変えても、取り消しはその 1 便で戻る**（採番が履歴に載らない）', () => {
     mount();
-    press('便を追加');
-    setTime(0, fromHM(9, 0));
-    press('便を追加');
-    setTime(1, fromHM(8, 0));
+    newTrip(9, 0);
+    newTrip(8, 0);
 
     const before = selectTrips(useAppStore.getState());
     // 1 便目を 7:00 へ動かすと、番号が入れ替わる。
@@ -402,7 +460,7 @@ describe('運用番号の記入（T-22）', () => {
 
   it('**記入した運用番号が便に入る**', () => {
     mount();
-    press('便を追加');
+    newTrip(8, 0);
     typeBlockId(0, 'A');
 
     expect(selectTrips(useAppStore.getState())[0]?.blockId).toBe('A');
@@ -411,7 +469,7 @@ describe('運用番号の記入（T-22）', () => {
 
   it('**1 文字ずつ打っても、取り消しは 1 回で戻る**（仕様書 §6.7）', () => {
     mount();
-    press('便を追加');
+    newTrip(8, 0);
     typeBlockId(0, 'A');
     typeBlockId(0, 'A1');
     typeBlockId(0, 'A12');
@@ -422,9 +480,9 @@ describe('運用番号の記入（T-22）', () => {
 
   it('**同じ運用の便が同じ色になり、空欄は色を持たない**', () => {
     mount();
-    press('便を追加');
-    press('便を追加');
-    press('便を追加');
+    newTrip(8, 0);
+    newTrip(9, 0);
+    newTrip(10, 0);
     typeBlockId(0, 'A');
     typeBlockId(2, 'A');
 
@@ -432,15 +490,6 @@ describe('運用番号の記入（T-22）', () => {
     expect(shadow(0)).toBe(shadow(2));
     expect(shadow(0)).not.toBe('');
     expect(shadow(1)).toBe('');
-  });
-
-  it('複製した便は運用番号を引き継ぐ（T-21 と繋がる）', () => {
-    mount();
-    press('便を追加');
-    typeBlockId(0, 'A');
-    press('複製');
-
-    expect(selectTrips(useAppStore.getState()).map((trip) => trip.blockId)).toEqual(['A', 'A']);
   });
 });
 
@@ -460,43 +509,37 @@ describe('運用番号の自動採番（T-23、仕様書 §6.1.5）', () => {
    */
   const ORIGIN_ROW_WESTBOUND = 1;
 
-  it('**初めて時刻を入れたとき、継げる運用の番号が入る**', () => {
+  it('**便ができたとき、継げる運用の番号が入る**', () => {
     mount();
     // 1 便目: 吹田方面 S3（豊中 8:00 → 工学部前 8:40）。運用 A を人が付ける。
-    press('便を追加');
-    setTime(0, fromHM(8, 0));
+    newTrip(8, 0);
     fill('1便の運用番号', 'A');
 
     // 2 便目: 豊中方面 T3（工学部前 8:50 発）。工学部前で A に継げる。
     toToyonaka();
-    press('便を追加');
-    setTime(0, fromHM(8, 50), ORIGIN_ROW_WESTBOUND);
+    newTrip(8, 50, ORIGIN_ROW_WESTBOUND);
 
     expect(blockIds()).toEqual(['A', 'A']);
   });
 
   it('**継げる運用が無ければ空欄のまま**', () => {
     mount();
-    press('便を追加');
-    setTime(0, fromHM(8, 0));
+    newTrip(8, 0);
     fill('1便の運用番号', 'A');
 
     // 同じ方向の後続便。豊中学舎発であり、工学部前で終わる A には継げない。
-    press('便を追加');
-    setTime(1, fromHM(9, 0));
+    newTrip(9, 0);
 
     expect(blockIds()).toEqual(['A', '']);
   });
 
   it('**時刻を打ち直しても、消した運用番号は書き戻さない**', () => {
     mount();
-    press('便を追加');
-    setTime(0, fromHM(8, 0));
+    newTrip(8, 0);
     fill('1便の運用番号', 'A');
 
     toToyonaka();
-    press('便を追加');
-    setTime(0, fromHM(8, 50), ORIGIN_ROW_WESTBOUND);
+    newTrip(8, 50, ORIGIN_ROW_WESTBOUND);
     expect(blockIds()).toEqual(['A', 'A']);
 
     // 利用者が消してから、時刻を入れ直す。
@@ -505,20 +548,17 @@ describe('運用番号の自動採番（T-23、仕様書 §6.1.5）', () => {
     expect(blockIds()).toEqual(['A', '']);
   });
 
-  it('**提案と時刻は 1 回の取り消しでまとめて戻る**', () => {
+  it('**便を作るのは 1 回の取り消しで戻る**（提案も一緒に消える）', () => {
     mount();
-    press('便を追加');
-    setTime(0, fromHM(8, 0));
+    newTrip(8, 0);
     fill('1便の運用番号', 'A');
 
     toToyonaka();
-    press('便を追加');
-    setTime(0, fromHM(8, 50), ORIGIN_ROW_WESTBOUND);
+    newTrip(8, 50, ORIGIN_ROW_WESTBOUND);
+    expect(blockIds()).toEqual(['A', 'A']);
 
     undo();
-    const trips = selectTrips(useAppStore.getState());
-    expect(trips[1]?.blockId).toBe('');
-    expect(trips[1]?.anchor).toBeNull();
+    expect(blockIds()).toEqual(['A']);
   });
 });
 
@@ -549,9 +589,8 @@ describe('出区・入区（T-51、仕様書 §6.1.7）', () => {
 
   /** 運用番号を付けた便を 1 つ作る。 */
   function addTripAt(hour: number, minute: number, blockId: string): void {
-    press('便を追加');
-    const column = container.querySelectorAll('.timetable__block').length - 1;
-    setTime(column, fromHM(hour, minute));
+    const column = container.querySelectorAll('.timetable__block').length;
+    newTrip(hour, minute);
     fill(`${String(column + 1)}便の運用番号`, blockId);
   }
 
@@ -610,8 +649,7 @@ describe('出区・入区（T-51、仕様書 §6.1.7）', () => {
 
   it('**運用番号が空欄でも設定できる**（#87 の症状 1〜3）', () => {
     mount();
-    press('便を追加');
-    setTime(0, fromHM(8, 0));
+    newTrip(8, 0);
     toggle('前運用');
 
     expect(linkText('前運用')).toBe('7:40');
@@ -633,7 +671,11 @@ describe('出区・入区（T-51、仕様書 §6.1.7）', () => {
     addTripAt(8, 0, 'A');
     toggle('前運用');
     selectColumn(0);
-    press('削除');
+
+    const button = container.querySelector<HTMLButtonElement>('thead .timetable__column');
+    act(() => {
+      button?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete', bubbles: true }));
+    });
 
     expect(trips()).toEqual([]);
   });

@@ -21,10 +21,10 @@ import { buildNetworkIndex, loadNetworkDef, type NetworkIndex } from '@/domain/n
 import { fromHM } from '@/domain/time';
 import { originTime, timeAt } from '@/domain/trip';
 import {
-  addTrip,
+  addTripAt,
   changeTripsPattern,
   copyTripsToService,
-  defaultPatternId,
+  patternForStop,
   duplicateTrips,
   removeTrips,
   shiftTrips,
@@ -80,46 +80,84 @@ describe('便 ID の採番', () => {
   });
 });
 
-describe('既定パターン', () => {
-  it('定義が指した既定を使う（R-05）', () => {
-    expect(defaultPatternId(network, 0)).toBe('S3');
-    expect(defaultPatternId(network, 1)).toBe('T3');
+describe('打った行から決まるパターン（T-52、仕様書 §6.1.2）', () => {
+  it('その停留所を経由する既定パターンを選ぶ', () => {
+    // 吹田方面の既定は S3（豊中学舎発・箕面学舎経由）。
+    expect(patternForStop(network, 0, '1_0')).toBe('S3');
+    expect(patternForStop(network, 1, '4_0')).toBe('T3');
   });
 
-  it('既定が無ければ null（R-05 を満たさない定義）', () => {
+  it('**既定が経由しない停留所では、経由するパターンを選ぶ**', () => {
+    // 豊中方面の既定 T3 は工学部前発。豊中学舎の行に打てば T3 は経由するが、
+    // 吹田方面の直行 S1 が経由しない箕面学舎ではどうか。
     const def: NetworkDef = {
       ...network.def,
-      patterns: network.def.patterns.map((pattern) => ({ ...pattern, isDefault: false })),
+      // 既定を S1（直行。箕面学舎を経由しない）に差し替える。
+      patterns: network.def.patterns.map((pattern) => ({
+        ...pattern,
+        isDefault: pattern.patternId === 'S1' || pattern.patternId === 'T3',
+      })),
     };
-    expect(defaultPatternId(buildNetworkIndex(def), 0)).toBeNull();
+    const withDirect = buildNetworkIndex(def);
+
+    expect(patternForStop(withDirect, 0, '1_0')).toBe('S1');
+    // 箕面学舎（2_0）は S1 が経由しない。定義順で最初に経由するものを採る。
+    expect(patternForStop(withDirect, 0, '2_0')).toBe('S3');
+  });
+
+  it('回送パターンは選ばない', () => {
+    // 千里営業所（9_0）を経由するのは回送だけである。
+    expect(patternForStop(network, 0, '9_0')).toBeNull();
+  });
+
+  it('その方向に無い停留所では null', () => {
+    expect(patternForStop(network, 0, '無い停留所')).toBeNull();
   });
 });
 
-describe('便の追加', () => {
-  it('**時刻の入っていない便が末尾に加わる**', () => {
+describe('便を時刻ごと作る（T-52）', () => {
+  it('**打った停留所にアンカーを置いた便が末尾に加わる**', () => {
     const trips = [makeTrip('t1', 'S1', [8, 0])];
-    const result = addTrip(trips, 'S3', network);
-    if (result === null) throw new Error('追加できるはず');
+    const result = addTripAt(trips, 'S3', '2_0', fromHM(9, 0), network);
+    if (result === null) throw new Error('作れるはず');
 
     expect(ids(result.trips)).toEqual(['t1', 't2']);
     expect(result.added).toEqual([
-      { tripId: 't2', patternId: 'S3', anchor: null, blockId: '', pullOut: false, pullIn: false },
+      {
+        tripId: 't2',
+        patternId: 'S3',
+        anchor: { stopId: '2_0', time: fromHM(9, 0) },
+        blockId: '',
+        pullOut: false,
+        pullIn: false,
+      },
     ]);
   });
 
   it('元の配列を書き換えない', () => {
     const trips = [makeTrip('t1', 'S1', [8, 0])];
-    addTrip(trips, 'S3', network);
+    addTripAt(trips, 'S3', '1_0', fromHM(9, 0), network);
     expect(trips).toHaveLength(1);
   });
 
   it('知らないパターンでは作らない', () => {
-    expect(addTrip([], '無い', network)).toBeNull();
+    expect(addTripAt([], '無い', '1_0', fromHM(9, 0), network)).toBeNull();
+  });
+
+  it('経路に無い停留所では作らない', () => {
+    // S1（直行）は箕面学舎を経由しない。
+    expect(addTripAt([], 'S1', '2_0', fromHM(9, 0), network)).toBeNull();
+  });
+
+  it('**表せる範囲を外れる時刻では作らない**', () => {
+    // 工学部前 47:55 着の便は、始発が範囲に収まらない。
+    expect(addTripAt([], 'S3', '4_0', fromHM(47, 55), network)).not.toBeNull();
+    expect(addTripAt([], 'S3', '1_0', fromHM(47, 55), network)).toBeNull();
   });
 
   it('**別のダイヤの便とも ID がぶつからない**', () => {
     const other = [makeTrip('t5', 'S1', [8, 0])];
-    const result = addTrip([], 'S1', network, other);
+    const result = addTripAt([], 'S1', '1_0', fromHM(9, 0), network, other);
     expect(result?.added[0]?.tripId).toBe('t6');
   });
 });

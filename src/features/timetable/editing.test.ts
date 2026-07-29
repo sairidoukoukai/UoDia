@@ -24,6 +24,7 @@ import {
   movePosition,
   previousTimeInRow,
   type CellPosition,
+  type CommitOutcome,
 } from './editing';
 import { buildTimetable, stopsForDirection, type Timetable } from './model';
 
@@ -108,26 +109,39 @@ describe('直前の便の時刻', () => {
   });
 });
 
+/** 既にある便への入力の結果。空の列への入力（`create`）と取り違えない。 */
+function updated(outcome: CommitOutcome): Trip {
+  if (!outcome.ok || outcome.kind !== 'update') throw new Error('便が書き換わるはず');
+  return outcome.trip;
+}
+
 describe('入力の確定（受入条件）', () => {
   it('**`830` と入力して 8:30 になる**', () => {
     const timetable = build([makeTrip('S1', 7, 0)]);
     const outcome = commitCellInput(timetable, at(ROW.toyonaka), '830', network);
 
-    expect(outcome.ok && outcome.trip.anchor).toEqual({ stopId: '1_0', time: fromHM(8, 30) });
+    expect(outcome.ok && outcome.kind === 'update' && outcome.trip.anchor).toEqual({
+      stopId: '1_0',
+      time: fromHM(8, 30),
+    });
     expect(outcome.ok && outcome.rounded).toBe(false);
   });
 
   it('`8:30` でも同じ', () => {
     const timetable = build([makeTrip('S1', 7, 0)]);
     const outcome = commitCellInput(timetable, at(ROW.toyonaka), '8:30', network);
-    expect(outcome.ok && outcome.trip.anchor?.time).toBe(fromHM(8, 30));
+    expect(outcome.ok && outcome.kind === 'update' && outcome.trip.anchor?.time).toBe(
+      fromHM(8, 30),
+    );
   });
 
   it('**`8:32` は 8:30 に丸められ、丸めたことを伝える**', () => {
     const timetable = build([makeTrip('S1', 7, 0)]);
     const outcome = commitCellInput(timetable, at(ROW.toyonaka), '8:32', network);
 
-    expect(outcome.ok && outcome.trip.anchor?.time).toBe(fromHM(8, 30));
+    expect(outcome.ok && outcome.kind === 'update' && outcome.trip.anchor?.time).toBe(
+      fromHM(8, 30),
+    );
     expect(outcome.ok && outcome.rounded).toBe(true);
   });
 
@@ -135,7 +149,9 @@ describe('入力の確定（受入条件）', () => {
     const timetable = build([makeTrip('S1', 8, 0), makeTrip('S1', 9, 0)]);
     // 左隣は 8:00。00 以下の分は次の時と解釈する。
     const outcome = commitCellInput(timetable, at(ROW.toyonaka, 1), '45', network);
-    expect(outcome.ok && outcome.trip.anchor?.time).toBe(fromHM(8, 45));
+    expect(outcome.ok && outcome.kind === 'update' && outcome.trip.anchor?.time).toBe(
+      fromHM(8, 45),
+    );
   });
 
   it('**途中の停留所に入れると、始発を含む全部が動く**', () => {
@@ -146,8 +162,8 @@ describe('入力の確定（受入条件）', () => {
     if (!outcome.ok) throw new Error('確定できるはず');
 
     // アンカーが工学部前へ移り、始発は逆算される（S1 は 30 分）。
-    expect(outcome.trip.anchor).toEqual({ stopId: '4_0', time: fromHM(10, 0) });
-    const times = allTimes(outcome.trip, network);
+    expect(updated(outcome).anchor).toEqual({ stopId: '4_0', time: fromHM(10, 0) });
+    const times = allTimes(updated(outcome), network);
     expect(times.get('1_0')).toBe(fromHM(9, 30));
     expect(times.get('3_0')).toBe(fromHM(9, 55));
   });
@@ -157,13 +173,15 @@ describe('入力の確定（受入条件）', () => {
     const outcome = commitCellInput(build([trip]), at(ROW.engineering), '10:00', network);
 
     expect(trip.anchor?.stopId).toBe('1_0');
-    expect(outcome.ok && outcome.trip.anchor?.stopId).toBe('4_0');
+    expect(outcome.ok && outcome.kind === 'update' && outcome.trip.anchor?.stopId).toBe('4_0');
   });
 
   it('時刻が未入力の便にも入れられる', () => {
     const timetable = build([makeTrip('S1', 8, 0, { anchor: null })]);
     const outcome = commitCellInput(timetable, at(ROW.toyonaka), '830', network);
-    expect(outcome.ok && outcome.trip.anchor?.time).toBe(fromHM(8, 30));
+    expect(outcome.ok && outcome.kind === 'update' && outcome.trip.anchor?.time).toBe(
+      fromHM(8, 30),
+    );
   });
 });
 
@@ -246,7 +264,7 @@ describe('編集を始めるときの文字列', () => {
     const timetable = build([makeTrip('S1', 8, 5)]);
     const text = initialEditText(timetable, at(ROW.toyonaka));
     const outcome = commitCellInput(timetable, at(ROW.toyonaka), text, network);
-    expect(outcome.ok && outcome.trip.anchor?.time).toBe(fromHM(8, 5));
+    expect(outcome.ok && outcome.kind === 'update' && outcome.trip.anchor?.time).toBe(fromHM(8, 5));
   });
 
   it('24 時を超える時刻も読み戻せる', () => {

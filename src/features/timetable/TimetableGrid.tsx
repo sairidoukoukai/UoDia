@@ -67,6 +67,29 @@ export interface TimetableGridProps {
   /** 運用番号が書き換えられた。 */
   readonly onChangeBlockId: (tripId: string, blockId: string) => void;
   /**
+   * その方向で選べる停車パターン（仕様書 §6.1.4）。回送は含めない。
+   *
+   * パターン欄は一覧から選ぶ形にする。**存在しないパターンを打ち込めない**ため、
+   * 受け付けられない入力そのものが起こらない。
+   */
+  readonly patterns: readonly StopPattern[];
+  /** パターン欄で別のパターンが選ばれた。 */
+  readonly onChangePattern: (tripId: string, patternId: string) => void;
+  /**
+   * 升目で <kbd>Delete</kbd> が押された（仕様書 §6.1.2）。
+   *
+   * 消えるのは**その便の時刻**である。便に時刻は 1 つしかないため、1 つの升目を
+   * 消すことは列全体を消すことになる。便そのものを消すのは列見出しの
+   * <kbd>Delete</kbd>（`onRemoveSelection`）。
+   */
+  readonly onClearTime: (tripId: string) => void;
+  /**
+   * 空の列の升目に時刻が確定された（仕様書 §6.1.1、§6.1.2）。
+   *
+   * ここで便ができる。「便を追加」という操作を持たないのは、表計算ソフトに
+   * 「行を追加」ボタンが無いのと同じ理由である。
+   */
+  /**
    * 便番号（仕様書 §6.1.6）。**便は番号を持たない**ため、外から渡す。
    *
    * 表示中の方向だけで採番すると、方向をまたいで番号が重なる。採番はダイヤの
@@ -105,10 +128,28 @@ interface Editing {
 /** 便番号・運用番号が空のときに出す印。 */
 const BLANK = '―';
 
+/**
+ * 空の列の升目（仕様書 §6.1.1）。
+ *
+ * 「まだ時刻が入っていない」として扱う。`notServed`（`−`）にしないのは、
+ * 経由するともしないとも言えないためである——パターンはまだ決まっていない。
+ */
+const BLANK_CELL: TimetableCell = { kind: 'empty', handling: 'stop', reason: 'unset' };
+
 export function TimetableGrid(props: TimetableGridProps): ReactElement {
   const { timetable, onCommit, selectedTripIds, blockColors, tripNumbers } = props;
   const { stops, columns } = timetable;
-  const size = { rows: stops.length, columns: columns.length };
+  /**
+   * 描く列。便の右に**空の列**が続く（仕様書 §6.1.1）。
+   *
+   * `null` は便でない列である。打った時点でそれが便になるため、表は常に
+   * 「打てる升目」で埋まっている。
+   */
+  const slots: readonly (TimetableColumn | null)[] = [
+    ...columns,
+    ...Array.from({ length: timetable.emptyColumns }, () => null),
+  ];
+  const size = { rows: stops.length, columns: slots.length };
   const selected = new Set(selectedTripIds);
 
   /**
@@ -119,10 +160,11 @@ export function TimetableGrid(props: TimetableGridProps): ReactElement {
    */
   const [highlightedBlockId, setHighlightedBlockId] = useState('');
 
-  /** その列に付ける印。 */
-  const marks = (column: TimetableColumn): ColumnMarks => ({
-    selected: selected.has(column.trip.tripId),
-    sameBlock: highlightedBlockId !== '' && column.trip.blockId === highlightedBlockId,
+  /** その列に付ける印。空の列は選ばれることも照らされることもない。 */
+  const marks = (column: TimetableColumn | null): ColumnMarks => ({
+    selected: column !== null && selected.has(column.trip.tripId),
+    sameBlock:
+      column !== null && highlightedBlockId !== '' && column.trip.blockId === highlightedBlockId,
   });
 
   const [focus, setFocus] = useState<CellPosition | null>(null);
@@ -222,14 +264,11 @@ export function TimetableGrid(props: TimetableGridProps): ReactElement {
 
   const startEditing = (at: CellPosition, text: string): void => {
     interacting.current = true;
-    if (timetable.columns[at.column]?.cells[at.row]?.kind === 'notServed') return;
+    // 経由しない升目には打てない。空の列（便がまだ無い）はどの行にも打てる。
+    if (columns[at.column]?.cells[at.row]?.kind === 'notServed') return;
     setFocus(at);
     setEditing({ at, text, failure: null });
   };
-
-  if (columns.length === 0) {
-    return <p className="timetable__empty">この方向の便はまだありません。</p>;
-  }
 
   return (
     <div className="timetable__scroll" ref={gridRef}>
@@ -245,59 +284,95 @@ export function TimetableGrid(props: TimetableGridProps): ReactElement {
             <th scope="col" className="timetable__corner">
               停留所
             </th>
-            {columns.map((column) => (
+            {slots.map((column, index) => (
               <th
-                key={column.trip.tripId}
+                key={column?.trip.tripId ?? `empty-${String(index)}`}
                 scope="col"
-                className={columnClass(column.pattern, marks(column))}
+                className={columnClass(column?.pattern ?? null, marks(column))}
               >
                 {/*
                   列見出しは押しボタンにする。便を選ぶ手立てがここしか無く、
                   <th> のままではキーボードで辿り着けない（仕様書 §9.4）。
+                  空の列は便ではないため、選べない。
                 */}
-                <button
-                  type="button"
-                  className="timetable__column"
-                  aria-pressed={selected.has(column.trip.tripId)}
-                  onClick={(event) => {
-                    props.onSelectTrip(
-                      column.trip.tripId,
-                      event.ctrlKey || event.metaKey || event.shiftKey,
-                    );
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key !== 'Delete' && event.key !== 'Backspace') return;
-                    event.preventDefault();
-                    props.onRemoveSelection();
-                  }}
-                >
-                  {tripNumbers.get(column.trip.tripId) ?? BLANK}
-                </button>
+                {column !== null && (
+                  <button
+                    type="button"
+                    className="timetable__column"
+                    aria-pressed={selected.has(column.trip.tripId)}
+                    onClick={(event) => {
+                      props.onSelectTrip(
+                        column.trip.tripId,
+                        event.ctrlKey || event.metaKey || event.shiftKey,
+                      );
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key !== 'Delete' && event.key !== 'Backspace') return;
+                      event.preventDefault();
+                      props.onRemoveSelection();
+                    }}
+                  >
+                    {tripNumbers.get(column.trip.tripId) ?? BLANK}
+                  </button>
+                )}
               </th>
             ))}
           </tr>
           <tr>
             <th scope="row">パターン</th>
-            {columns.map((column) => (
+            {slots.map((column, index) => (
               <td
-                key={column.trip.tripId}
-                className={columnClass(column.pattern, marks(column))}
+                key={column?.trip.tripId ?? `empty-${String(index)}`}
+                className={columnClass(column?.pattern ?? null, marks(column))}
                 // 行先はパターンと 1 対 1 であり、行を割いて並べると同じことを
                 // 2 度言うことになる（§6.1.1）。手掛かりとしてだけ残す。
-                title={column.pattern === null ? '参照が壊れています' : column.pattern.patternName}
+                title={
+                  column === null
+                    ? undefined
+                    : (column.pattern?.patternName ?? '参照が壊れています')
+                }
               >
-                {column.trip.patternId}
+                {/*
+                  パターンは一覧から選ぶ（仕様書 §6.1.4）。押せば一覧が出て、
+                  キーを打てばその文字で選べる。**存在しないパターンは選べない。**
+                  空の列には置かない——便は時刻を打つことで生まれる。
+                */}
+                {column !== null && (
+                  <select
+                    className="timetable__pattern"
+                    value={column.trip.patternId}
+                    aria-label={`${tripNumbers.get(column.trip.tripId) ?? BLANK}の停車パターン`}
+                    onChange={(event) => {
+                      props.onChangePattern(column.trip.tripId, event.target.value);
+                    }}
+                  >
+                    {/*
+                      参照が壊れている便のための項目。選ばせるためではなく、
+                      今の値を偽らずに見せるために置く。
+                    */}
+                    {column.pattern === null && (
+                      <option value={column.trip.patternId} disabled>
+                        {column.trip.patternId}
+                      </option>
+                    )}
+                    {props.patterns.map((pattern) => (
+                      <option key={pattern.patternId} value={pattern.patternId}>
+                        {pattern.patternId}（{pattern.patternName}）
+                      </option>
+                    ))}
+                  </select>
+                )}
               </td>
             ))}
           </tr>
           <tr>
             <th scope="row">運用</th>
-            {columns.map((column, index) => {
-              const color = blockColors.get(column.trip.blockId);
+            {slots.map((column, index) => {
+              const color = column === null ? undefined : blockColors.get(column.trip.blockId);
               return (
                 <td
-                  key={column.trip.tripId}
-                  className={columnClass(column.pattern, marks(column))}
+                  key={column?.trip.tripId ?? `empty-${String(index)}`}
+                  className={columnClass(column?.pattern ?? null, marks(column))}
                   // 運用の色は運用番号の並びから決まるため、あらかじめ書けない
                   // （`domain/block/colors.ts`）。罫線ではなく内側の影で描くのは、
                   // 色の付いた列だけ行の高さが変わるのを避けるため。
@@ -305,23 +380,25 @@ export function TimetableGrid(props: TimetableGridProps): ReactElement {
                     color === undefined ? undefined : { boxShadow: `inset 0 -0.25rem ${color}` }
                   }
                 >
-                  <input
-                    className="timetable__block"
-                    value={column.trip.blockId}
-                    // 空欄は未割当（仕様書 §6.1.3）。何も入っていないことが
-                    // 見えるよう、他の欄と同じ印を薄く出す。
-                    placeholder={BLANK}
-                    aria-label={`${String(index + 1)}便の運用番号`}
-                    onChange={(event) => {
-                      props.onChangeBlockId(column.trip.tripId, event.target.value);
-                    }}
-                    onFocus={() => {
-                      setHighlightedBlockId(column.trip.blockId);
-                    }}
-                    onBlur={() => {
-                      setHighlightedBlockId('');
-                    }}
-                  />
+                  {column !== null && (
+                    <input
+                      className="timetable__block"
+                      value={column.trip.blockId}
+                      // 空欄は未割当（仕様書 §6.1.3）。何も入っていないことが
+                      // 見えるよう、他の欄と同じ印を薄く出す。
+                      placeholder={BLANK}
+                      aria-label={`${String(index + 1)}便の運用番号`}
+                      onChange={(event) => {
+                        props.onChangeBlockId(column.trip.tripId, event.target.value);
+                      }}
+                      onFocus={() => {
+                        setHighlightedBlockId(column.trip.blockId);
+                      }}
+                      onBlur={() => {
+                        setHighlightedBlockId('');
+                      }}
+                    />
+                  )}
                 </td>
               );
             })}
@@ -337,7 +414,7 @@ export function TimetableGrid(props: TimetableGridProps): ReactElement {
           <LinkRow
             title="前運用"
             action="出区"
-            columns={columns}
+            columns={slots}
             cellOf={(column) => column.links.previous}
             marks={marks}
             numbers={tripNumbers}
@@ -348,12 +425,15 @@ export function TimetableGrid(props: TimetableGridProps): ReactElement {
               <th scope="row" className="timetable__stop">
                 {stop.stopName}
               </th>
-              {columns.map((column, index) => {
+              {slots.map((column, index) => {
                 const at = { row, column: index };
                 return (
                   <Cell
-                    key={column.trip.tripId}
-                    cell={column.cells[row] ?? { kind: 'notServed' }}
+                    key={column?.trip.tripId ?? `empty-${String(index)}`}
+                    // 空の列は打てる空欄にする。`−`（経由しない）は出さない
+                    // ——パターンが決まっていない以上、経由するともしないとも
+                    // 言えないためである（仕様書 §6.1.1）。
+                    cell={column?.cells[row] ?? BLANK_CELL}
                     selected={marks(column).selected}
                     sameBlock={marks(column).sameBlock}
                     at={at}
@@ -375,6 +455,9 @@ export function TimetableGrid(props: TimetableGridProps): ReactElement {
                       );
                     }}
                     onKeyDown={handleKeyDown}
+                    onClear={() => {
+                      if (column !== null) props.onClearTime(column.trip.tripId);
+                    }}
                     onBlurInput={() => {
                       finish(null);
                     }}
@@ -386,7 +469,7 @@ export function TimetableGrid(props: TimetableGridProps): ReactElement {
           <LinkRow
             title="後運用"
             action="入区"
-            columns={columns}
+            columns={slots}
             cellOf={(column) => column.links.next}
             marks={marks}
             numbers={tripNumbers}
@@ -402,9 +485,10 @@ interface LinkRowProps {
   readonly title: string;
   /** 押したときに切り替わるもの。押しボタンの説明に使う。 */
   readonly action: string;
-  readonly columns: readonly TimetableColumn[];
+  /** 描く列。`null` は空の列（便ではない）。 */
+  readonly columns: readonly (TimetableColumn | null)[];
   readonly cellOf: (column: TimetableColumn) => LinkCell;
-  readonly marks: (column: TimetableColumn) => ColumnMarks;
+  readonly marks: (column: TimetableColumn | null) => ColumnMarks;
   readonly numbers: ReadonlyMap<string, string>;
   readonly onToggle: (tripId: string) => void;
 }
@@ -416,7 +500,17 @@ function LinkRow(props: LinkRowProps): ReactElement {
       <th scope="row" className="timetable__link-head">
         {props.title}
       </th>
-      {props.columns.map((column) => {
+      {props.columns.map((column, index) => {
+        if (column === null) {
+          // 空の列。便が無い以上、前も後も無い。
+          return (
+            <td
+              key={`empty-${String(index)}`}
+              className={linkClass(props.marks(column))}
+              aria-hidden="true"
+            />
+          );
+        }
         const cell = props.cellOf(column);
         const number = props.numbers.get(column.trip.tripId) ?? BLANK;
         return (
@@ -473,6 +567,8 @@ interface CellProps {
   readonly onStartEditing: (at: CellPosition, text: string) => void;
   readonly onChangeText: (text: string) => void;
   readonly onKeyDown: (event: KeyboardEvent<HTMLElement>, at: CellPosition) => void;
+  /** その升目で <kbd>Delete</kbd> が押された。 */
+  readonly onClear: () => void;
   readonly onBlurInput: () => void;
 }
 
@@ -506,6 +602,13 @@ function Cell(props: CellProps): ReactElement {
         props.onStartEditing(at, '');
       }}
       onKeyDown={(event) => {
+        // 時刻を消す（仕様書 §6.1.2）。編集中は編集欄の中の消去に使うため、
+        // ここでは拾わない。
+        if (editing === null && (event.key === 'Delete' || event.key === 'Backspace')) {
+          event.preventDefault();
+          props.onClear();
+          return;
+        }
         props.onKeyDown(event, at);
       }}
     >
