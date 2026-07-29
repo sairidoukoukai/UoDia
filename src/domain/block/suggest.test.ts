@@ -14,7 +14,7 @@ import type { Trip } from '@/domain/model';
 import { loadNetworkDef, type NetworkIndex } from '@/domain/network';
 import { fromHM } from '@/domain/time';
 import { validateService } from '@/domain/validation';
-import { suggestBlockId } from './suggest';
+import { nextBlockId, suggestBlockId } from './suggest';
 
 const routeJsonPath = fileURLToPath(new URL('../../../data/route.json', import.meta.url));
 const loaded = loadNetworkDef(readFileSync(routeJsonPath, 'utf8'));
@@ -61,19 +61,19 @@ describe('継ぎ先の選び方', () => {
     expect(suggestBlockId(next, existing, network)).toBe('A');
   });
 
-  it('**停留所が繋がらなければ提案しない**', () => {
-    // A は工学部前で終わる。豊中学舎発の便は継げない。
+  it('**停留所が繋がらなければ新しい運用を興す**', () => {
+    // A は工学部前で終わる。豊中学舎発の便は継げないため、別の車両が要る。
     const existing = [makeTrip('t1', 'S1', [8, 0], 'A')];
     const next = makeTrip('t2', 'S1', [9, 0]);
 
-    expect(suggestBlockId(next, existing, network)).toBe('');
+    expect(suggestBlockId(next, existing, network)).toBe('B');
   });
 
-  it('**時刻が繋がらなければ提案しない**（終着より前には発てない）', () => {
+  it('**時刻が繋がらなければ新しい運用を興す**（終着より前には発てない）', () => {
     const existing = [makeTrip('t1', 'S1', [8, 0], 'A')];
     const next = makeTrip('t2', 'T1', [8, 25]);
 
-    expect(suggestBlockId(next, existing, network)).toBe('');
+    expect(suggestBlockId(next, existing, network)).toBe('B');
   });
 
   it('折返し 0 分でも提案する（下限は 0 分）', () => {
@@ -107,7 +107,7 @@ describe('継ぎ先の選び方', () => {
     const existing = [makeTrip('t1', 'S1', [8, 0], 'A'), makeTrip('t2', 'T1', [8, 40], 'A')];
     const next = makeTrip('t3', 'T1', [8, 45]);
 
-    expect(suggestBlockId(next, existing, network)).toBe('');
+    expect(suggestBlockId(next, existing, network)).toBe('B');
   });
 
   it('**方向をまたいで継げる**（工学部前で折り返す）', () => {
@@ -121,17 +121,18 @@ describe('継ぎ先の選び方', () => {
     const existing = [makeTrip('t1', 'DS-in', [8, 0], 'A')]; // 工学部前 → 千里営業所
     const next = makeTrip('t2', 'S1', [9, 0]);
 
-    expect(suggestBlockId(next, existing, network)).toBe('');
+    expect(suggestBlockId(next, existing, network)).toBe('B');
   });
 
   it('自分自身は継ぎ先にならない', () => {
+    // 自分の番号 A も「使われている」とは数えない。自分を除いた並びで決める。
     const trip = makeTrip('t1', 'S1', [8, 0], 'A');
-    expect(suggestBlockId(trip, [trip], network)).toBe('');
+    expect(suggestBlockId(trip, [trip], network)).toBe('A');
   });
 
   it('運用番号が空欄の便は継ぎ先にならない（運用ではない）', () => {
     const existing = [makeTrip('t1', 'S1', [8, 0])];
-    expect(suggestBlockId(makeTrip('t2', 'T1', [8, 40]), existing, network)).toBe('');
+    expect(suggestBlockId(makeTrip('t2', 'T1', [8, 40]), existing, network)).toBe('A');
   });
 
   it('時刻の入っていない便には提案しない', () => {
@@ -145,8 +146,34 @@ describe('継ぎ先の選び方', () => {
     expect(suggestBlockId(broken, existing, network)).toBe('');
   });
 
-  it('継ぎ先が無いダイヤでは空欄のまま', () => {
-    expect(suggestBlockId(makeTrip('t1', 'S1', [8, 0]), [], network)).toBe('');
+  it('**白紙のダイヤでは A から始まる**（#87）', () => {
+    expect(suggestBlockId(makeTrip('t1', 'S1', [8, 0]), [], network)).toBe('A');
+  });
+});
+
+describe('新しい運用番号（T-87、仕様書 §6.1.5）', () => {
+  it('**A から順に、まだ使われていないものを採る**', () => {
+    expect(nextBlockId([])).toBe('A');
+    expect(nextBlockId([makeTrip('t1', 'S1', [8, 0], 'A')])).toBe('B');
+  });
+
+  it('**空いた番号を埋め直す**（消したあとに飛ばさない）', () => {
+    const trips = [makeTrip('t1', 'S1', [8, 0], 'A'), makeTrip('t2', 'S1', [9, 0], 'C')];
+    expect(nextBlockId(trips)).toBe('B');
+  });
+
+  it('人が付けた自由な番号とはぶつからない', () => {
+    const trips = [makeTrip('t1', 'S1', [8, 0], '1号車')];
+    expect(nextBlockId(trips)).toBe('A');
+  });
+
+  it('**Z の次は AA**（26 を超えても続く）', () => {
+    const used = Array.from({ length: 26 }, (_, index) =>
+      makeTrip(`t${String(index)}`, 'S1', [8, 0], String.fromCharCode(65 + index)),
+    );
+    expect(nextBlockId(used)).toBe('AA');
+
+    expect(nextBlockId([...used, makeTrip('t26', 'S1', [8, 0], 'AA')])).toBe('AB');
   });
 });
 
@@ -188,13 +215,24 @@ describe('受入条件: 提案が V-01・V-02 に違反しない', () => {
     expect(connectionIssues(trips)).toEqual([]);
   });
 
-  it('**継げない便は空欄のままで、指摘を増やさない**', () => {
+  it('**継げない便は新しい運用になり、指摘を増やさない**', () => {
     const trips = buildWithSuggestions([
       makeTrip('t1', 'S1', [8, 0], 'A'),
       makeTrip('t2', 'S1', [8, 10], ''), // 豊中発。A は工学部前で終わっている
     ]);
 
-    expect(trips[1]?.blockId).toBe('');
+    expect(trips[1]?.blockId).toBe('B');
+    expect(connectionIssues(trips)).toEqual([]);
+  });
+
+  it('**白紙から作っても運用が組み上がる**（#87）', () => {
+    const trips = buildWithSuggestions([
+      makeTrip('t1', 'S1', [8, 0], ''), // 豊中 8:00 → 工学部前 8:30
+      makeTrip('t2', 'T1', [8, 40], ''), // 工学部前 8:40 → 豊中 9:10
+      makeTrip('t3', 'S1', [8, 10], ''), // 豊中 8:10 発。t1 には継げない
+    ]);
+
+    expect(trips.map((trip) => trip.blockId)).toEqual(['A', 'A', 'B']);
     expect(connectionIssues(trips)).toEqual([]);
   });
 

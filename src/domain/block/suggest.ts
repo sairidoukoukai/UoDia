@@ -7,13 +7,20 @@
  *
  * ## 末尾に継ぐことしかしない
  *
- * 提案するのは、**その運用の最後の便に続けて走れる**場合だけである
+ * 継ぎ先にするのは、**その運用の最後の便に続けて走れる**場合だけである
  * （終着停留所が一致し、終着時刻がその便の始発時刻以前）。運用の途中に割り込む
  * 提案はしない。割り込めば後続の便との繋がりが崩れ、V-01（停留所の不一致）か
  * V-02（折返し時分が負）を必ず生む。
  *
- * 該当が無ければ空欄のままとする。**間違った提案より、提案しないほうがよい。**
- * 空欄は V-07（情報）で拾われ、利用者が自分で埋められる。
+ * ## 継げなければ新しい運用を興す
+ *
+ * 該当が無ければ、まだ使われていない運用番号を作る（仕様書 §6.1.5、v4.11）。
+ * **継げないとは「その車両ではもう走れない」ということであり、別の車両が要る。**
+ *
+ * 以前は空欄のままにしていた（「間違った提案より、提案しないほうがよい」）が、
+ * それでは**白紙から作るかぎり運用番号が 1 つも付かなかった**（#87）。継げる運用が
+ * 存在しないのだから最初の便には提案が出ず、2 便目もその 1 便目が運用を持たない
+ * 以上どこにも継げない。以下ずっと空欄である。
  */
 
 import type { Trip } from '@/domain/model';
@@ -23,7 +30,10 @@ import { originStopId, originTime } from '@/domain/trip';
 import { deriveBlocks } from './derive';
 
 /**
- * その便に提案する運用番号。該当が無ければ空文字（＝未割当）。
+ * その便に付ける運用番号。
+ *
+ * 継げる運用があればその番号、無ければ新しい運用番号。**時刻や経路を解決
+ * できない便だけが空文字（＝未割当）になる** — 何に継げるかを決めようがない。
  *
  * @param trip 提案を受ける便。時刻が入っていること
  * @param trips 同じダイヤの便。**両方向を渡す**こと。運用は方向をまたぐ
@@ -57,5 +67,41 @@ export function suggestBlockId(trip: Trip, trips: readonly Trip[], network: Netw
     }
   }
 
-  return best === null ? '' : best.blockId;
+  return best === null ? nextBlockId(others) : best.blockId;
+}
+
+/** 運用番号に使う文字の数。`A`〜`Z` を使い、尽きたら桁を増やす。 */
+const LETTER_COUNT = 26;
+const FIRST_LETTER = 'A'.charCodeAt(0);
+
+/**
+ * まだ使われていない運用番号（仕様書 §6.1.5）。
+ *
+ * `A` `B` … `Z` `AA` `AB` … の順に見て、最初の空きを返す。**空いた番号を
+ * 埋め直す**のは、便を消したあとに `A` `C` と飛ぶのを避けるためである。
+ * 運用番号は車両を指すものであり、番号が飛んでいることに意味は無い。
+ */
+export function nextBlockId(trips: readonly Trip[]): string {
+  const used = new Set(trips.map((trip) => trip.blockId));
+  for (let index = 0; ; index++) {
+    const candidate = blockIdAt(index);
+    if (!used.has(candidate)) return candidate;
+  }
+}
+
+/**
+ * 0 から数えて `index` 番目の運用番号。`A` `B` … `Z` `AA` `AB` … と続く。
+ *
+ * 文字を配列から引かず符号から作るのは、**添字が範囲を外れる場合を書かずに
+ * 済ませる**ためである（`noUncheckedIndexedAccess`）。起こり得ない場合の
+ * 分岐は、書けば必ず試されないまま残る。
+ */
+function blockIdAt(index: number): string {
+  let rest = index;
+  let name = '';
+  do {
+    name = String.fromCharCode(FIRST_LETTER + (rest % LETTER_COUNT)) + name;
+    rest = Math.floor(rest / LETTER_COUNT) - 1;
+  } while (rest >= 0);
+  return name;
 }
