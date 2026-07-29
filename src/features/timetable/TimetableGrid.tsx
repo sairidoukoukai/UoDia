@@ -378,9 +378,14 @@ export function TimetableGrid(props: TimetableGridProps): ReactElement {
                         {column.trip.patternId}
                       </option>
                     )}
+                    {/*
+                      出すのはパターンの記号だけである。行先を併記すると列が
+                      広がり、時刻の列が押し出される。行先は升目のツールチップで
+                      読める（§6.1.1）。
+                    */}
                     {props.patterns.map((pattern) => (
                       <option key={pattern.patternId} value={pattern.patternId}>
-                        {pattern.patternId}（{pattern.patternName}）
+                        {pattern.patternId}
                       </option>
                     ))}
                   </select>

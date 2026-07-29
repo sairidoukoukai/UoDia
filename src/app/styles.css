@@ -233,7 +233,14 @@ body {
 }
 
 .timetable__link {
+  display: block;
   width: 100%;
+  /*
+   * **空欄でも押せる高さを保つ。** 中身が空の押しボタンは高さが 0 になり、
+   * 升目の中に見た目どおりの当たり判定が無くなる。出区を「まだ付けていない」
+   * 欄こそ押されるものであり、そこが押せないのでは切り替えの意味がない。
+   */
+  min-height: 1.4em;
   padding: 0;
   border: 0;
   background: transparent;
