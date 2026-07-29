@@ -140,54 +140,42 @@ export function addTripAt(
 }
 
 /**
- * 選んだ便を複製する（仕様書 §6.1.4）。
+ * 写した便を貼り付ける（仕様書 §6.1.4、§8.1、T-53）。
  *
- * 複製は**元の便のすぐ隣**に置く。末尾に積むと、時刻順に並んだ表の中で
- * 複製元と複製先が遠く離れ、続けて時刻を直すときに目で追えない。
+ * **末尾に足す。** 便の並びは利用者が決めたものであり（`sortTripsByOrigin` を
+ * 掛けるまで時刻順にもならない）、貼り付け先を推測するとその意図を壊す。
+ * 時刻もずらさない。ずらしたければ、貼ったあとに選んで打てばよい（§6.1.2）。
  *
- * 運用番号は引き継ぐ。同じ運用の便を増やすのが複製の主な用途であるため
- * （仕様書 §6.1.4）。便番号は便が持たないため、引き継ぐも捨てるもない
- * （§6.1.6 の導出値である）。
+ * 運用番号・出区・入区も引き継ぐ。**同じ運用の便を増やす**のが主な用途である。
  *
- * 時刻が未入力の便は、未入力のまま複製する。動かす時刻が無いためであり、
- * これは失敗ではない。
+ * **便 ID は振り直す。** 同じ ID の便が 2 つあると、GTFS へ書き出せないだけで
+ * なく、選択も検証の指し先も意味を失う。
+ *
+ * @param copied 貼り付ける便。空なら `null` を返す
+ * @param among ID の重複を避けるために見る便。ダイヤをまたいで一意にしたいとき
+ *   に、全ダイヤの便を渡す
  */
-export function duplicateTrips(
+export function pasteTrips(
   trips: readonly Trip[],
-  tripIds: readonly string[],
-  shiftMinutes: number,
-  network: NetworkIndex,
+  copied: readonly Trip[],
   among: readonly Trip[] = trips,
 ): TripInsertion | null {
-  if (!isOnGrain(shiftMinutes)) return null;
-
-  const wanted = new Set(tripIds);
-  const targets = trips.filter((trip) => wanted.has(trip.tripId));
-  if (targets.length === 0) return null;
+  if (copied.length === 0) return null;
 
   const mint = tripIdMinter(among);
-  const copies = new Map<string, Trip>();
-
-  for (const trip of targets) {
-    const shifted = shiftCopy(trip, shiftMinutes, network);
-    if (shifted === null) return null;
-    copies.set(trip.tripId, { ...shifted, tripId: mint() });
-  }
-
-  const next: Trip[] = [];
-  for (const trip of trips) {
-    next.push(trip);
-    const copy = copies.get(trip.tripId);
-    if (copy !== undefined) next.push(copy);
-  }
-  return { trips: next, added: [...copies.values()] };
+  const added = copied.map((trip): Trip => ({ ...trip, tripId: mint() }));
+  return { trips: [...trips, ...added], added };
 }
 
 /**
  * 便を別のダイヤへ複製する（仕様書 §6.1.4 のダイヤ間コピー）。
  *
  * 時刻はそのまま写す。平日ダイヤを土曜ダイヤの下敷きにする、という使い方で
- * あり、写した先で時刻を直していく。運用番号も引き継ぐ。
+ * あり、写した先で時刻を直していく。
+ *
+ * 貼り付け（{@link pasteTrips}）と同じことを、写し先を明示して行うだけである。
+ * **ID は写し元と写し先の両方を避ける。** 同じ ID の便が 2 つのダイヤに現れると、
+ * GTFS へ書き出せなくなる。
  *
  * @returns コピー先の新しい便の並び。写すものが無ければ `null`。
  */
@@ -197,14 +185,11 @@ export function copyTripsToService(
   tripIds: readonly string[],
 ): TripInsertion | null {
   const wanted = new Set(tripIds);
-  const targets = sourceTrips.filter((trip) => wanted.has(trip.tripId));
-  if (targets.length === 0) return null;
-
-  // ID は写し元と写し先の両方を避ける。同じ ID の便が 2 つのダイヤに現れると、
-  // GTFS へ書き出せなくなる。
-  const mint = tripIdMinter([...sourceTrips, ...targetTrips]);
-  const added = targets.map((trip): Trip => ({ ...trip, tripId: mint() }));
-  return { trips: [...targetTrips, ...added], added };
+  return pasteTrips(
+    targetTrips,
+    sourceTrips.filter((trip) => wanted.has(trip.tripId)),
+    [...sourceTrips, ...targetTrips],
+  );
 }
 
 /** 選んだ便を消す（仕様書 §6.1.4）。消すものが無ければ引数をそのまま返す。 */

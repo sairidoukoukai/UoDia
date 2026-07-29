@@ -25,7 +25,7 @@ import {
   changeTripsPattern,
   copyTripsToService,
   patternForStop,
-  duplicateTrips,
+  pasteTrips,
   removeTrips,
   shiftTrips,
   sortTripsByOrigin,
@@ -162,62 +162,65 @@ describe('便を時刻ごと作る（T-52）', () => {
   });
 });
 
-describe('便の複製', () => {
-  it('**元のすぐ後ろに入る**（末尾へ飛ばさない）', () => {
+describe('貼り付け（T-53、仕様書 §6.1.4）', () => {
+  it('**末尾に足す**（貼り付け先を推測しない）', () => {
     const trips = [makeTrip('t1', 'S1', [8, 0]), makeTrip('t2', 'S1', [9, 0])];
-    const result = duplicateTrips(trips, ['t1'], 5, network);
-    expect(ids(result?.trips ?? [])).toEqual(['t1', 't3', 't2']);
+    const copied = [makeTrip('t1', 'S1', [8, 0])];
+    const result = pasteTrips(trips, copied);
+
+    expect(ids(result?.trips ?? [])).toEqual(['t1', 't2', 't3']);
   });
 
-  it('指定した分だけずれる', () => {
-    const trips = [makeTrip('t1', 'S1', [8, 0])];
-    const result = duplicateTrips(trips, ['t1'], 15, network);
-    const copy = result?.added[0];
-    expect(copy?.anchor).toEqual({ stopId: TOYONAKA, time: fromHM(8, 15) });
+  it('**時刻はそのまま**（ずらしたければ貼ってから打つ）', () => {
+    const copied = [makeTrip('t1', 'S1', [8, 0])];
+    const copy = pasteTrips([], copied)?.added[0];
+
+    expect(copy?.anchor).toEqual({ stopId: TOYONAKA, time: fromHM(8, 0) });
   });
 
-  it('**運用番号は引き継ぐ**（同じ運用の便を増やすのが複製の用途）', () => {
-    const trips = [makeTrip('t1', 'S1', [8, 0], { blockId: 'A' })];
-    const copy = duplicateTrips(trips, ['t1'], 5, network)?.added[0];
+  it('**運用番号・出区・入区を引き継ぐ**', () => {
+    const copied = [makeTrip('t1', 'S1', [8, 0], { blockId: 'A', pullOut: true, pullIn: true })];
+    const copy = pasteTrips([], copied)?.added[0];
 
     expect(copy?.blockId).toBe('A');
+    expect(copy?.pullOut).toBe(true);
+    expect(copy?.pullIn).toBe(true);
   });
 
-  it('複数選ぶと、それぞれの隣に入る', () => {
-    const trips = [
-      makeTrip('t1', 'S1', [8, 0]),
-      makeTrip('t2', 'S1', [9, 0]),
-      makeTrip('t3', 'S1', [10, 0]),
-    ];
-    const result = duplicateTrips(trips, ['t1', 't3'], 5, network);
-    expect(ids(result?.trips ?? [])).toEqual(['t1', 't4', 't2', 't3', 't5']);
+  it('**便 ID は振り直す**（同じ ID の便が 2 つあってはならない）', () => {
+    const trips = [makeTrip('t1', 'S1', [8, 0])];
+    const copy = pasteTrips(trips, trips)?.added[0];
+
+    expect(copy?.tripId).toBe('t2');
   });
 
-  it('時刻が未入力の便は、未入力のまま複製する', () => {
-    const trips = [makeTrip('t1', 'S1')];
-    const copy = duplicateTrips(trips, ['t1'], 5, network)?.added[0];
+  it('複数まとめて貼れる', () => {
+    const copied = [makeTrip('t1', 'S1', [8, 0]), makeTrip('t2', 'S1', [9, 0])];
+    const result = pasteTrips([], copied);
+
+    expect(ids(result?.trips ?? [])).toEqual(['t1', 't2']);
+    expect(result?.added).toHaveLength(2);
+  });
+
+  it('時刻が未入力の便も貼れる', () => {
+    const copy = pasteTrips([], [makeTrip('t1', 'S1')])?.added[0];
     expect(copy?.anchor).toBeNull();
   });
 
-  it('**5 分の倍数でないシフトは断る**（5 分格子を壊さない）', () => {
-    const trips = [makeTrip('t1', 'S1', [8, 0])];
-    expect(duplicateTrips(trips, ['t1'], 3, network)).toBeNull();
-    expect(duplicateTrips(trips, ['t1'], 2.5, network)).toBeNull();
+  it('写したものが無ければ何もしない', () => {
+    expect(pasteTrips([makeTrip('t1', 'S1', [8, 0])], [])).toBeNull();
   });
 
-  it('表せる範囲を外れる複製は断る', () => {
-    const trips = [makeTrip('t1', 'S1', [47, 20])];
-    expect(duplicateTrips(trips, ['t1'], 10, network)).toBeNull();
-  });
-
-  it('選ばれていなければ何もしない', () => {
-    expect(duplicateTrips([makeTrip('t1', 'S1', [8, 0])], [], 5, network)).toBeNull();
-  });
-
-  it('別のダイヤの便とも ID がぶつからない', () => {
-    const trips = [makeTrip('t1', 'S1', [8, 0])];
-    const result = duplicateTrips(trips, ['t1'], 5, network, [...trips, makeTrip('t9', 'S1')]);
+  it('**別のダイヤの便とも ID がぶつからない**', () => {
+    const copied = [makeTrip('t1', 'S1', [8, 0])];
+    const result = pasteTrips([], copied, [makeTrip('t9', 'S1')]);
     expect(result?.added[0]?.tripId).toBe('t10');
+  });
+
+  it('元の配列を書き換えない', () => {
+    const trips = [makeTrip('t1', 'S1', [8, 0])];
+    pasteTrips(trips, trips);
+    expect(trips).toHaveLength(1);
   });
 });
 

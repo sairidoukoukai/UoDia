@@ -23,6 +23,7 @@ import {
   addTripAt,
   changeTripsPattern,
   copyTripsToService,
+  pasteTrips,
   patternForStop,
   removeTrips,
   shiftTrips,
@@ -60,6 +61,7 @@ const CANNOT = {
   shift: 'ずらせません（選んだ便のどれかが 0:00〜47:55 を外れます）',
   pattern: 'そのパターンには変えられません',
   copy: '複製できません',
+  paste: '写した便がありません',
 } as const;
 
 export function Timetable(): ReactElement {
@@ -76,6 +78,8 @@ export function Timetable(): ReactElement {
   const services = useAppStore(selectServices);
   const tripNumbers = useAppStore(selectTripNumbers);
   const setSelection = useAppStore((state) => state.selectTrips);
+  const copyTrips = useAppStore((state) => state.copyTrips);
+  const clipboard = useAppStore((state) => state.ui.clipboard);
   const clearSelection = useAppStore((state) => state.clearSelection);
 
   /**
@@ -214,6 +218,39 @@ export function Timetable(): ReactElement {
   const handleRemove = (): void => {
     replaceTrips(activeServiceId, '便の削除', removeTrips(serviceTrips, selectedTripIds));
     clearSelection();
+    setMessage(null);
+  };
+
+  /**
+   * 便を写す・切り取る・貼り付ける（仕様書 §6.1.4、§8.1、T-53）。
+   *
+   * 切り取りは「写してから消す」である。**履歴に載るのは削除だけ**であり、
+   * 取り消しても写したものは消えない。貼り直せる。
+   */
+  const handleCopy = (): void => {
+    if (selectedTrips.length === 0) return;
+    copyTrips(selectedTrips);
+    setMessage(`${String(selectedTrips.length)} 便を写しました`);
+  };
+
+  const handleCut = (): void => {
+    if (selectedTrips.length === 0) return;
+    copyTrips(selectedTrips);
+    replaceTrips(activeServiceId, '便の切り取り', removeTrips(serviceTrips, selectedTripIds));
+    clearSelection();
+    setMessage(`${String(selectedTrips.length)} 便を切り取りました`);
+  };
+
+  const handlePaste = (): void => {
+    const result = pasteTrips(serviceTrips, clipboard, allTrips());
+    if (result === null) {
+      setMessage(CANNOT.paste);
+      return;
+    }
+
+    replaceTrips(activeServiceId, '貼り付け', result.trips);
+    // 貼った便を選んでおく。続けて時刻をずらす、という流れがそのまま繋がる。
+    setSelection(result.added.map((trip) => trip.tripId));
     setMessage(null);
   };
 
@@ -356,6 +393,9 @@ export function Timetable(): ReactElement {
           patterns={patterns}
           onChangePattern={handleChangePattern}
           onClearTime={handleClearTime}
+          onCopy={handleCopy}
+          onCut={handleCut}
+          onPaste={handlePaste}
           tripNumbers={tripNumbers}
           onTogglePullOut={(tripId) => {
             toggleDepotLink(tripId, 'pullOut', '出区の切り替え');

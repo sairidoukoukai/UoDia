@@ -321,15 +321,122 @@ describe('並べ替え', () => {
   });
 });
 
-describe('ダイヤ間コピー', () => {
-  function twoServices(): Project {
-    const base = newProject();
-    return {
-      ...base,
-      services: [...base.services, { serviceId: 'saturday', serviceName: '土曜ダイヤ', trips: [] }],
-    };
+describe('コピー・切り取り・貼り付け（T-53、仕様書 §8.1）', () => {
+  /** 表の上でキーを押す。 */
+  function shortcut(key: string): void {
+    const cell = container.querySelector<HTMLElement>('[data-cell="0:0"]');
+    act(() => {
+      (cell ?? container).dispatchEvent(
+        new KeyboardEvent('keydown', { key, ctrlKey: true, bubbles: true }),
+      );
+    });
   }
 
+  it('**コピーして貼ると、同じ内容の便が 1 本増える**', () => {
+    mount();
+    newTrip(8, 0);
+    fill('1便の運用番号', 'A');
+    selectColumn(0);
+
+    shortcut('c');
+    shortcut('v');
+
+    const all = selectTrips(useAppStore.getState());
+    expect(all).toHaveLength(2);
+    expect(all[1]?.anchor).toEqual(all[0]?.anchor);
+    expect(all[1]?.blockId).toBe('A');
+    // ID は振り直される。
+    expect(all[1]?.tripId).not.toBe(all[0]?.tripId);
+  });
+
+  it('**貼った便が選ばれる**（続けてずらせる）', () => {
+    mount();
+    newTrip(8, 0);
+    selectColumn(0);
+    shortcut('c');
+    shortcut('v');
+
+    const all = selectTrips(useAppStore.getState());
+    expect(selectSelectedTripIds(useAppStore.getState())).toEqual([all[1]?.tripId]);
+  });
+
+  it('**切り取ると元の便が消える**', () => {
+    mount();
+    newTrip(8, 0);
+    newTrip(9, 0);
+    selectColumn(0);
+
+    shortcut('x');
+    expect(trips()).toEqual([`S3:${String(fromHM(9, 0))}`]);
+
+    shortcut('v');
+    expect(trips()).toEqual([`S3:${String(fromHM(9, 0))}`, `S3:${String(fromHM(8, 0))}`]);
+  });
+
+  it('**貼り付けは取り消しで戻る**', () => {
+    mount();
+    newTrip(8, 0);
+    selectColumn(0);
+    shortcut('c');
+    shortcut('v');
+
+    undo();
+    expect(columns()).toBe(1);
+  });
+
+  it('**切り取りは取り消しで戻る**（写したものは残る）', () => {
+    mount();
+    newTrip(8, 0);
+    selectColumn(0);
+    shortcut('x');
+    expect(columns()).toBe(0);
+
+    undo();
+    expect(columns()).toBe(1);
+
+    // 取り消しても写したものは消えない。貼り直せる。
+    shortcut('v');
+    expect(columns()).toBe(2);
+  });
+
+  it('写したものが無ければ、理由を伝えて何もしない', () => {
+    mount();
+    newTrip(8, 0);
+    shortcut('v');
+
+    expect(columns()).toBe(1);
+    expect(message()).toContain('写した便がありません');
+  });
+
+  it('選んでいなければ写さない', () => {
+    mount();
+    newTrip(8, 0);
+    shortcut('c');
+    shortcut('v');
+
+    expect(columns()).toBe(1);
+  });
+
+  it('**別のダイヤへ切り替えて貼ると、そちらへ増える**', () => {
+    mount(twoServices());
+    newTrip(8, 0);
+    selectColumn(0);
+    shortcut('c');
+
+    // ダイヤの切り替え UI は T-33。ここではストアの表示設定を直接変える。
+    act(() => {
+      useAppStore.getState().editProject('ダイヤの切り替え', (project) => {
+        project.view.activeServiceId = 'saturday';
+      });
+    });
+    shortcut('v');
+
+    expect(useAppStore.getState().project?.services[0]?.trips).toHaveLength(1);
+    expect(useAppStore.getState().project?.services[1]?.trips).toHaveLength(1);
+  });
+});
+
+describe('ダイヤ間コピー', () => {
   it('**選んだ便が別のダイヤへ写り、取り消すと戻る**', () => {
     mount(twoServices());
     newTrip(8, 0);
@@ -389,6 +496,15 @@ function setTime(column: number, time: number, row = 0): void {
       .querySelector('.timetable__input')
       ?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
   });
+}
+
+/** ダイヤを 2 つ持つプロジェクト。 */
+function twoServices(): Project {
+  const base = newProject();
+  return {
+    ...base,
+    services: [...base.services, { serviceId: 'saturday', serviceName: '土曜ダイヤ', trips: [] }],
+  };
 }
 
 /**
