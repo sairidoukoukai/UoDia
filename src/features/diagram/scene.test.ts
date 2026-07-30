@@ -8,7 +8,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { beforeEach, describe, expect, it } from 'vitest';
-import type { Trip } from '@/domain/model';
+import type { Project, Trip } from '@/domain/model';
 import { createProject } from '@/domain/io';
 import { loadNetworkDef, type NetworkIndex } from '@/domain/network';
 import { fromHM } from '@/domain/time';
@@ -58,8 +58,18 @@ function setTrips(trips: readonly Trip[]): void {
   });
 }
 
+function setView(recipe: (view: Project['view']) => void): void {
+  store.getState().editProject('表示設定の変更', (project) => {
+    recipe(project.view);
+  });
+}
+
 function state(): AppState {
   return store.getState();
+}
+
+function tripIds(): readonly string[] {
+  return selectDiagramScene(state(), theme).trips.map((trip) => trip.tripId);
 }
 
 beforeEach(() => {
@@ -138,6 +148,150 @@ describe('スジ', () => {
   });
 });
 
+describe('スジに添える値（T-26）', () => {
+  it('**便番号を持つ。回送は空文字**（番号を持たない）', () => {
+    setTrips([makeTrip('t1', 'S1', [8, 0], { pullOut: true })]);
+    const { trips } = selectDiagramScene(state(), theme);
+
+    expect(trips.find((trip) => !trip.isDeadhead)?.tripNumber).not.toBe('');
+    expect(trips.find((trip) => trip.isDeadhead)?.tripNumber).toBe('');
+  });
+
+  it('**回送は元の便を指す**（`sourceTripId`。選択の単位は保存されている便）', () => {
+    setTrips([makeTrip('t1', 'S1', [8, 0], { pullOut: true })]);
+    const { trips } = selectDiagramScene(state(), theme);
+
+    expect(trips.every((trip) => trip.sourceTripId === 't1')).toBe(true);
+    expect(trips.find((trip) => trip.isDeadhead)?.tripId).toBe('t1#out');
+  });
+
+  it('**同じ方向のパターンには違う線種が付く**（色に頼らせない。§9.4）', () => {
+    setTrips([makeTrip('t1', 'S1', [8, 0]), makeTrip('t2', 'S3', [9, 0])]);
+    const { trips } = selectDiagramScene(state(), theme);
+
+    expect(trips[0]?.lineDash).not.toEqual(trips[1]?.lineDash);
+  });
+
+  it('回送は破線になる', () => {
+    setTrips([makeTrip('t1', 'S1', [8, 0], { pullOut: true })]);
+    const deadhead = selectDiagramScene(state(), theme).trips.find((trip) => trip.isDeadhead);
+
+    expect(deadhead?.lineDash.length).toBeGreaterThan(0);
+  });
+});
+
+describe('着色モード（仕様書 §6.2.4）', () => {
+  it('既定はパターンの色', () => {
+    setTrips([makeTrip('t1', 'S1', [8, 0])]);
+    expect(selectDiagramScene(state(), theme).trips[0]?.color).toBe(
+      network.findPattern('S1')?.color,
+    );
+  });
+
+  it('**運用で着色すると、同じ運用の便が同じ色になる**', () => {
+    setTrips([
+      makeTrip('t1', 'S1', [8, 0], { blockId: 'A' }),
+      makeTrip('t2', 'T1', [9, 0], { blockId: 'A' }),
+      makeTrip('t3', 'S1', [10, 0], { blockId: 'B' }),
+    ]);
+    setView((view) => {
+      view.colorMode = 'block';
+    });
+    const { trips } = selectDiagramScene(state(), theme);
+
+    expect(trips[0]?.color).toBe(trips[1]?.color);
+    expect(trips[0]?.color).not.toBe(trips[2]?.color);
+  });
+
+  it('**回送も元の便と同じ運用の色になる**', () => {
+    setTrips([makeTrip('t1', 'S1', [8, 0], { pullOut: true })]);
+    setView((view) => {
+      view.colorMode = 'block';
+    });
+    const { trips } = selectDiagramScene(state(), theme);
+
+    expect(new Set(trips.map((trip) => trip.color)).size).toBe(1);
+  });
+
+  it('運用番号が空欄の便はパターンの色で描く', () => {
+    setTrips([makeTrip('t1', 'S1', [8, 0], { blockId: '' })]);
+    setView((view) => {
+      view.colorMode = 'block';
+    });
+
+    expect(selectDiagramScene(state(), theme).trips[0]?.color).toBe(
+      network.findPattern('S1')?.color,
+    );
+  });
+
+  it('**隠されている便も色の割り当てに数える**（表示を切り替えて色が入れ替わらない）', () => {
+    setTrips([
+      makeTrip('t1', 'S1', [8, 0], { blockId: 'A' }),
+      makeTrip('t2', 'S1', [9, 0], { blockId: 'B' }),
+    ]);
+    setView((view) => {
+      view.colorMode = 'block';
+    });
+    const before = selectDiagramScene(state(), theme).trips[1]?.color;
+
+    setView((view) => {
+      view.hiddenBlockIds = ['A'];
+    });
+    const [remaining] = selectDiagramScene(state(), theme).trips;
+
+    expect(remaining?.blockId).toBe('B');
+    expect(remaining?.color).toBe(before);
+  });
+});
+
+describe('表示フィルタ（仕様書 §6.2.4）', () => {
+  beforeEach(() => {
+    setTrips([
+      makeTrip('t1', 'S1', [8, 0], { blockId: 'A', pullOut: true }),
+      makeTrip('t2', 'T1', [9, 0], { blockId: 'B' }),
+    ]);
+  });
+
+  it('既定では全部出る（回送も含む）', () => {
+    expect(tripIds()).toEqual(['t1#out', 't1', 't2']);
+  });
+
+  it('パターンを隠す', () => {
+    setView((view) => {
+      view.hiddenPatternIds = ['S1'];
+    });
+    expect(tripIds()).toEqual(['t2']);
+  });
+
+  it('運用を隠す', () => {
+    setView((view) => {
+      view.hiddenBlockIds = ['B'];
+    });
+    expect(tripIds()).toEqual(['t1#out', 't1']);
+  });
+
+  it('方向を隠す', () => {
+    setView((view) => {
+      view.hiddenDirections = [1];
+    });
+    expect(tripIds()).toEqual(['t1#out', 't1']);
+  });
+
+  it('回送だけを隠す', () => {
+    setView((view) => {
+      view.showDeadhead = false;
+    });
+    expect(tripIds()).toEqual(['t1', 't2']);
+  });
+
+  it('**営業便を隠すと、その出区・入区も消える**（回送は元の便の一部である）', () => {
+    setView((view) => {
+      view.hiddenPatternIds = ['S1'];
+    });
+    expect(tripIds()).not.toContain('t1#out');
+  });
+});
+
 describe('組み立て直さない', () => {
   it('**同じ状態からは同じ場面が返る**（毎フレーム作り直さない）', () => {
     setTrips([makeTrip('t1', 'S1', [8, 0])]);
@@ -150,6 +304,18 @@ describe('組み立て直さない', () => {
 
     setTrips([makeTrip('t1', 'S1', [9, 0])]);
     expect(selectDiagramScene(state(), theme)).not.toBe(before);
+  });
+
+  it('**拡大率やスクロール位置が変わってもスジは作り直さない**（パンのたびに組み直さない）', () => {
+    setTrips([makeTrip('t1', 'S1', [8, 0])]);
+    const before = selectDiagramScene(state(), theme);
+
+    setView((view) => {
+      view.diagram.pxPerMinute = 6;
+      view.diagram.scrollTime = fromHM(9, 0);
+    });
+
+    expect(selectDiagramScene(state(), theme).trips).toBe(before.trips);
   });
 
   it('**選択が変わっても停留所とスジは作り直さない**', () => {

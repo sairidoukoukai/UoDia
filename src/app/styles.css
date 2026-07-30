@@ -404,6 +404,17 @@ body {
   border: 1px solid var(--color-border);
 }
 
+/* 着色モードと表示フィルタの仮の操作列（T-26）。本来はサイドパネル（T-33）。 */
+.diagram__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-accent);
+  font-size: 0.875rem;
+}
+
 .diagram__canvas {
   /*
    * **block にする。** 既定の inline では行の下に余白が付き、canvas の

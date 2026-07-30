@@ -34,7 +34,7 @@ import {
   viewportEndTime,
   type Viewport,
 } from './viewport';
-import type { DrawContext } from './drawDiagram';
+import type { DrawContext } from './drawContext';
 
 /** 時刻線の粗さ。仕様書 §6.2.2 の 60 / 30 / 10 / 5 分に対応する。 */
 export type TimeLineKind = 'hour' | 'half' | 'ten' | 'five';
