@@ -10,6 +10,18 @@ export {
 export { drawDiagram, tripPolyline, type DrawContext } from './drawDiagram';
 
 export {
+  MIN_STOP_LABEL_GAP,
+  MIN_TIME_LABEL_GAP,
+  depotLane,
+  drawGrid,
+  timeLabelStepMinutes,
+  timeLines,
+  type DepotLane,
+  type TimeLine,
+  type TimeLineKind,
+} from './drawGrid';
+
+export {
   selectDiagramScene,
   type DiagramScene,
   type ScenePoint,
@@ -20,10 +32,13 @@ export {
 
 export {
   AXIS_LABEL_WIDTH,
+  DIAGRAM_END_TIME,
+  DIAGRAM_START_TIME,
   TIME_LABEL_HEIGHT,
   axisToY,
   fitBackingStore,
   isTimeVisible,
+  plotXRange,
   timeToX,
   viewportEndAxis,
   viewportEndTime,

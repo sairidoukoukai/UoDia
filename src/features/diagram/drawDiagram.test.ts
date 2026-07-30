@@ -27,6 +27,9 @@ function recorder(): DrawContext & { readonly calls: string[] } {
     fillStyle: '',
     strokeStyle: '',
     lineWidth: 0,
+    font: '',
+    textAlign: 'start',
+    textBaseline: 'alphabetic',
     save: (): void => {
       push('save');
     },
@@ -50,6 +53,12 @@ function recorder(): DrawContext & { readonly calls: string[] } {
     },
     stroke: (): void => {
       push('stroke');
+    },
+    setLineDash: (dash): void => {
+      push('setLineDash', [...dash]);
+    },
+    fillText: (text, x, y): void => {
+      calls.push(`fillText(${text},${String(Math.round(x))},${String(Math.round(y))})`);
     },
   };
 }
@@ -88,7 +97,14 @@ const scene: DiagramScene = {
   selectedTripIds: new Set(),
   colorMode: 'pattern',
   tripNumbers: new Map([['t1', 'E1']]),
-  theme: { background: '#ffffff', axis: '#cccccc' },
+  theme: {
+    background: '#ffffff',
+    axis: '#cccccc',
+    grid: '#e4e4e4',
+    gridFaint: '#f0f0f0',
+    label: '#666666',
+    lane: '#f4f4f4',
+  },
 };
 
 const viewport: Viewport = viewportOf(

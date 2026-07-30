@@ -10,10 +10,13 @@ import { describe, expect, it } from 'vitest';
 import { fromHM, MAX_SECONDS } from '@/domain/time';
 import {
   AXIS_LABEL_WIDTH,
+  DIAGRAM_END_TIME,
+  DIAGRAM_START_TIME,
   TIME_LABEL_HEIGHT,
   axisToY,
   fitBackingStore,
   isTimeVisible,
+  plotXRange,
   timeToX,
   viewportEndAxis,
   viewportEndTime,
@@ -94,9 +97,10 @@ describe('往復', () => {
 
 describe('視野の端', () => {
   it('右端の時刻は幅と拡大率から決まる', () => {
-    // (1000 − 112)px ÷ 3px/分 = 296 分。7:00 + 296 分 = 11:56。
-    // **5 分の倍数にならない**ため、`Seconds` ではなく素の秒数で比べる。
-    expect(viewportEndTime(viewport)).toBe(fromHM(7, 0) + 296 * 60);
+    // (幅 − 縦軸ラベル)px ÷ 3px/分。**5 分の倍数にならない**ため、`Seconds`
+    // ではなく素の秒数で比べる。
+    const minutes = (1000 - AXIS_LABEL_WIDTH) / 3;
+    expect(viewportEndTime(viewport)).toBe(fromHM(7, 0) + minutes * 60);
   });
 
   it('**表せる範囲（47:55）を超えない**', () => {
@@ -122,9 +126,41 @@ describe('横方向のカリング', () => {
 
   it('**端でちょうど切れるものは残す**（1 目盛の余裕を持つ）', () => {
     expect(isTimeVisible(fromHM(6, 55), viewport)).toBe(true);
-    // 右端は 11:56。その 5 分後までは描く。
-    expect(isTimeVisible(fromHM(12, 0), viewport)).toBe(true);
-    expect(isTimeVisible(fromHM(12, 5), viewport)).toBe(false);
+    // 右端は 11:45:20。その 5 分後までは描く。
+    expect(isTimeVisible(fromHM(11, 50), viewport)).toBe(true);
+    expect(isTimeVisible(fromHM(11, 55), viewport)).toBe(false);
+  });
+});
+
+describe('表示範囲（仕様書 §6.2.1）', () => {
+  it('7:00〜22:00 である', () => {
+    expect(DIAGRAM_START_TIME).toBe(fromHM(7, 0));
+    expect(DIAGRAM_END_TIME).toBe(fromHM(22, 0));
+  });
+
+  it('罫線を引く範囲は描画領域と表示範囲の重なり', () => {
+    // 既定では左端が 7:00 のため、描画領域の左端から右端まで。
+    expect(plotXRange(viewport)).toEqual({ left: AXIS_LABEL_WIDTH, right: 1000 });
+  });
+
+  it('**22:00 より先は空ける**', () => {
+    // 20:00 から 1 分 3px なら 22:00 は 144 + 360px。
+    expect(plotXRange({ ...viewport, startTime: fromHM(20, 0) })).toEqual({
+      left: AXIS_LABEL_WIDTH,
+      right: AXIS_LABEL_WIDTH + 360,
+    });
+  });
+
+  it('**7:00 より前も空ける**', () => {
+    // 6:00 から 1 分 3px なら 7:00 は 144 + 180px。
+    expect(plotXRange({ ...viewport, startTime: fromHM(6, 0) })?.left).toBe(AXIS_LABEL_WIDTH + 180);
+  });
+
+  it('表示範囲が視野から外れたら描く範囲が無い', () => {
+    // 左へ出た場合（22:00 が描画領域の左端より左）。
+    expect(plotXRange({ ...viewport, startTime: fromHM(22, 0) })).toBeNull();
+    // 右へ出た場合（7:00 が canvas の右端より右）。
+    expect(plotXRange({ ...viewport, startTime: fromHM(0, 0) })).toBeNull();
   });
 });
 

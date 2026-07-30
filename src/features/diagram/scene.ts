@@ -62,10 +62,25 @@ export interface SceneTrip {
   readonly points: readonly ScenePoint[];
 }
 
-/** 描画に使う色（仕様書 §9.4）。画面から読んで渡す（T-39 でテーマに追随させる）。 */
+/**
+ * 描画に使う色（仕様書 §9.4）。画面から読んで渡す（T-39 でテーマに追随させる）。
+ *
+ * **色は 4 段の濃さしか持たない。** 罫線の種類は 60 分線・30 分線・10 分線・
+ * 5 分線・太線・細線・破線と多いが、それぞれに固有の色を与えると、明暗を変えた
+ * ときに全部を作り直すことになる。濃さと線種の組合せで区別する（T-25）。
+ */
 export interface SceneTheme {
   readonly background: string;
+  /** 一番濃い線。枠・60 分線・停留所線（`bold` は太く、`normal` は細く）。 */
   readonly axis: string;
+  /** 中間の線。30 分線・10 分線・`dashed` の停留所線。 */
+  readonly grid: string;
+  /** 一番淡い線。5 分線。 */
+  readonly gridFaint: string;
+  /** 目盛と停留所名の文字。 */
+  readonly label: string;
+  /** 千里営業所の専用レーンの地色（仕様書 §6.2.1）。 */
+  readonly lane: string;
 }
 
 /** ダイヤグラムに描くものの全体。 */

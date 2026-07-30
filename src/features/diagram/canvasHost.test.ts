@@ -20,7 +20,14 @@ const loaded = loadNetworkDef(routeJson);
 if (!loaded.ok) throw new Error('route.json を読み込めません');
 const network: NetworkIndex = loaded.network;
 
-const theme: SceneTheme = { background: '#ffffff', axis: '#cccccc' };
+const theme: SceneTheme = {
+  background: '#ffffff',
+  axis: '#cccccc',
+  grid: '#e4e4e4',
+  gridFaint: '#f0f0f0',
+  label: '#666666',
+  lane: '#f4f4f4',
+};
 
 /** フレームを手で進められる差し替え。 */
 function fakeFrames() {
