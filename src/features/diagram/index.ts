@@ -7,7 +7,9 @@ export {
   type DiagramStore,
 } from './canvasHost';
 
-export { drawDiagram, tripPolyline, type DrawContext } from './drawDiagram';
+export type { DrawContext } from './drawContext';
+
+export { drawDiagram } from './drawDiagram';
 
 export {
   MIN_STOP_LABEL_GAP,
@@ -21,6 +23,8 @@ export {
   type TimeLineKind,
 } from './drawGrid';
 
+export { drawTrips, isTripVisible, tripPolyline, type ScreenPoint } from './drawTrips';
+
 export {
   selectDiagramScene,
   type DiagramScene,
@@ -29,6 +33,8 @@ export {
   type SceneTheme,
   type SceneTrip,
 } from './scene';
+
+export { DEADHEAD_DASH, SOLID, assignPatternDashes, patternDashAt } from './tripStyle';
 
 export {
   AXIS_LABEL_WIDTH,

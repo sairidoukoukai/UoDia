@@ -9,6 +9,7 @@
 import { useEffect, useRef, type ReactElement } from 'react';
 import { useAppStore } from '@/store';
 import { attachDiagram } from './canvasHost';
+import { DiagramControls } from './DiagramControls';
 import type { SceneTheme } from './scene';
 
 /** 画面のテーマから描画に使う色を読む（仕様書 §9.4）。 */
@@ -42,6 +43,7 @@ export function DiagramCanvas(): ReactElement {
 
   return (
     <div className="diagram">
+      <DiagramControls />
       <canvas ref={canvasRef} className="diagram__canvas" aria-label="ダイヤグラム" />
     </div>
   );

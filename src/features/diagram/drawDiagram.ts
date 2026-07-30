@@ -10,45 +10,21 @@
  * drawDiagram(exportCtx, scene, { ...viewport, pxPerMinute: 8 });   // 書き出し
  * ```
  *
- * 重ねる順は**背景 → 格子（T-25）→ 枠**である。スジは T-26 がこの上に足す。
+ * 重ねる順は**背景 → 格子（T-25）→ スジ（T-26）→ 枠**である。
  */
 
+import type { DrawContext } from './drawContext';
 import { drawGrid } from './drawGrid';
+import { drawTrips } from './drawTrips';
 import type { DiagramScene } from './scene';
-import { axisToY, timeToX, type Viewport } from './viewport';
-
-/**
- * 描画に使う 2D コンテキスト。**canvas そのものは見ない。**
- *
- * 使う機能をここに列挙しておく。増やすときは「本当に要るか」を一度考えることに
- * なり、`ctx` の全機能に手を伸ばした描画を書きにくくする。
- */
-export type DrawContext = Pick<
-  CanvasRenderingContext2D,
-  | 'save'
-  | 'restore'
-  | 'clearRect'
-  | 'fillRect'
-  | 'beginPath'
-  | 'moveTo'
-  | 'lineTo'
-  | 'stroke'
-  | 'setLineDash'
-  | 'fillText'
-> & {
-  fillStyle: string | CanvasGradient | CanvasPattern;
-  strokeStyle: string | CanvasGradient | CanvasPattern;
-  lineWidth: number;
-  font: string;
-  textAlign: CanvasTextAlign;
-  textBaseline: CanvasTextBaseline;
-};
+import type { Viewport } from './viewport';
 
 export function drawDiagram(ctx: DrawContext, scene: DiagramScene, viewport: Viewport): void {
   ctx.save();
   drawBackground(ctx, scene, viewport);
   drawGrid(ctx, scene, viewport);
-  // 枠は格子の上に描く。格子に埋もれると、描画領域の端が分からなくなる。
+  drawTrips(ctx, scene, viewport);
+  // 枠は一番上に描く。格子やスジに埋もれると、描画領域の端が分からなくなる。
   drawAxisFrame(ctx, scene, viewport);
   ctx.restore();
 }
@@ -85,30 +61,4 @@ function drawAxisFrame(ctx: DrawContext, scene: DiagramScene, viewport: Viewport
   ctx.moveTo(viewport.originX, viewport.originY);
   ctx.lineTo(viewport.width, viewport.originY);
   ctx.stroke();
-}
-
-/**
- * 便のスジが通る座標の並び。
- *
- * 描画（T-26）と当たり判定（T-28）が同じ列を使う。両者が別々に座標を組むと、
- * **見えている線と掴める線がずれる**。
- *
- * 縦軸に無い停留所は場面に含まれていない（`scene.ts`）ため、ここでは折れ点が
- * 必ず座標を持つ。
- */
-export function tripPolyline(
-  trip: DiagramScene['trips'][number],
-  scene: DiagramScene,
-  viewport: Viewport,
-): readonly { readonly x: number; readonly y: number }[] {
-  const axis = new Map(scene.stops.map((stop) => [stop.stopId, stop.axisPosition]));
-  const points: { x: number; y: number }[] = [];
-
-  for (const point of trip.points) {
-    const axisPosition = axis.get(point.stopId);
-    if (axisPosition === undefined) continue;
-    points.push({ x: timeToX(point.time, viewport), y: axisToY(axisPosition, viewport) });
-  }
-
-  return points;
 }

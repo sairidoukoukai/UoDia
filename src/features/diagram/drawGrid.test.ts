@@ -8,7 +8,6 @@
 
 import { describe, expect, it } from 'vitest';
 import { formatTime, fromHM, type Seconds } from '@/domain/time';
-import type { DrawContext } from './drawDiagram';
 import {
   MIN_STOP_LABEL_GAP,
   MIN_TIME_LABEL_GAP,
@@ -17,107 +16,9 @@ import {
   timeLabelStepMinutes,
   timeLines,
 } from './drawGrid';
+import { Recorder, isHorizontal, isVertical, type RecordedSegment } from './recorder.test-utils';
 import type { DiagramScene, SceneStop, SceneTheme } from './scene';
 import { axisToY, timeToX, viewportOf, xToTime, type Viewport } from './viewport';
-
-interface Segment {
-  readonly x1: number;
-  readonly y1: number;
-  readonly x2: number;
-  readonly y2: number;
-  readonly strokeStyle: string;
-  readonly lineWidth: number;
-  readonly dash: readonly number[];
-}
-
-interface Label {
-  readonly text: string;
-  readonly x: number;
-  readonly y: number;
-  readonly align: CanvasTextAlign;
-  readonly maxWidth: number | undefined;
-}
-
-interface Band {
-  readonly x: number;
-  readonly y: number;
-  readonly width: number;
-  readonly height: number;
-  readonly fillStyle: string;
-}
-
-/** 引かれた線と置かれた文字を覚えるだけの描画先。 */
-class Recorder implements DrawContext {
-  // 色は文字列しか渡さない。`String()` を挟まずに比べられる。
-  fillStyle = '';
-  strokeStyle = '';
-  lineWidth = 1;
-  font = '';
-  textAlign: CanvasTextAlign = 'start';
-  textBaseline: CanvasTextBaseline = 'alphabetic';
-
-  readonly segments: Segment[] = [];
-  readonly labels: Label[] = [];
-  readonly bands: Band[] = [];
-
-  #dash: readonly number[] = [];
-  #path: { x: number; y: number }[][] = [];
-
-  save(): void {
-    // 状態の保存は数えない。
-  }
-
-  restore(): void {
-    // 同上。
-  }
-
-  clearRect(): void {
-    // 消した跡は数えない。
-  }
-
-  fillRect(x: number, y: number, width: number, height: number): void {
-    this.bands.push({ x, y, width, height, fillStyle: this.fillStyle });
-  }
-
-  beginPath(): void {
-    this.#path = [];
-  }
-
-  moveTo(x: number, y: number): void {
-    this.#path.push([{ x, y }]);
-  }
-
-  lineTo(x: number, y: number): void {
-    this.#path.at(-1)?.push({ x, y });
-  }
-
-  stroke(): void {
-    for (const subpath of this.#path) {
-      for (let i = 1; i < subpath.length; i += 1) {
-        const from = subpath[i - 1];
-        const to = subpath[i];
-        if (from === undefined || to === undefined) continue;
-        this.segments.push({
-          x1: from.x,
-          y1: from.y,
-          x2: to.x,
-          y2: to.y,
-          strokeStyle: this.strokeStyle,
-          lineWidth: this.lineWidth,
-          dash: this.#dash,
-        });
-      }
-    }
-  }
-
-  setLineDash(segments: number[]): void {
-    this.#dash = [...segments];
-  }
-
-  fillText(text: string, x: number, y: number, maxWidth?: number): void {
-    this.labels.push({ text, x, y, align: this.textAlign, maxWidth });
-  }
-}
 
 const theme: SceneTheme = {
   background: '#ffffff',
@@ -150,14 +51,7 @@ const stops: readonly SceneStop[] = [
   { stopId: '9_0', stopName: '千里営業所', axisPosition: 52, gridStyle: 'dashed', isDepot: true },
 ];
 
-const scene: DiagramScene = {
-  stops,
-  trips: [],
-  selectedTripIds: new Set(),
-  colorMode: 'pattern',
-  tripNumbers: new Map(),
-  theme,
-};
+const scene: DiagramScene = { stops, trips: [], selectedTripIds: new Set(), theme };
 
 /** 既定の表示設定（7:00 から、1 分 3px、軸 1 単位 6px）。 */
 const viewport: Viewport = viewportOf(
@@ -171,9 +65,6 @@ function draw(overrides: Partial<Viewport> = {}, sceneOverride: DiagramScene = s
   drawGrid(ctx, sceneOverride, { ...viewport, ...overrides });
   return ctx;
 }
-
-const isVertical = (segment: Segment): boolean => segment.x1 === segment.x2;
-const isHorizontal = (segment: Segment): boolean => segment.y1 === segment.y2;
 
 /** 罫線は画素の中心へ半分ずらして置かれる（太さ 1 のとき）。 */
 const crispX = (time: Seconds, view: Viewport = viewport): number =>
@@ -305,7 +196,7 @@ describe('停留所線', () => {
 
   it('`gridStyle` が太さと線種を決める', () => {
     const horizontal = draw().segments.filter(isHorizontal);
-    const at = (axisPosition: number): Segment | undefined =>
+    const at = (axisPosition: number): RecordedSegment | undefined =>
       horizontal.find(
         (segment) =>
           Math.abs(segment.y1 - axisToY(axisPosition, viewport)) <= 0.5 && segment.lineWidth > 0,
@@ -330,7 +221,7 @@ describe('停留所線', () => {
 
 describe('千里営業所の専用レーン（仕様書 §6.2.1）', () => {
   it('**縦軸の外側に地色の帯を敷く**', () => {
-    const [band] = draw().bands;
+    const [band] = draw().rects;
 
     // 工学部前（40）と千里営業所（52）の中間 46 → y = 24 + 276。
     expect(band?.y).toBe(axisToY(46, viewport));
@@ -369,7 +260,7 @@ describe('千里営業所の専用レーン（仕様書 §6.2.1）', () => {
   });
 
   it('帯が描画領域から外れたら塗らない', () => {
-    expect(draw({ pxPerAxisUnit: 20 }).bands).toEqual([]);
+    expect(draw({ pxPerAxisUnit: 20 }).rects).toEqual([]);
   });
 });
 
