@@ -10,26 +10,45 @@
  * drawDiagram(exportCtx, scene, { ...viewport, pxPerMinute: 8 });   // 書き出し
  * ```
  *
- * T-24 が描くのは**背景と描画領域の枠**までである。停留所線・時刻線・目盛は
- * T-25、スジは T-26 が同じ形の関数を足して重ねる。
+ * 重ねる順は**背景 → 格子（T-25）→ 枠**である。スジは T-26 がこの上に足す。
  */
 
+import { drawGrid } from './drawGrid';
 import type { DiagramScene } from './scene';
 import { axisToY, timeToX, type Viewport } from './viewport';
 
-/** 描画に使う 2D コンテキスト。**canvas そのものは見ない。** */
+/**
+ * 描画に使う 2D コンテキスト。**canvas そのものは見ない。**
+ *
+ * 使う機能をここに列挙しておく。増やすときは「本当に要るか」を一度考えることに
+ * なり、`ctx` の全機能に手を伸ばした描画を書きにくくする。
+ */
 export type DrawContext = Pick<
   CanvasRenderingContext2D,
-  'save' | 'restore' | 'clearRect' | 'fillRect' | 'beginPath' | 'moveTo' | 'lineTo' | 'stroke'
+  | 'save'
+  | 'restore'
+  | 'clearRect'
+  | 'fillRect'
+  | 'beginPath'
+  | 'moveTo'
+  | 'lineTo'
+  | 'stroke'
+  | 'setLineDash'
+  | 'fillText'
 > & {
   fillStyle: string | CanvasGradient | CanvasPattern;
   strokeStyle: string | CanvasGradient | CanvasPattern;
   lineWidth: number;
+  font: string;
+  textAlign: CanvasTextAlign;
+  textBaseline: CanvasTextBaseline;
 };
 
 export function drawDiagram(ctx: DrawContext, scene: DiagramScene, viewport: Viewport): void {
   ctx.save();
   drawBackground(ctx, scene, viewport);
+  drawGrid(ctx, scene, viewport);
+  // 枠は格子の上に描く。格子に埋もれると、描画領域の端が分からなくなる。
   drawAxisFrame(ctx, scene, viewport);
   ctx.restore();
 }
@@ -56,6 +75,8 @@ function drawBackground(ctx: DrawContext, scene: DiagramScene, viewport: Viewpor
 function drawAxisFrame(ctx: DrawContext, scene: DiagramScene, viewport: Viewport): void {
   ctx.strokeStyle = scene.theme.axis;
   ctx.lineWidth = 1;
+  // 格子が破線を残している。実線に戻さないと枠が途切れる。
+  ctx.setLineDash([]);
   ctx.beginPath();
   // 縦軸（左端）。
   ctx.moveTo(viewport.originX, viewport.originY);

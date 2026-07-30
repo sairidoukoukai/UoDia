@@ -21,7 +21,14 @@ if (!loaded.ok) throw new Error('route.json を読み込めません');
 const network: NetworkIndex = loaded.network;
 
 /** 色は毎回同じ参照を渡す（`selectDiagramScene` の約束）。 */
-const theme: SceneTheme = { background: '#ffffff', axis: '#cccccc' };
+const theme: SceneTheme = {
+  background: '#ffffff',
+  axis: '#cccccc',
+  grid: '#e4e4e4',
+  gridFaint: '#f0f0f0',
+  label: '#666666',
+  lane: '#f4f4f4',
+};
 
 let store: ReturnType<typeof createAppStore>;
 

@@ -9,6 +9,10 @@
   --color-fg-muted: #666666;
   --color-border: #cccccc;
   --color-bg-accent: #f4f4f4;
+  /* ダイヤグラムの罫線（仕様書 §6.2.2）。60 分線は --color-border を使い、
+     30 分線・10 分線を --color-grid、5 分線を --color-grid-faint とする。 */
+  --color-grid: #e4e4e4;
+  --color-grid-faint: #f0f0f0;
   --color-error: #c0392b;
   /* アンカーの升目。色だけに頼らず太字も併用する（仕様書 §9.4）。 */
   --color-anchor: #fff2b8;
@@ -38,6 +42,8 @@
     --color-fg-muted: #999999;
     --color-border: #444444;
     --color-bg-accent: #262626;
+    --color-grid: #333333;
+    --color-grid-faint: #2a2a2a;
     --color-error: #ff7b6b;
     --color-anchor: #5a4a12;
     --color-focus: #7aa8ff;
@@ -405,5 +411,10 @@ body {
    */
   display: block;
   width: 100%;
-  height: 320px;
+  /*
+   * 縦軸の全体（豊中学舎 0 〜 千里営業所 52）が既定の拡大率（1 単位 6px）で
+   * 収まる高さにする。336px で足りるが、営業所レーンが下端に張り付かないよう
+   * 余裕を持たせる。パン・ズームは T-27、本来のレイアウトは T-32。
+   */
+  height: 420px;
 }

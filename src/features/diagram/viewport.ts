@@ -12,7 +12,13 @@
  * レンダラを書き直すことになる。
  */
 
-import { GRAIN_SECONDS, MAX_SECONDS, SECONDS_PER_MINUTE, type Seconds } from '@/domain/time';
+import {
+  fromHM,
+  GRAIN_SECONDS,
+  MAX_SECONDS,
+  SECONDS_PER_MINUTE,
+  type Seconds,
+} from '@/domain/time';
 
 /**
  * 描画の視野。
@@ -39,11 +45,21 @@ export interface Viewport {
   readonly height: number;
 }
 
-/** 縦軸ラベル（停留所名）に割く幅。 */
-export const AXIS_LABEL_WIDTH = 112;
+/**
+ * 縦軸ラベル（停留所名）に割く幅。
+ *
+ * 一番長い停留所名「コンベンションセンター前」（12 文字）が 12px の字で 144px
+ * になる。**幅を名前から決める。** 逆にすると、収まらない名前を縮めて出すことに
+ * なり、どの線がどの停留所かを読めなくする（T-25）。
+ */
+export const AXIS_LABEL_WIDTH = 144;
 
 /** 横軸ラベル（時刻目盛）に割く高さ。 */
 export const TIME_LABEL_HEIGHT = 24;
+
+/** ダイヤグラムの表示範囲（仕様書 §6.2.1）。 */
+export const DIAGRAM_START_TIME = fromHM(7, 0);
+export const DIAGRAM_END_TIME = fromHM(22, 0);
 
 /** 時刻 → x 座標。 */
 export function timeToX(time: Seconds, viewport: Viewport): number {
@@ -92,6 +108,22 @@ export function isTimeVisible(time: number, viewport: Viewport): boolean {
   return (
     time >= viewport.startTime - GRAIN_SECONDS && time <= viewportEndTime(viewport) + GRAIN_SECONDS
   );
+}
+
+/**
+ * 罫線とスジを描いてよい横方向の範囲（px）。
+ *
+ * 描画領域のうち、**表示範囲（7:00〜22:00）と重なっている部分**である。時刻線と
+ * 停留所線がここで揃って途切れることで、表示範囲が絵として現れる。
+ *
+ * @returns 表示範囲が視野から外れているときは `null`
+ */
+export function plotXRange(
+  viewport: Viewport,
+): { readonly left: number; readonly right: number } | null {
+  const left = Math.max(viewport.originX, timeToX(DIAGRAM_START_TIME, viewport));
+  const right = Math.min(viewport.width, timeToX(DIAGRAM_END_TIME, viewport));
+  return right > left ? { left, right } : null;
 }
 
 /** プロジェクトに保存された表示設定と canvas の大きさから視野を作る。 */
