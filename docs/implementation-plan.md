@@ -141,16 +141,18 @@ export function drawDiagram(
 ): void;
 
 export interface Viewport {
-  startTime: Seconds;
-  endTime: Seconds;
+  startTime: Seconds;      // 左端の時刻
+  startAxis: number;       // 上端の軸位置
   pxPerMinute: number;
   pxPerAxisUnit: number;
-  originX: number;
-  originY: number;
+  originX: number;         // 描画領域の左端（縦軸ラベルの幅）
+  originY: number;         // 描画領域の上端（横軸ラベルの高さ）
   width: number;
   height: number;
 }
 ```
+
+**右端の時刻は持たない**（T-24 で改めた）。`startTime` と `pxPerMinute` と `width` から決まる導出値であり、持てば 2 つの値が食い違う状態を作れてしまう。**導出値は状態に持たない**という本ソフトの方針（便番号・運用の順序・回送便）をここでも守る。書き出しのときは「出したい時間範囲と幅から `pxPerMinute` を決める」形になる。
 
 **理由**: v2 で予定している画像・PDF の書き出しは、この形にしておけば「画面用 canvas の代わりに、任意の解像度・任意の時間範囲のオフスクリーン canvas を渡す」だけで実現できる。
 
@@ -1002,6 +1004,8 @@ T-43〜T-45 は実装中に追加したタスクであり（アンカーの null
 - 高 DPI 環境で文字と線がぼやけない
 - 1 フレーム中に状態が複数回変化しても再描画は 1 回
 - 座標変換と逆変換が往復で一致する
+
+**T-24 が描くのは背景と描画領域の枠までとする。** 停留所線・時刻線・目盛は T-25、スジは T-26 が同じ形の関数を足して重ねる。
 
 **規模**: M ／ **優先度**: MVP ／ **依存**: T-16
 

@@ -14,6 +14,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { loadNetworkDef } from '@/domain/network';
+import { DiagramCanvas } from '@/features/diagram';
 import {
   FileDialogHost,
   createBackupService,
@@ -244,6 +245,11 @@ export function App() {
           やり直す
         </button>
       </p>
+      {/*
+        ダイヤグラム（T-24）。上下 2 分割の本来のレイアウトは T-32 で組む。
+        今は時刻表の上に置き、canvas が状態に追随することを確かめられる形にする。
+      */}
+      <DiagramCanvas />
       <Timetable />
 
       <FileDialogHost request={request} onRespond={respond} />
