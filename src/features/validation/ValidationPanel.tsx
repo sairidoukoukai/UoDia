@@ -35,7 +35,6 @@ export function ValidationPanel(): ReactElement {
   const setOpen = useAppStore((state) => state.setValidationPanelOpen);
   const setSelection = useAppStore((state) => state.selectTrips);
   const setDiagramView = useAppStore((state) => state.setDiagramView);
-  const editProject = useAppStore((state) => state.editProject);
 
   // 重大度の絞り込みは**保存しない**。今この瞬間どれを眺めたいか、という話で
   // あり、開き直したときに情報が隠れたままだと「指摘が出ない」と受け取られる。
@@ -44,19 +43,17 @@ export function ValidationPanel(): ReactElement {
   const counts = useMemo(() => countBySeverity(issues), [issues]);
   const rows = useMemo(() => shownIssues(issues, shown), [issues, shown]);
 
-  /** 指摘の指す場所へ飛ぶ。選択・方向・送りを一度に動かす。 */
+  /**
+   * 指摘の指す場所へ飛ぶ。
+   *
+   * **選ぶことと送ることしかしない。** 時刻表の方向タブは選択に追随する
+   * （T-38 の `directionToShow`）ため、ここで指図する必要が無い。
+   */
   const jump = (issue: ValidationIssue): void => {
     if (network === null) return;
     const target = jumpTargetOf(issue, trips, network);
     if (target.tripIds.length === 0) return;
 
-    // 方向を先に切り替える。あとにすると、時刻表側の切り替えが選択を解く。
-    const { directionId } = target;
-    if (directionId !== null) {
-      editProject('方向の切り替え', (project) => {
-        project.view.activeDirection = directionId;
-      });
-    }
     setSelection(target.tripIds);
 
     if (target.time !== null) {

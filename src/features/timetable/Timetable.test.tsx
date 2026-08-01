@@ -470,6 +470,35 @@ describe('方向の切り替え', () => {
     press('豊中方面');
     expect(selectSelectedTripIds(useAppStore.getState())).toHaveLength(0);
   });
+
+  it('**押して切り替えても履歴に載らない**（取り消しは編集に効く。T-38）', () => {
+    mount();
+    newTrip(8, 0);
+    const steps = useAppStore.getState().history.past.length;
+
+    press('豊中方面');
+
+    expect(useAppStore.getState().project?.view.activeDirection).toBe(1);
+    expect(useAppStore.getState().history.past).toHaveLength(steps);
+  });
+
+  it('**選ばれた便の方向がひとりでに開く**（T-38）', () => {
+    mount();
+    newTrip(8, 0);
+    const tripId = selectTrips(useAppStore.getState())[0]?.tripId;
+    if (tripId === undefined) throw new Error('便がありません');
+
+    // 豊中方面を見ているところへ、吹田方面の便が選ばれる（ダイヤグラムや
+    // 検証パネルからの選択に当たる）。
+    press('豊中方面');
+    act(() => {
+      useAppStore.getState().selectTrips([tripId]);
+    });
+
+    expect(useAppStore.getState().project?.view.activeDirection).toBe(0);
+    // 追随して切り替えたときは選択を解かない（解くのは押したときだけ）。
+    expect(selectSelectedTripIds(useAppStore.getState())).toEqual([tripId]);
+  });
 });
 
 /**

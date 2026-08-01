@@ -40,12 +40,15 @@ function issue(target: ValidationIssue['target']): ValidationIssue {
 }
 
 describe('便を指す指摘', () => {
-  it('その便を選び、その方向を開き、その時刻へ送る', () => {
+  it('その便を選び、その時刻へ送る', () => {
     const target = jumpTargetOf(issue({ tripId: 't2' }), TRIPS, network);
 
     expect(target.tripIds).toEqual(['t2']);
-    expect(target.directionId).toBe(1);
     expect(target.time).toBe(fromHM(9, 0));
+  });
+
+  it('**方向は指図しない**（時刻表が選択に追随して開く。T-38）', () => {
+    expect(jumpTargetOf(issue({ tripId: 't2' }), TRIPS, network)).not.toHaveProperty('directionId');
   });
 });
 
@@ -67,7 +70,7 @@ describe('飛べない指摘', () => {
 
   it('消えた便を指していても壊れない', () => {
     const target = jumpTargetOf(issue({ tripId: 'missing' }), TRIPS, network);
-    expect(target).toEqual({ tripIds: [], directionId: null, time: null });
+    expect(target).toEqual({ tripIds: [], time: null });
   });
 
   it('時刻がまだ入っていない便は送り先を持たない（V-08 が指すのはこれ）', () => {
@@ -76,8 +79,6 @@ describe('飛べない指摘', () => {
 
     expect(target.tripIds).toEqual(['t9']);
     expect(target.time).toBeNull();
-    // 方向は分かる。時刻表のタブは切り替えられる。
-    expect(target.directionId).toBe(0);
   });
 });
 

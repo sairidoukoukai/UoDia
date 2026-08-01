@@ -13,7 +13,7 @@
  * どうかは、状態に触れる前に分かる。
  */
 
-import { useMemo, useState, type ReactElement } from 'react';
+import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { suggestBlockId } from '@/domain/block';
 import type { DirectionId, Trip } from '@/domain/model';
 import type { NetworkIndex } from '@/domain/network';
@@ -50,6 +50,7 @@ import {
   stopsForDirection,
   type TripLinks,
 } from './model';
+import { directionToShow } from './sync';
 import { TimetableGrid, type CommitResult } from './TimetableGrid';
 import { TimetableToolbar } from './TimetableToolbar';
 
@@ -78,6 +79,7 @@ export function Timetable(): ReactElement {
   const services = useAppStore(selectServices);
   const tripNumbers = useAppStore(selectTripNumbers);
   const setSelection = useAppStore((state) => state.selectTrips);
+  const setActiveDirection = useAppStore((state) => state.setActiveDirection);
   const copyTrips = useAppStore((state) => state.copyTrips);
   const clipboard = useAppStore((state) => state.ui.clipboard);
   const clearSelection = useAppStore((state) => state.clearSelection);
@@ -93,6 +95,21 @@ export function Timetable(): ReactElement {
   const selectedTripIds = useMemo(() => selectedTrips.map((trip) => trip.tripId), [selectedTrips]);
 
   const [message, setMessage] = useState<string | null>(null);
+
+  /**
+   * 選ばれた便の方向を開く（仕様書 §6.3.1、T-38）。
+   *
+   * ダイヤグラムで豊中方面のスジを選んだのに時刻表が吹田方面のままでは、
+   * 「該当列がハイライトされる」約束が果たせない。
+   *
+   * **循環しない。** 方向を切り替えても選択は変わらず、切り替えたあとは
+   * `directionToShow` が `null` を返すため、1 回で止まる。
+   */
+  useEffect(() => {
+    if (network === null) return;
+    const next = directionToShow(selectedTrips, direction, network);
+    if (next !== null) setActiveDirection(next);
+  }, [selectedTrips, direction, network, setActiveDirection]);
 
   // 色はダイヤの全便から決める。片方向だけで割り当てると、方向をまたぐ運用が
   // 方向によって違う色になる（仕様書 §5.8）。
@@ -329,14 +346,17 @@ export function Timetable(): ReactElement {
     );
   };
 
+  /**
+   * 方向タブを押した（仕様書 §6.1.1）。
+   *
+   * **押して切り替えたときだけ選択を解く。** 見えていない便を一括シフトの
+   * 巻き添えにしないためである。選択に追随して切り替わる場合（下の効果）は
+   * 解かない——そちらは「選ばれた便を見せる」ための切り替えである。
+   */
   const handleDirection = (id: DirectionId): void => {
-    // 見えていない便を操作させない。方向を切り替えたら選択は解く。
     clearSelection();
     setMessage(null);
-    // 方向の切り替えは編集であり、取り消せる（保存される設定のため）。
-    editProject('方向の切り替え', (project) => {
-      project.view.activeDirection = id;
-    });
+    setActiveDirection(id);
   };
 
   const patterns = useMemo(

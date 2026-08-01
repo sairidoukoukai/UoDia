@@ -11,6 +11,7 @@ import { useAppStore } from '@/store';
 import { attachDiagram } from './canvasHost';
 import { cursorAt, type DiagramCursor } from './cursor';
 import { viewportForCanvas } from './interaction';
+import { attachSelectionReveal } from './revealControls';
 import { attachTripControls } from './tripControls';
 import { attachViewportControls } from './viewportControls';
 import { selectDiagramScene, type SceneTheme } from './scene';
@@ -65,6 +66,8 @@ export function DiagramCanvas(props: DiagramCanvasProps): ReactElement {
     // `preventDefault` を立てることで、選択の側が譲れる（`tripControls.ts`）。
     const detachViewport = attachViewportControls({ canvas, store: useAppStore, theme });
     const detachSelection = attachTripControls({ canvas, store: useAppStore, theme });
+    // 時刻表で選ばれた便を画面に入れる（T-38）。**選択が変わったときだけ**動く。
+    const detachReveal = attachSelectionReveal({ canvas, store: useAppStore, theme });
 
     // 指しているものが**変わったときだけ**伝える。同じ 5 分の升の中で指を
     // 動かしている間は、上の画面を描き直す理由が無い。
@@ -101,6 +104,7 @@ export function DiagramCanvas(props: DiagramCanvasProps): ReactElement {
     return () => {
       canvas.removeEventListener('pointermove', onPointerMove);
       canvas.removeEventListener('pointerleave', onPointerLeave);
+      detachReveal();
       detachSelection();
       detachViewport();
       detachDiagram();
