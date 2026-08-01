@@ -17,7 +17,7 @@
 
 import type { DrawContext } from './drawContext';
 import type { DiagramScene, SceneTrip } from './scene';
-import { axisToY, isTimeVisible, plotXRange, timeToX, type Viewport } from './viewport';
+import { axisToY, isTimeVisible, plotXRange, screenRect, timeToX, type Viewport } from './viewport';
 
 /** 営業スジの太さ。罫線（1px）より太くし、格子に沈まないようにする。 */
 const TRIP_WIDTH = 1.5;
@@ -58,8 +58,8 @@ interface Rect {
   readonly height: number;
 }
 
-/** 描くスジと、その座標。 */
-interface DrawnTrip {
+/** スジ 1 本と、その画面上の座標。 */
+export interface TripPolyline {
   readonly trip: SceneTrip;
   readonly points: readonly ScreenPoint[];
   readonly first: ScreenPoint;
@@ -83,39 +83,48 @@ export function drawTrips(ctx: DrawContext, scene: DiagramScene, viewport: Viewp
   );
   ctx.clip();
 
-  // **座標は 1 本につき 1 度だけ求める。** 線とラベルで別々に組むと、同じ計算を
-  // 2 度することになり、まして 2 つが食い違う余地が生まれる。
-  const axis = axisPositions(scene);
-  const drawn: DrawnTrip[] = [];
-  for (const trip of scene.trips) {
-    if (!isTripVisible(trip, viewport)) continue;
-    const points = polyline(trip, axis, viewport);
-    const first = points[0];
-    const last = points.at(-1);
-    if (first === undefined || last === undefined) continue;
-    drawn.push({ trip, points, first, last });
-  }
+  const drawn = tripPolylines(scene, viewport);
 
-  const isSelected = (entry: DrawnTrip): boolean =>
+  const isSelected = (entry: TripPolyline): boolean =>
     scene.selectedTripIds.has(entry.trip.sourceTripId);
 
   for (const entry of drawn.filter((item) => !isSelected(item))) drawTrip(ctx, entry, false);
   for (const entry of drawn.filter(isSelected)) drawTrip(ctx, entry, true);
 
   drawTripNumbers(ctx, drawn, viewport);
+  drawSelectionRect(ctx, scene, viewport);
 
   ctx.restore();
 }
 
 /**
- * 便のスジが通る座標の並び。
+ * 視野に掛かるスジの座標。
  *
- * 描画（T-26）と当たり判定（T-28）が同じ列を使う。両者が別々に座標を組むと、
- * **見えている線と掴める線がずれる**。
+ * **描画（T-26）と当たり判定（T-28）が同じ列を使う。** 両者が別々に座標を組むと、
+ * 見えている線と掴める線がずれる。**座標は 1 本につき 1 度だけ求める。**
  *
- * 縦軸に無い停留所は場面に含まれていない（`scene.ts`）ため、ここでは折れ点が
- * 必ず座標を持つ。
+ * 縦軸に無い停留所は場面に含まれていない（`scene.ts`）ため、折れ点は必ず座標を
+ * 持つ。
  */
+export function tripPolylines(scene: DiagramScene, viewport: Viewport): readonly TripPolyline[] {
+  const axis = axisPositions(scene);
+  const drawn: TripPolyline[] = [];
+
+  for (const trip of scene.trips) {
+    if (!isTripVisible(trip, viewport)) continue;
+
+    const points = polyline(trip, axis, viewport);
+    const first = points[0];
+    const last = points.at(-1);
+    if (first === undefined || last === undefined) continue;
+
+    drawn.push({ trip, points, first, last });
+  }
+
+  return drawn;
+}
+
+/** 1 本ぶんの座標。 */
 export function tripPolyline(
   trip: SceneTrip,
   scene: DiagramScene,
@@ -160,7 +169,7 @@ export function isTripVisible(trip: SceneTrip, viewport: Viewport): boolean {
   return first.time < viewport.startTime && last.time > viewport.startTime;
 }
 
-function drawTrip(ctx: DrawContext, entry: DrawnTrip, selected: boolean): void {
+function drawTrip(ctx: DrawContext, entry: TripPolyline, selected: boolean): void {
   const { trip, points, first, last } = entry;
 
   const width = trip.isDeadhead ? DEADHEAD_WIDTH : TRIP_WIDTH;
@@ -184,12 +193,42 @@ function drawTrip(ctx: DrawContext, entry: DrawnTrip, selected: boolean): void {
 }
 
 /**
+ * 囲んでいる最中の枠（仕様書 §6.3.1、T-28）。
+ *
+ * **塗り潰さない。** 中を塗ると、いま選ぼうとしているスジが枠の下に隠れる。
+ * 破線の輪郭だけにする。
+ *
+ * 色は罫線ではなく**文字と同じ濃さ**にする。罫線と同じ色にすると、格子の一部に
+ * 見えて「いま囲んでいる」ことが伝わらない。
+ */
+function drawSelectionRect(ctx: DrawContext, scene: DiagramScene, viewport: Viewport): void {
+  if (scene.selectionRect === null) return;
+
+  const { left, top, right, bottom } = screenRect(scene.selectionRect, viewport);
+
+  ctx.strokeStyle = scene.theme.label;
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 3]);
+  ctx.beginPath();
+  ctx.moveTo(left, top);
+  ctx.lineTo(right, top);
+  ctx.lineTo(right, bottom);
+  ctx.lineTo(left, bottom);
+  ctx.lineTo(left, top);
+  ctx.stroke();
+}
+
+/**
  * 便番号をスジの始点近傍に置く。**重なる場所には置かない**（仕様書 §6.2.2）。
  *
  * 便が密なところで全部に番号を付けると、数字が重なって**どれも読めなくなる**。
  * 番号は時刻表にも出ているため、ここで落ちても失われる情報は無い。
  */
-function drawTripNumbers(ctx: DrawContext, drawn: readonly DrawnTrip[], viewport: Viewport): void {
+function drawTripNumbers(
+  ctx: DrawContext,
+  drawn: readonly TripPolyline[],
+  viewport: Viewport,
+): void {
   ctx.font = LABEL_FONT;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';

@@ -48,6 +48,7 @@ const scene: DiagramScene = {
     },
   ],
   selectedTripIds: new Set(),
+  selectionRect: null,
   theme,
 };
 

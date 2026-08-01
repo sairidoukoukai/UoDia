@@ -23,7 +23,14 @@ export {
   type TimeLineKind,
 } from './drawGrid';
 
-export { drawTrips, isTripVisible, tripPolyline, type ScreenPoint } from './drawTrips';
+export {
+  drawTrips,
+  isTripVisible,
+  tripPolyline,
+  tripPolylines,
+  type ScreenPoint,
+  type TripPolyline,
+} from './drawTrips';
 
 export {
   DEFAULT_DIAGRAM_VIEW,
@@ -36,6 +43,22 @@ export {
   type AxisBounds,
   type WheelInput,
 } from './interaction';
+
+export {
+  DRAG_THRESHOLD,
+  attachSelectionControls,
+  type SelectionControlOptions,
+  type SelectionStore,
+} from './selectionControls';
+
+export {
+  HIT_TOLERANCE,
+  distanceToSegment,
+  hitTrip,
+  nextSelection,
+  selectionAfterRect,
+  tripsInRect,
+} from './selection';
 
 export {
   attachViewportControls,
@@ -63,11 +86,13 @@ export {
   fitBackingStore,
   isTimeVisible,
   plotXRange,
+  screenRect,
   timeToX,
   viewportEndAxis,
   viewportEndTime,
   viewportOf,
   xToTime,
   yToAxis,
+  type ScreenRect,
   type Viewport,
 } from './viewport';

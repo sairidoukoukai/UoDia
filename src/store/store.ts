@@ -34,7 +34,7 @@ import {
   type History,
   type HistoryEntry,
 } from './history';
-import type { AppState, DocumentState } from './types';
+import type { AppState, DocumentState, SelectionRect } from './types';
 
 // パッチの記録は Immer の任意機能であり、使う前に有効化する必要がある。
 enablePatches();
@@ -143,6 +143,13 @@ export interface AppActions {
    * 開き直したときの便宜であって、保存を促すほどの中身ではない。
    */
   readonly setDiagramView: (view: DiagramView) => void;
+
+  /**
+   * 矩形選択の途中経過を置く（仕様書 §6.3.1、T-28）。
+   *
+   * 履歴に載せない。囲んでいる最中の枠は編集の結果ではない。
+   */
+  readonly setSelectionRect: (rect: SelectionRect | null) => void;
 }
 
 export type AppStore = AppState & AppActions;
@@ -162,7 +169,7 @@ export interface AppStoreHook {
 const INITIAL_STATE: AppState = {
   networkDef: null,
   project: null,
-  ui: { selectedTripIds: [], clipboard: [] },
+  ui: { selectedTripIds: [], clipboard: [], selectionRect: null },
   history: createHistory(),
   file: { handle: null, savedProject: null },
 };
@@ -257,7 +264,7 @@ export function createAppStore(): AppStoreHook {
           project,
           history: createHistory(get().history.limit),
           // 別のプロジェクトの便を選んだままにしない。
-          ui: { selectedTripIds: [], clipboard: [] },
+          ui: { selectedTripIds: [], clipboard: [], selectionRect: null },
           file: { handle, savedProject: project },
         });
       },
@@ -266,7 +273,7 @@ export function createAppStore(): AppStoreHook {
         set({
           project,
           history: createHistory(get().history.limit),
-          ui: { selectedTripIds: [], clipboard: [] },
+          ui: { selectedTripIds: [], clipboard: [], selectionRect: null },
           // savedProject を null にすることで未保存になる（`selectIsDirty`）。
           file: { handle: null, savedProject: null },
         });
@@ -292,6 +299,11 @@ export function createAppStore(): AppStoreHook {
 
       copyTrips: (trips): void => {
         set({ ui: { ...get().ui, clipboard: [...trips] } });
+      },
+
+      setSelectionRect: (selectionRect): void => {
+        if (get().ui.selectionRect === selectionRect) return;
+        set({ ui: { ...get().ui, selectionRect } });
       },
 
       setDiagramView: (diagram): void => {

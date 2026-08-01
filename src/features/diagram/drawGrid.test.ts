@@ -51,7 +51,13 @@ const stops: readonly SceneStop[] = [
   { stopId: '9_0', stopName: '千里営業所', axisPosition: 52, gridStyle: 'dashed', isDepot: true },
 ];
 
-const scene: DiagramScene = { stops, trips: [], selectedTripIds: new Set(), theme };
+const scene: DiagramScene = {
+  stops,
+  trips: [],
+  selectedTripIds: new Set(),
+  selectionRect: null,
+  theme,
+};
 
 /** 既定の表示設定（7:00 から、1 分 3px、軸 1 単位 6px）。 */
 const viewport: Viewport = viewportOf(
