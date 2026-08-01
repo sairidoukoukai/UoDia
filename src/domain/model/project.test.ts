@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  clampDiagramView,
+  diagramViewSchema,
+  DIAGRAM_ZOOM_LIMITS,
   projectSchema,
   serviceSchema,
   tripSchema,
@@ -196,5 +199,55 @@ describe('projectSchema', () => {
     const result = parseWithSchema(projectSchema, withUnknown);
     expect(result.ok).toBe(true);
     expect(result.ok && result.value).not.toHaveProperty('futureFeature');
+  });
+});
+
+describe('ダイヤグラムの視野（仕様書 §6.2.3、T-27）', () => {
+  const defaults = diagramViewSchema.parse({});
+
+  it('既定は 7:00 から、1 分 3px', () => {
+    expect(defaults).toEqual({
+      pxPerMinute: 3,
+      pxPerAxisUnit: 6,
+      scrollTime: fromHM(7, 0),
+      scrollAxis: 0,
+    });
+  });
+
+  it('**スクロール位置は 5 分の倍数でなくてよい**（v4.17）', () => {
+    const result = parseWithSchema(diagramViewSchema, { ...defaults, scrollTime: 25230 });
+    expect(result.ok && result.value.scrollTime).toBe(25230);
+  });
+
+  it('拡大率を下限と上限に収める', () => {
+    expect(clampDiagramView({ ...defaults, pxPerMinute: 0.01 }).pxPerMinute).toBe(
+      DIAGRAM_ZOOM_LIMITS.minPxPerMinute,
+    );
+    expect(clampDiagramView({ ...defaults, pxPerMinute: 1000 }).pxPerMinute).toBe(
+      DIAGRAM_ZOOM_LIMITS.maxPxPerMinute,
+    );
+    expect(clampDiagramView({ ...defaults, pxPerAxisUnit: 0 }).pxPerAxisUnit).toBe(
+      DIAGRAM_ZOOM_LIMITS.minPxPerAxisUnit,
+    );
+    expect(clampDiagramView({ ...defaults, pxPerAxisUnit: 999 }).pxPerAxisUnit).toBe(
+      DIAGRAM_ZOOM_LIMITS.maxPxPerAxisUnit,
+    );
+  });
+
+  it('**収まっているならそのまま返す**（同じ参照のまま）', () => {
+    expect(clampDiagramView(defaults)).toBe(defaults);
+  });
+
+  it('送りの位置は収めない（画面の大きさを知らないため）', () => {
+    const scrolled = { ...defaults, scrollTime: 999_999, scrollAxis: -50 };
+    expect(clampDiagramView(scrolled)).toBe(scrolled);
+  });
+
+  it('**範囲外の値を持つファイルも開ける**（拒まず収める）', () => {
+    const result = parseWithSchema(viewSettingsSchema, { diagram: { pxPerMinute: 500 } });
+    expect(result.ok).toBe(true);
+    expect(result.ok && clampDiagramView(result.value.diagram).pxPerMinute).toBe(
+      DIAGRAM_ZOOM_LIMITS.maxPxPerMinute,
+    );
   });
 });

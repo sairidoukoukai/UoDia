@@ -27,8 +27,13 @@ import {
  * 持つと 2 つの値が食い違う状態を作れてしまう（{@link viewportEndTime}）。
  */
 export interface Viewport {
-  /** 描画領域の左端が指す時刻。 */
-  readonly startTime: Seconds;
+  /**
+   * 描画領域の左端が指す時刻（秒）。
+   *
+   * **`Seconds` ではない。** 5 分の倍数に縛ると、拡大の中心をカーソルに
+   * 合わせられない（仕様書 §6.2.3、v4.17）。
+   */
+  readonly startTime: number;
   /** 描画領域の上端が指す軸位置（`Stop.axisPosition`）。 */
   readonly startAxis: number;
   /** 1 分あたりの px。 */
@@ -131,7 +136,7 @@ export function viewportOf(
   view: {
     readonly pxPerMinute: number;
     readonly pxPerAxisUnit: number;
-    readonly scrollTime: Seconds;
+    readonly scrollTime: number;
     readonly scrollAxis: number;
   },
   width: number,
