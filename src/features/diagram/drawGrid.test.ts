@@ -56,6 +56,7 @@ const scene: DiagramScene = {
   trips: [],
   selectedTripIds: new Set(),
   selectionRect: null,
+  tripShift: null,
   theme,
 };
 

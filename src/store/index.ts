@@ -13,6 +13,7 @@ export {
   type DocumentState,
   type FileState,
   type SelectionRect,
+  type TripShift,
   type UiState,
 } from './types';
 

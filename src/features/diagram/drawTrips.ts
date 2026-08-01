@@ -15,6 +15,7 @@
  * 「選んだのに太くならない」ように見える。順序を決めておくのは飾りではない。
  */
 
+import { formatMinutesSigned } from '@/domain/time';
 import type { DrawContext } from './drawContext';
 import type { DiagramScene, SceneTrip } from './scene';
 import { axisToY, isTimeVisible, plotXRange, screenRect, timeToX, type Viewport } from './viewport';
@@ -44,6 +45,10 @@ const LABEL_HEIGHT = 12;
 const LABEL_GAP = 3;
 /** 1 文字あたりの幅の見積り。重なりの判定にのみ使う。 */
 const LABEL_CHAR_WIDTH = 7;
+
+/** 引きずっている最中の移動量（T-29）。番号より目立たせる。 */
+const SHIFT_FONT = 'bold 12px system-ui, sans-serif';
+const SHIFT_GAP = 12;
 
 /** 画面上の点。 */
 export interface ScreenPoint {
@@ -93,6 +98,7 @@ export function drawTrips(ctx: DrawContext, scene: DiagramScene, viewport: Viewp
 
   drawTripNumbers(ctx, drawn, viewport);
   drawSelectionRect(ctx, scene, viewport);
+  drawTripShift(ctx, scene, viewport);
 
   ctx.restore();
 }
@@ -216,6 +222,27 @@ function drawSelectionRect(ctx: DrawContext, scene: DiagramScene, viewport: View
   ctx.lineTo(left, bottom);
   ctx.lineTo(left, top);
   ctx.stroke();
+}
+
+/**
+ * 引きずっている最中の移動量（仕様書 §6.3.2、T-29）。
+ *
+ * **数字で出す。** 5 分の格子に吸い付いて動くため、どれだけ動かしたかは目では
+ * 数えられない。「15 分遅らせたい」という意図に対して、画面が答えを返す。
+ */
+function drawTripShift(ctx: DrawContext, scene: DiagramScene, viewport: Viewport): void {
+  if (scene.tripShift === null) return;
+
+  ctx.font = SHIFT_FONT;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'bottom';
+  ctx.setLineDash([]);
+  ctx.fillStyle = scene.theme.label;
+  ctx.fillText(
+    formatMinutesSigned(scene.tripShift.minutes),
+    timeToX(scene.tripShift.atTime, viewport) + SHIFT_GAP,
+    axisToY(scene.tripShift.atAxis, viewport) - SHIFT_GAP,
+  );
 }
 
 /**

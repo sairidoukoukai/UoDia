@@ -101,8 +101,9 @@ function sceneOf(
   trips: readonly SceneTrip[],
   selected: readonly string[] = [],
   selectionRect: DiagramScene['selectionRect'] = null,
+  tripShift: DiagramScene['tripShift'] = null,
 ): DiagramScene {
-  return { stops, trips, selectedTripIds: new Set(selected), selectionRect, theme };
+  return { stops, trips, selectedTripIds: new Set(selected), selectionRect, tripShift, theme };
 }
 
 const viewport: Viewport = viewportOf(
@@ -299,6 +300,31 @@ describe('囲んでいる最中の枠（T-28）', () => {
 
   it('掴んでいなければ枠は出ない', () => {
     expect(draw([]).segments).toEqual([]);
+  });
+});
+
+describe('引きずっている最中の移動量（T-29）', () => {
+  const shift = { minutes: 15, atTime: fromHM(9, 0), atAxis: 20 };
+
+  it('**カーソルの近くに数字で出す**（仕様書 §6.3.2）', () => {
+    const ctx = new Recorder();
+    drawTrips(ctx, sceneOf([], [], null, shift), viewport);
+
+    const [label] = ctx.labels;
+    expect(label?.text).toBe('+15 分');
+    expect(label?.x).toBeGreaterThan(timeToX(fromHM(9, 0), viewport));
+    expect(label?.y).toBeLessThan(axisToY(20, viewport));
+  });
+
+  it('早める向きには符号が付く', () => {
+    const ctx = new Recorder();
+    drawTrips(ctx, sceneOf([], [], null, { ...shift, minutes: -15 }), viewport);
+
+    expect(ctx.labels[0]?.text).toBe('-15 分');
+  });
+
+  it('掴んでいなければ出ない', () => {
+    expect(draw([]).labels).toEqual([]);
   });
 });
 
