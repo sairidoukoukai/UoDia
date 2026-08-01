@@ -12,6 +12,7 @@ export {
   type AppState,
   type DocumentState,
   type FileState,
+  type MaximizedPane,
   type SelectionRect,
   type TripShift,
   type UiState,

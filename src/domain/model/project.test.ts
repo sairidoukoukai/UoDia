@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   clampDiagramView,
+  clampSplitRatio,
+  DEFAULT_SPLIT_RATIO,
   diagramViewSchema,
   DIAGRAM_ZOOM_LIMITS,
+  SPLIT_RATIO_LIMITS,
   projectSchema,
   serviceSchema,
   tripSchema,
@@ -249,5 +252,38 @@ describe('ダイヤグラムの視野（仕様書 §6.2.3、T-27）', () => {
     expect(result.ok && clampDiagramView(result.value.diagram).pxPerMinute).toBe(
       DIAGRAM_ZOOM_LIMITS.maxPxPerMinute,
     );
+  });
+});
+
+describe('分割比率（仕様書 §6.4、T-32）', () => {
+  it('既定はダイヤグラムをやや広く取る', () => {
+    const result = parseWithSchema(viewSettingsSchema, {});
+    expect(result.ok && result.value.splitRatio).toBe(DEFAULT_SPLIT_RATIO);
+  });
+
+  it('**どちらかを潰しきれない**（下限と上限に収める）', () => {
+    expect(clampSplitRatio(0)).toBe(SPLIT_RATIO_LIMITS.min);
+    expect(clampSplitRatio(1)).toBe(SPLIT_RATIO_LIMITS.max);
+    expect(clampSplitRatio(-5)).toBe(SPLIT_RATIO_LIMITS.min);
+  });
+
+  it('収まっているならそのまま返す', () => {
+    expect(clampSplitRatio(0.42)).toBe(0.42);
+  });
+
+  it('数でない値は既定に戻す（0 で割った結果などを書き込まない）', () => {
+    expect(clampSplitRatio(Number.NaN)).toBe(DEFAULT_SPLIT_RATIO);
+    expect(clampSplitRatio(Number.POSITIVE_INFINITY)).toBe(DEFAULT_SPLIT_RATIO);
+  });
+
+  it('**収めた値はスキーマを通る**（書けても開けないファイルを作らない）', () => {
+    for (const ratio of [-1, 0, 0.5, 1, 42]) {
+      const result = parseWithSchema(viewSettingsSchema, { splitRatio: clampSplitRatio(ratio) });
+      expect(result.ok).toBe(true);
+    }
+  });
+
+  it('範囲を外れた比率のファイルは受け付けない（収めるのは書く側の仕事）', () => {
+    expect(parseWithSchema(viewSettingsSchema, { splitRatio: 0.95 }).ok).toBe(false);
   });
 });

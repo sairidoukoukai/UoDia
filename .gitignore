@@ -36,3 +36,6 @@ pnpm-debug.log*
 
 # UoDia のバックアップファイル
 *.uodia.bak
+
+# エージェントの設定（各自の環境の許可設定であり、共有しない）
+.claude/

@@ -22,7 +22,13 @@
 
 import { applyPatches, enablePatches, produceWithPatches, type Patch } from 'immer';
 import { create } from 'zustand';
-import type { DiagramView, NetworkDef, Project, Trip } from '@/domain/model';
+import {
+  clampSplitRatio,
+  type DiagramView,
+  type NetworkDef,
+  type Project,
+  type Trip,
+} from '@/domain/model';
 import { validateNetwork, type NetworkIssue } from '@/domain/network';
 import type { FileHandle } from '@/platform';
 import {
@@ -34,7 +40,14 @@ import {
   type History,
   type HistoryEntry,
 } from './history';
-import type { AppState, DocumentState, SelectionRect, TripShift } from './types';
+import type {
+  AppState,
+  DocumentState,
+  MaximizedPane,
+  SelectionRect,
+  TripShift,
+  UiState,
+} from './types';
 
 // パッチの記録は Immer の任意機能であり、使う前に有効化する必要がある。
 enablePatches();
@@ -145,6 +158,21 @@ export interface AppActions {
   readonly setDiagramView: (view: DiagramView) => void;
 
   /**
+   * 上下 2 分割の比率を変える（仕様書 §6.4、T-32）。範囲外は丸める。
+   *
+   * `setDiagramView` と同じ扱いである。**履歴に載せず、未保存にもしない。**
+   * 境界を動かすことは編集ではない。
+   */
+  readonly setSplitRatio: (ratio: number) => void;
+
+  /**
+   * 片方を最大化する（仕様書 §6.4、T-32）。`null` で 2 分割へ戻す。
+   *
+   * 保存しないため、ここだけはプロジェクトに触れない（`ui`）。
+   */
+  readonly setMaximizedPane: (pane: MaximizedPane) => void;
+
+  /**
    * 矩形選択の途中経過を置く（仕様書 §6.3.1、T-28）。
    *
    * 履歴に載せない。囲んでいる最中の枠は編集の結果ではない。
@@ -176,10 +204,27 @@ export interface AppStoreHook {
 const INITIAL_STATE: AppState = {
   networkDef: null,
   project: null,
-  ui: { selectedTripIds: [], clipboard: [], selectionRect: null, tripShift: null },
+  ui: {
+    selectedTripIds: [],
+    clipboard: [],
+    selectionRect: null,
+    tripShift: null,
+    maximized: null,
+  },
   history: createHistory(),
   file: { handle: null, savedProject: null },
 };
+
+/**
+ * 別のプロジェクトへ持ち越さない画面の状態を捨てる。
+ *
+ * **最大化だけは残す。** 選択や写した便は「このプロジェクトの便」を指しており、
+ * 別のものを開けば意味を失う。最大化は画面の姿であって、どのファイルを開いて
+ * いるかとは関わりが無い。開いた拍子に分割が戻ると、開き直したように見える。
+ */
+function clearedUi(ui: UiState): UiState {
+  return { ...INITIAL_STATE.ui, maximized: ui.maximized };
+}
 
 /** ストアを作る。テストごとに独立したものを使えるよう、生成を関数にしている。 */
 export function createAppStore(): AppStoreHook {
@@ -203,6 +248,25 @@ export function createAppStore(): AppStoreHook {
         history: taken.history,
       });
       return true;
+    };
+
+    /**
+     * 表示設定を履歴に載せずに書き換える（視野・分割比率）。
+     *
+     * **保存済みだったなら保存済みのままにする。** 未保存かどうかは「保存した
+     * 内容と同じ参照か」で決まるため（`selectIsDirty`）、何もしないと画面を
+     * 送っただけ・境界を動かしただけで未保存になり、閉じるたびに保存を
+     * 尋ねられる。編集中（既に未保存）なら触らない。
+     */
+    const setView = (view: Project['view']): void => {
+      const { project, file } = get();
+      if (project === null) return;
+
+      const next: Project = { ...project, view };
+      set({
+        project: next,
+        file: file.savedProject === project ? { ...file, savedProject: next } : file,
+      });
     };
 
     return {
@@ -271,7 +335,7 @@ export function createAppStore(): AppStoreHook {
           project,
           history: createHistory(get().history.limit),
           // 別のプロジェクトの便を選んだままにしない。
-          ui: { selectedTripIds: [], clipboard: [], selectionRect: null, tripShift: null },
+          ui: clearedUi(get().ui),
           file: { handle, savedProject: project },
         });
       },
@@ -280,7 +344,7 @@ export function createAppStore(): AppStoreHook {
         set({
           project,
           history: createHistory(get().history.limit),
-          ui: { selectedTripIds: [], clipboard: [], selectionRect: null, tripShift: null },
+          ui: clearedUi(get().ui),
           // savedProject を null にすることで未保存になる（`selectIsDirty`）。
           file: { handle: null, savedProject: null },
         });
@@ -319,18 +383,22 @@ export function createAppStore(): AppStoreHook {
       },
 
       setDiagramView: (diagram): void => {
-        const { project, file } = get();
+        const { project } = get();
         if (project === null || project.view.diagram === diagram) return;
+        setView({ ...project.view, diagram });
+      },
 
-        const next: Project = { ...project, view: { ...project.view, diagram } };
-        set({
-          project: next,
-          // **保存済みだったなら保存済みのままにする。** 未保存かどうかは
-          // 「保存した内容と同じ参照か」で決まるため（`selectIsDirty`）、
-          // 何もしないと画面を送っただけで未保存になり、閉じるたびに
-          // 保存を尋ねられる。編集中（既に未保存）なら触らない。
-          file: file.savedProject === project ? { ...file, savedProject: next } : file,
-        });
+      setSplitRatio: (ratio): void => {
+        const { project } = get();
+        const splitRatio = clampSplitRatio(ratio);
+        if (project === null || project.view.splitRatio === splitRatio) return;
+        setView({ ...project.view, splitRatio });
+      },
+
+      setMaximizedPane: (maximized): void => {
+        const { ui } = get();
+        if (ui.maximized === maximized) return;
+        set({ ui: { ...ui, maximized } });
       },
     };
   });

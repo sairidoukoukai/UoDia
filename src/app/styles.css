@@ -70,26 +70,129 @@ body {
   color: var(--color-fg);
 }
 
+/*
+ * 画面の骨格（仕様書 §6.4、T-32）。ツールバー・上下 2 分割・ステータスバー。
+ *
+ * **窓の高さに収める。** ページ全体が縦に伸びる作りだと、ダイヤグラムの下に
+ * 時刻表が続く長い 1 枚になり、上下 2 分割にならない。
+ */
 .app-shell {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: 100%;
+  /* 子（分割領域）が縮めるようにする。既定の auto では中身の高さが下限になる。 */
+  min-height: 0;
+}
+
+/* ツールバー（仕様書 §6.4）。作図モードの切り替えは T-30 が足す。 */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-accent);
+  font-size: 0.875rem;
+}
+
+.toolbar__group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/* 本来の置き場所ができるまでの仮の操作（T-35 / T-37）。区切って見せる。 */
+.toolbar__group--temporary {
+  margin-left: auto;
+  padding-left: 0.75rem;
+  border-left: 1px solid var(--color-border);
+}
+
+.toolbar__note {
+  color: var(--color-fg-muted);
+}
+
+/* 上下 2 分割（仕様書 §6.4）。高さは比率で与える（`SplitLayout.tsx`）。 */
+.split {
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  height: 100%;
-  padding: 2rem;
+  min-height: 0;
 }
 
-.app-shell h1 {
-  margin: 0 0 0.5rem;
-  font-size: 2rem;
+.split__pane {
+  display: flex;
+  flex-direction: column;
+  /*
+   * **0 を土台にする。** 既定（auto）では中身の高さが土台になり、比率の
+   * 効き方が中身の量で変わる。時刻表に便が増えるほど上が狭くなってしまう。
+   */
+  flex-basis: 0;
+  min-height: 0;
+  overflow: auto;
 }
 
-.app-shell p {
-  margin: 0.25rem 0;
+/* ダイヤグラムは canvas が入れ物いっぱいに広がる。送るのは canvas の役目で
+   あり（T-27）、枠の側でスクロールさせない。 */
+.split__pane--diagram {
+  overflow: hidden;
 }
 
-.app-shell__note {
+/* 最大化で隠れている側。焦点も読み上げも届かなくする（display: none）。 */
+.split__pane--collapsed {
+  display: none;
+}
+
+/* 境界。掴めることが見て分かる幅を持たせる（仕様書 §6.4）。 */
+.split__separator {
+  flex: 0 0 6px;
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-accent);
+  cursor: row-resize;
+}
+
+.split__separator:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+/*
+ * 引きずっている間は、下にあるものに文字選択もカーソルも渡さない。境界を
+ * 掴んだつもりで時刻表の文字が選ばれると、離した拍子に見た目が壊れる。
+ */
+.split--dragging {
+  cursor: row-resize;
+  user-select: none;
+}
+
+/* ステータスバー（仕様書 §6.4）。 */
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.2rem 0.5rem;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg-accent);
   color: var(--color-fg-muted);
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+
+.status-bar__item {
+  font-variant-numeric: tabular-nums;
+}
+
+/* カーソルの位置。**幅を決める。** 動くたびに右の数字が揺れると読めない。 */
+.status-bar__item--cursor {
+  min-width: 14rem;
+}
+
+.status-bar__message {
+  overflow: hidden;
+  color: var(--color-fg);
+  text-overflow: ellipsis;
 }
 
 /* ファイル操作の問いかけ（T-17）。焦点と Esc は <dialog> に任せる。 */
@@ -131,7 +234,7 @@ body {
 
 /* 時刻表（T-19、仕様書 §6.1.1）。 */
 .timetable-pane {
-  margin-top: 1rem;
+  padding: 0.5rem;
   /* 表の外に出さない。ページ全体が横に伸びると停留所名の固定が意味を失う。 */
   min-width: 0;
 }
@@ -398,12 +501,14 @@ body {
 /*
  * ダイヤグラム（T-24、仕様書 §6.2）。
  *
- * 上下 2 分割の本来のレイアウトは T-32 で組む。ここでは高さを決め打ちにして、
- * canvas が大きさの変化に追随することを確かめられる状態にしておく。
+ * 高さは持たない。**入れ物（上の枠）の高さいっぱいに広がる**（T-32）。決め打ちに
+ * すると、境界を動かしても canvas の大きさが変わらない。
  */
 .diagram {
-  margin-top: 1rem;
-  border: 1px solid var(--color-border);
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
 }
 
 /* 着色モードと表示フィルタの仮の操作列（T-26）。本来はサイドパネル（T-33）。 */
@@ -423,13 +528,13 @@ body {
    * CSS 上の高さと入れ物の高さが食い違う（描画が 1 行ぶん縦にずれる）。
    */
   display: block;
+  /*
+   * 残りをすべて取る。canvas は既定の大きさ（300×150）を持つため、
+   * `min-height: 0` を添えないと縮む側に回れない。
+   */
+  flex: 1 1 auto;
   width: 100%;
+  min-height: 0;
   /* 焦点の枠を出す。キーボードで操作できることが見て分かる（§9.4）。 */
   outline-offset: -2px;
-  /*
-   * 縦軸の全体（豊中学舎 0 〜 千里営業所 52）が既定の拡大率（1 単位 6px）で
-   * 収まる高さにする。336px で足りるが、営業所レーンが下端に張り付かないよう
-   * 余裕を持たせる。パン・ズームは T-27、本来のレイアウトは T-32。
-   */
-  height: 420px;
 }

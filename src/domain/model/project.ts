@@ -162,6 +162,29 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 /**
+ * 上下 2 分割の比率の下限と上限（仕様書 §6.4）。
+ *
+ * **どちらかを 0 にできないようにする。** 潰しきれると、境界だけが残った画面から
+ * 元に戻す手立てが分からなくなる。片方だけを見たいときは最大化を使う——
+ * こちらは押し直せば必ず戻る（`features/shell/layout.ts`）。
+ */
+export const SPLIT_RATIO_LIMITS = { min: 0.1, max: 0.9 } as const;
+
+/** ダイヤグラムが占める高さの既定値。上をやや広く取る（仕様書 §6.4）。 */
+export const DEFAULT_SPLIT_RATIO = 0.6;
+
+/**
+ * 分割比率を下限と上限に収める。
+ *
+ * **スキーマが範囲を縛っているため、収めずに書き込んではならない。** 範囲外の
+ * 値を持つプロジェクトは書き出せても読み込めず、開けないファイルができる。
+ */
+export function clampSplitRatio(ratio: number): number {
+  if (!Number.isFinite(ratio)) return DEFAULT_SPLIT_RATIO;
+  return clamp(ratio, SPLIT_RATIO_LIMITS.min, SPLIT_RATIO_LIMITS.max);
+}
+
+/**
  * 表示設定（仕様書 §5.10）。プロジェクトに保存され、開き直しても再現される。
  *
  * すべての項目に既定値を与えている。古いファイルに項目が欠けていても、
@@ -169,7 +192,11 @@ function clamp(value: number, min: number, max: number): number {
  */
 export const viewSettingsSchema = z.object({
   /** ダイヤグラム（上）が占める高さの比率。0〜1（仕様書 §6.4）。 */
-  splitRatio: z.number().min(0.1).max(0.9).default(0.6),
+  splitRatio: z
+    .number()
+    .min(SPLIT_RATIO_LIMITS.min)
+    .max(SPLIT_RATIO_LIMITS.max)
+    .default(DEFAULT_SPLIT_RATIO),
   /** 編集中のダイヤ。null なら先頭のダイヤを使う。 */
   activeServiceId: idSchema.nullable().default(null),
   /** 時刻表の方向タブ。 */

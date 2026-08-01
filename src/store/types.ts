@@ -56,6 +56,14 @@ export interface TripShift {
   readonly atAxis: number;
 }
 
+/**
+ * 片方だけを大きく見ている状態（仕様書 §6.4、T-32）。`null` は 2 分割のまま。
+ *
+ * **分割比率とは別に持つ。** 比率のほうへ 0 や 1 を書き込んで表すと、最大化を
+ * 解いたときに戻る先が消える。
+ */
+export type MaximizedPane = 'diagram' | 'timetable' | null;
+
 /** 保存しない状態。 */
 export interface UiState {
   /** 選択中の便。時刻表とダイヤグラムで共有する（仕様書 §6.3.1）。 */
@@ -69,6 +77,14 @@ export interface UiState {
   readonly selectionRect: SelectionRect | null;
   /** 引きずっている最中の移動量。掴んでいなければ `null`（T-29）。 */
   readonly tripShift: TripShift | null;
+  /**
+   * 最大化している側（仕様書 §6.4、T-32）。2 分割のままなら `null`。
+   *
+   * **保存しない。** 分割比率はファイルに残るが（§5.10）、最大化はいま片方を
+   * じっくり見ているというだけの姿である。開き直した画面が片側の潰れた形で
+   * 始まると、壊れたように見える。
+   */
+  readonly maximized: MaximizedPane;
   /**
    * 写した便（仕様書 §6.1.4、§8.1、T-53）。貼り付けるまで持つ。
    *

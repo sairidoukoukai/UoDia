@@ -1,10 +1,12 @@
 /**
- * アプリケーションのルート。
+ * アプリケーションのルート（仕様書 §6.4、T-32）。
  *
- * 実際のレイアウト（上=ダイヤグラム／下=時刻表）は T-32 で実装する。それまでは、
- * **ここまでの層が実際に繋がっていること**を画面で確かめられる状態にしておく。
- * `route.json` の読込・ストアへの反映・セレクタによる導出・ファイル操作・
- * 自動バックアップがすべて通っていれば、この画面が出る。
+ * 画面は**ツールバー・上下 2 分割・ステータスバー**の 3 段でできている。ここが
+ * 持つのは、どこに何を置くかと、起動時の段取り（route.json の読込・バックアップ
+ * からの復元・閉じる操作への割り込み）だけである。**中身の理屈は各機能が持つ。**
+ *
+ * サイドパネル（T-33）・検証パネル（T-34）・メニューバー（T-37）はまだ無い。
+ * 3 段の間に挟まる形になるため、この構成のまま足せる。
  *
  * **起動時に書き込みを試す確認は置かない。** 以前は自動バックアップの往復で
  * 「読めるが書けない」状態を検出していたが、T-18 で本物のバックアップが同じ
@@ -12,38 +14,31 @@
  * 内容をそのまま消してしまう。
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
 import { loadNetworkDef } from '@/domain/network';
-import { DiagramCanvas } from '@/features/diagram';
+import { DiagramCanvas, type DiagramCursor } from '@/features/diagram';
 import {
   FileDialogHost,
   createBackupService,
   createFileService,
   useFileDialogs,
   watchWindowTitle,
-  windowTitleOf,
 } from '@/features/file';
+import { SplitLayout, StatusBar, Toolbar, attachShortcuts } from '@/features/shell';
 import { Timetable } from '@/features/timetable';
 import { usePlatform, type RecentFile } from '@/platform';
-import {
-  selectBlocks,
-  selectCanRedo,
-  selectCanUndo,
-  selectIsDirty,
-  selectValidation,
-  selectVisibleStops,
-  useAppStore,
-} from '@/store';
+import { selectIsDirty, useAppStore } from '@/store';
 
 type LoadState =
   | { readonly status: 'loading' }
   | { readonly status: 'ready' }
   | { readonly status: 'failed'; readonly message: string };
 
-export function App() {
+export function App(): ReactElement {
   const platform = usePlatform();
   const [load, setLoad] = useState<LoadState>({ status: 'loading' });
   const [recent, setRecent] = useState<readonly RecentFile[]>([]);
+  const [cursor, setCursor] = useState<DiagramCursor | null>(null);
 
   const { dialogs, request, respond } = useFileDialogs();
   const files = useMemo(
@@ -54,16 +49,7 @@ export function App() {
 
   const setNetworkDef = useAppStore((state) => state.setNetworkDef);
   const editProject = useAppStore((state) => state.editProject);
-  const undo = useAppStore((state) => state.undo);
-  const redo = useAppStore((state) => state.redo);
-  const stops = useAppStore(selectVisibleStops);
-  const blocks = useAppStore(selectBlocks);
-  const issues = useAppStore(selectValidation);
   const documentName = useAppStore((state) => state.project?.document.name ?? '');
-  const canUndo = useAppStore(selectCanUndo);
-  const canRedo = useAppStore(selectCanRedo);
-  const dirty = useAppStore(selectIsDirty);
-  const title = useAppStore(windowTitleOf);
 
   /** 履歴を読み直す。ファイル操作のあとに呼ぶ。 */
   const refreshRecent = useMemo(
@@ -118,6 +104,9 @@ export function App() {
   // 題名を状態に追従させる（仕様書 §6.8）。
   useEffect(() => watchWindowTitle(useAppStore, platform), [platform]);
 
+  // 最大化のショートカット（Ctrl+1 / Ctrl+2、仕様書 §6.4）。
+  useEffect(() => attachShortcuts({ store: useAppStore }), []);
+
   // 閉じる操作に割り込む。
   useEffect(
     () =>
@@ -139,61 +128,54 @@ export function App() {
     void action().then(refreshRecent, refreshRecent);
   };
 
+  // 参照を変えない。変えると、ダイヤグラムが繋ぎ直しはしないまでも（`useRef`）、
+  // 指を動かすたびに App ごと描き直される道ができてしまう。
+  const handleCursor = useCallback((next: DiagramCursor | null) => {
+    setCursor(next);
+  }, []);
+
+  const statusMessage =
+    load.status === 'loading'
+      ? 'route.json を読み込んでいます…'
+      : load.status === 'failed'
+        ? `route.json を読み込めません（${load.message}）`
+        : null;
+
   return (
     <div className="app-shell">
-      <h1>UoDia</h1>
-      <p>大阪大学 学内連絡バス ダイヤグラム設計ソフトウェア</p>
-      <p className="app-shell__note">
-        実行環境: {platform.kind}
-        {' ／ '}
-        {load.status === 'loading' && 'route.json を読み込んでいます…'}
-        {load.status === 'ready' &&
-          `停留所 ${String(stops.length)} 件・運用 ${String(blocks?.blocks.length ?? 0)} 件・指摘 ${String(issues.length)} 件`}
-        {load.status === 'failed' && `route.json を読み込めません（${load.message}）`}
-      </p>
-      <p className="app-shell__note">
-        上書き保存: {platform.capabilities.saveInPlace ? '可' : '不可（ダウンロード）'}
-        {' ／ '}
-        履歴: {platform.capabilities.recentFiles ? '可' : '不可'}
-        {' ／ '}
-        route.json の書き戻し: {platform.capabilities.networkDefWritable ? '可' : '不可'}
-      </p>
-
-      {/*
-        T-17 を実機で確かめるための仮の操作列。メニューバーとショートカットは
-        T-37、本来のレイアウトは T-32 で置き換える。
-      */}
-      <p className="app-shell__note">
-        題名: {title}
-        {' ／ '}
-        状態: {dirty ? '未保存' : '保存済み'}
-      </p>
-      <p className="app-shell__note">
-        <button type="button" onClick={run(() => files.newProject())}>
-          新規
-        </button>{' '}
-        <button type="button" onClick={run(() => files.open())}>
-          開く
-        </button>{' '}
-        <button type="button" onClick={run(() => files.save())}>
-          上書き保存
-        </button>{' '}
-        <button type="button" onClick={run(() => files.saveAs())}>
-          名前を付けて保存
-        </button>{' '}
-        {/*
-          自動バックアップ（T-18）は 5 分ごとに走る。実機で確かめるには待って
-          いられないため、同じ処理をその場で呼べるようにしておく。
-        */}
-        <button type="button" onClick={run(() => backups.backupNow())}>
-          今すぐバックアップ
-        </button>
-      </p>
-      <p className="app-shell__note">
-        最近使ったファイル:{' '}
-        {recent.length === 0
-          ? 'なし'
-          : recent.map((entry) => (
+      <Toolbar
+        onNew={run(() => files.newProject())}
+        onOpen={run(() => files.open())}
+        onSave={run(() => files.save())}
+        onSaveAs={run(() => files.saveAs())}
+        extra={
+          /*
+            本来の置き場所ができるまでの仮の操作。文書名は文書情報のダイアログ
+            （T-35）、最近使ったファイルはメニュー（T-37）、バックアップは
+            5 分ごとに走るもの（T-18）であり、実機で確かめるためにここへ出して
+            いる。
+          */
+          <div className="toolbar__group toolbar__group--temporary">
+            <label>
+              文書名{' '}
+              <input
+                value={documentName}
+                onChange={(event) => {
+                  const name = event.target.value;
+                  editProject(
+                    '文書名の変更',
+                    (project) => {
+                      project.document.name = name;
+                    },
+                    'document.name',
+                  );
+                }}
+              />
+            </label>
+            <button type="button" onClick={run(() => backups.backupNow())}>
+              今すぐバックアップ
+            </button>
+            {recent.map((entry) => (
               <button
                 key={entry.handle.name}
                 type="button"
@@ -202,55 +184,22 @@ export function App() {
                 {entry.handle.name}
               </button>
             ))}
-      </p>
+            {/*
+              どの実行環境で何ができるか（§10.4）。Web 版では上書き保存が
+              ダウンロードになるなど、**同じ押しボタンが違う振る舞いをする**。
+              確かめる手立てが要る。
+            */}
+            <span className="toolbar__note">
+              {platform.kind}
+              {platform.capabilities.saveInPlace ? '' : '（上書き保存はダウンロード）'}
+            </span>
+          </div>
+        }
+      />
 
-      {/*
-        Undo/Redo（T-16）を実機で確かめるための仮の入力欄。文書名を打ち替えると
-        1 文字ずつ履歴に積まれるが、mergeKey が同じため **1 回の取り消しで
-        まとめて戻る**。
-      */}
-      <p className="app-shell__note">
-        <label>
-          文書名:{' '}
-          <input
-            value={documentName}
-            onChange={(event) => {
-              const name = event.target.value;
-              editProject(
-                '文書名の変更',
-                (project) => {
-                  project.document.name = name;
-                },
-                'document.name',
-              );
-            }}
-          />
-        </label>{' '}
-        <button
-          type="button"
-          disabled={!canUndo}
-          onClick={() => {
-            undo();
-          }}
-        >
-          元に戻す
-        </button>{' '}
-        <button
-          type="button"
-          disabled={!canRedo}
-          onClick={() => {
-            redo();
-          }}
-        >
-          やり直す
-        </button>
-      </p>
-      {/*
-        ダイヤグラム（T-24）。上下 2 分割の本来のレイアウトは T-32 で組む。
-        今は時刻表の上に置き、canvas が状態に追随することを確かめられる形にする。
-      */}
-      <DiagramCanvas />
-      <Timetable />
+      <SplitLayout top={<DiagramCanvas onCursor={handleCursor} />} bottom={<Timetable />} />
+
+      <StatusBar cursor={cursor} message={statusMessage} />
 
       <FileDialogHost request={request} onRespond={respond} />
     </div>

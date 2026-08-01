@@ -9,10 +9,12 @@
 import { useEffect, useRef, type ReactElement } from 'react';
 import { useAppStore } from '@/store';
 import { attachDiagram } from './canvasHost';
+import { cursorAt, type DiagramCursor } from './cursor';
 import { DiagramControls } from './DiagramControls';
+import { viewportForCanvas } from './interaction';
 import { attachTripControls } from './tripControls';
 import { attachViewportControls } from './viewportControls';
-import type { SceneTheme } from './scene';
+import { selectDiagramScene, type SceneTheme } from './scene';
 
 /** 画面のテーマから描画に使う色を読む（仕様書 §9.4）。 */
 function readTheme(element: Element): SceneTheme {
@@ -30,8 +32,26 @@ function readTheme(element: Element): SceneTheme {
   };
 }
 
-export function DiagramCanvas(): ReactElement {
+export interface DiagramCanvasProps {
+  /**
+   * カーソルが指しているものが変わったときに呼ぶ（ステータスバー、T-32）。
+   *
+   * **ストアには置かない。** 状態にすると、指を動かすだけで購読が動き、
+   * ダイヤグラム全体が 1 秒に 60 回描き直される。指している場所は編集の対象では
+   * なく、画面に出すためだけの値である。
+   */
+  readonly onCursor?: (cursor: DiagramCursor | null) => void;
+}
+
+export function DiagramCanvas(props: DiagramCanvasProps): ReactElement {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // 繋ぎ直さずに差し替えられるようにする。繋ぎ（下の `useEffect`）は 1 度きりで
+  // あり、呼び先を直接見ると、親が描き直すたびに canvas を繋ぎ直すことになる。
+  const onCursorRef = useRef(props.onCursor);
+  useEffect(() => {
+    onCursorRef.current = props.onCursor;
+  }, [props.onCursor]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -47,7 +67,41 @@ export function DiagramCanvas(): ReactElement {
     const detachViewport = attachViewportControls({ canvas, store: useAppStore, theme });
     const detachSelection = attachTripControls({ canvas, store: useAppStore, theme });
 
+    // 指しているものが**変わったときだけ**伝える。同じ 5 分の升の中で指を
+    // 動かしている間は、上の画面を描き直す理由が無い。
+    let last: DiagramCursor | null = null;
+    const report = (cursor: DiagramCursor | null): void => {
+      if (cursor?.time === last?.time && cursor?.stopId === last?.stopId) return;
+      last = cursor;
+      onCursorRef.current?.(cursor);
+    };
+
+    const onPointerMove = (event: PointerEvent): void => {
+      const state = useAppStore.getState();
+      const view = state.project?.view.diagram;
+      if (view === undefined) return;
+
+      const rect = canvas.getBoundingClientRect();
+      report(
+        cursorAt(
+          selectDiagramScene(state, theme),
+          viewportForCanvas(view, canvas),
+          event.clientX - rect.left,
+          event.clientY - rect.top,
+        ),
+      );
+    };
+
+    const onPointerLeave = (): void => {
+      report(null);
+    };
+
+    canvas.addEventListener('pointermove', onPointerMove);
+    canvas.addEventListener('pointerleave', onPointerLeave);
+
     return () => {
+      canvas.removeEventListener('pointermove', onPointerMove);
+      canvas.removeEventListener('pointerleave', onPointerLeave);
       detachSelection();
       detachViewport();
       detachDiagram();
