@@ -62,6 +62,14 @@ export {
   tripsInRect,
 } from './selection';
 
+export { REVEAL_LEAD_AXIS, REVEAL_LEAD_MINUTES, viewToReveal } from './reveal';
+
+export {
+  attachSelectionReveal,
+  type RevealControlOptions,
+  type RevealStore,
+} from './revealControls';
+
 export {
   attachViewportControls,
   type ViewportControlOptions,

@@ -210,6 +210,16 @@ describe('V-06: 便間隔が極端', () => {
     });
     expect(strict.map((i) => i.id)).toContain('V-06');
   });
+
+  it('**どこの間隔かを停留所名で言う**（`1_0 で` では直せない。T-38）', () => {
+    // 5 分未満の間隔（0 分）。時刻は 5 分刻みでしか作れない。
+    const found = validateService([trip('S1', 8, 0), trip('S1', 8, 0)], network).find(
+      (i) => i.id === 'V-06',
+    );
+
+    expect(found?.message).toContain('豊中学舎');
+    expect(found?.message).not.toMatch(/\d+_\d+/);
+  });
 });
 
 describe('V-07: 運用番号が空欄', () => {

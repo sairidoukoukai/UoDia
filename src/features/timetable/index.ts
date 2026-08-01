@@ -31,4 +31,6 @@ export {
   type Move,
 } from './editing';
 
+export { directionToShow } from './sync';
+
 export { Timetable } from './Timetable';

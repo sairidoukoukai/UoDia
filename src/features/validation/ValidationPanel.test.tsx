@@ -244,13 +244,14 @@ describe('ジャンプ', () => {
     expect(after).toBe(fromHM(7, 40));
   });
 
-  it('時刻表の方向も切り替わる（見えていない便を選んだままにしない）', () => {
+  it('**方向タブは指図しない**（選択に追随して時刻表が開く。T-38）', () => {
     mount([makeTrip('t1', 'T1', 8, 'A')]);
-    expect(selectView(useAppStore.getState())?.activeDirection).toBe(0);
 
     press(items()[0]);
 
-    expect(selectView(useAppStore.getState())?.activeDirection).toBe(1);
+    // ここがするのは選ぶことだけである。開く方向は時刻表が決める
+    // （`directionToShow`。`Timetable.test.tsx` が確かめている）。
     expect(useAppStore.getState().ui.selectedTripIds).toEqual(['t1']);
+    expect(selectView(useAppStore.getState())?.activeDirection).toBe(0);
   });
 });

@@ -52,11 +52,22 @@ export function validateService(
     ),
     ...checkDeadheads(trips, network),
     ...blocks.flatMap((block) => checkBlockEnds(block)),
-    ...checkHeadway(service, thresholds),
+    ...checkHeadway(service, thresholds, network),
     ...unassigned.map((trip) => issue('V-07', '運用番号が空欄です', { tripId: trip.tripId })),
     ...unanchored.map((trip) => issue('V-08', '時刻が入力されていません', { tripId: trip.tripId })),
     ...blocks.flatMap((block) => checkStandby(block, thresholds)),
   ];
+}
+
+/**
+ * 停留所の名前。
+ *
+ * **指摘は名前で言う。** 読んで直すためのものであり、`4_0` と書かれてもどこの
+ * 話か分からない。名前が引けない ID（壊れた参照）はそのまま出す——伏せると、
+ * 何が壊れているのかを確かめる手立てが消える。
+ */
+function stopNameOf(stopId: string, network: NetworkIndex): string {
+  return network.findStop(stopId)?.stopName ?? stopId;
 }
 
 /**
@@ -113,11 +124,6 @@ function checkDeadheads(trips: readonly Trip[], network: NetworkIndex): Validati
  * V-02: 同一運用内で、折返し時分が負でないこと（仕様書 §2.2）。0 分は正常値。
  */
 function checkBlockConnection(block: Block, network: NetworkIndex): ValidationIssue[] {
-  // **停留所は名前で言う。** 指摘は利用者が読んで直すためのものであり、
-  // `4_0` と書かれてもどこの話か分からない。名前が引けない ID（壊れた参照）は
-  // そのまま出す——伏せると、何が壊れているのかを確かめる手立てが消える。
-  const stopName = (stopId: string): string => network.findStop(stopId)?.stopName ?? stopId;
-
   const issues: ValidationIssue[] = [];
 
   for (const [previous, current] of adjacentPairs(block.trips)) {
@@ -125,7 +131,7 @@ function checkBlockConnection(block: Block, network: NetworkIndex): ValidationIs
       issues.push(
         issue(
           'V-01',
-          `前の便は ${stopName(previous.terminalStopId)} 着ですが、この便は ${stopName(current.originStopId)} 発です`,
+          `前の便は ${stopNameOf(previous.terminalStopId, network)} 着ですが、この便は ${stopNameOf(current.originStopId, network)} 発です`,
           { blockId: block.blockId, tripId: current.trip.tripId },
         ),
       );
@@ -229,6 +235,7 @@ function resolveServiceTrips(trips: readonly Trip[], network: NetworkIndex): Ser
 function checkHeadway(
   service: readonly ServiceTrip[],
   thresholds: ValidationThresholds,
+  network: NetworkIndex,
 ): ValidationIssue[] {
   interface Passing {
     readonly tripId: string;
@@ -258,15 +265,23 @@ function checkHeadway(
       const gap = diffMinutes(current.time, previous.time);
       if (gap < thresholds.minHeadwayMinutes) {
         issues.push(
-          issue('V-06', `${stopId} で前の便との間隔が ${String(gap)} 分しかありません`, {
-            tripId: current.tripId,
-          }),
+          issue(
+            'V-06',
+            `${stopNameOf(stopId, network)} で前の便との間隔が ${String(gap)} 分しかありません`,
+            {
+              tripId: current.tripId,
+            },
+          ),
         );
       } else if (gap > thresholds.maxHeadwayMinutes) {
         issues.push(
-          issue('V-06', `${stopId} で前の便との間隔が ${String(gap)} 分空いています`, {
-            tripId: current.tripId,
-          }),
+          issue(
+            'V-06',
+            `${stopNameOf(stopId, network)} で前の便との間隔が ${String(gap)} 分空いています`,
+            {
+              tripId: current.tripId,
+            },
+          ),
         );
       }
     }

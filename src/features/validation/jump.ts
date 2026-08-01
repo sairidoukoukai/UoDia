@@ -9,7 +9,7 @@
  * 選択が付いてこない、といった半端な移動が生まれる。
  */
 
-import type { DirectionId, Trip } from '@/domain/model';
+import type { Trip } from '@/domain/model';
 import type { NetworkIndex } from '@/domain/network';
 import { compareTime, MAX_SECONDS, SECONDS_PER_MINUTE, type Seconds } from '@/domain/time';
 import { originTime } from '@/domain/trip';
@@ -18,17 +18,18 @@ import type { ValidationIssue } from '@/domain/validation';
 /**
  * 飛び先。**時刻が無い便もある**（`anchor` が `null`。V-08 が指すのはまさに
  * それである）ため、送り先は `null` になりうる。
+ *
+ * **方向タブは持たない**（T-38）。選んだ便の方向は時刻表が自分で開く
+ * （`directionToShow`）。飛ぶ側が指図すると、同じ規則が 2 か所に書かれる。
  */
 export interface JumpTarget {
   /** 選ぶ便。指す先が無ければ空。 */
   readonly tripIds: readonly string[];
-  /** 時刻表で開く方向。決められなければ `null`。 */
-  readonly directionId: DirectionId | null;
   /** ダイヤグラムで見せたい時刻。決められなければ `null`。 */
   readonly time: Seconds | null;
 }
 
-const NOWHERE: JumpTarget = { tripIds: [], directionId: null, time: null };
+const NOWHERE: JumpTarget = { tripIds: [], time: null };
 
 /**
  * 指摘の飛び先。
@@ -51,17 +52,7 @@ export function jumpTargetOf(
 
   if (targeted.length === 0) return NOWHERE;
 
-  const first = targeted[0];
-  const directionId =
-    first === undefined
-      ? null
-      : (network.patternIndex(first.patternId)?.pattern.directionId ?? null);
-
-  return {
-    tripIds: targeted.map((trip) => trip.tripId),
-    directionId,
-    time: earliest(targeted, network),
-  };
+  return { tripIds: targeted.map((trip) => trip.tripId), time: earliest(targeted, network) };
 }
 
 /** 選んだ便のうち一番早い始発時刻。どれも時刻が無ければ `null`。 */

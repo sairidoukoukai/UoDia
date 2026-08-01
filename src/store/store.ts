@@ -25,6 +25,7 @@ import { create } from 'zustand';
 import {
   clampSplitRatio,
   type DiagramView,
+  type DirectionId,
   type NetworkDef,
   type Project,
   type Trip,
@@ -173,6 +174,15 @@ export interface AppActions {
    * 履歴に載るが、パネルの開閉はそれには当たらない。
    */
   readonly setValidationPanelOpen: (open: boolean) => void;
+
+  /**
+   * 時刻表の方向タブを切り替える（仕様書 §6.1.1、T-38）。
+   *
+   * **履歴に載せない。** 同じダイヤの別の面を見るだけであり、どこを見ているかを
+   * 変えたに過ぎない。T-38 で**選択に追随して自動で切り替わる**ようになったため、
+   * 履歴に載せると、利用者が押していない操作が取り消しの段に積まれる。
+   */
+  readonly setActiveDirection: (directionId: DirectionId) => void;
 
   /**
    * 片方を最大化する（仕様書 §6.4、T-32）。`null` で 2 分割へ戻す。
@@ -402,6 +412,12 @@ export function createAppStore(): AppStoreHook {
         const splitRatio = clampSplitRatio(ratio);
         if (project === null || project.view.splitRatio === splitRatio) return;
         setView({ ...project.view, splitRatio });
+      },
+
+      setActiveDirection: (activeDirection): void => {
+        const { project } = get();
+        if (project === null || project.view.activeDirection === activeDirection) return;
+        setView({ ...project.view, activeDirection });
       },
 
       setValidationPanelOpen: (open): void => {
