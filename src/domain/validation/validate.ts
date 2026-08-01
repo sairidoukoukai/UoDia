@@ -39,7 +39,7 @@ export function validateService(
   const service = resolveServiceTrips(trips, network);
 
   return [
-    ...blocks.flatMap((block) => checkBlockConnection(block)),
+    ...blocks.flatMap((block) => checkBlockConnection(block, network)),
     ...blocks.flatMap((block) => checkBlockOverlap(block)),
     ...unresolved.map((trip) =>
       issue(
@@ -112,7 +112,12 @@ function checkDeadheads(trips: readonly Trip[], network: NetworkIndex): Validati
  *
  * V-02: 同一運用内で、折返し時分が負でないこと（仕様書 §2.2）。0 分は正常値。
  */
-function checkBlockConnection(block: Block): ValidationIssue[] {
+function checkBlockConnection(block: Block, network: NetworkIndex): ValidationIssue[] {
+  // **停留所は名前で言う。** 指摘は利用者が読んで直すためのものであり、
+  // `4_0` と書かれてもどこの話か分からない。名前が引けない ID（壊れた参照）は
+  // そのまま出す——伏せると、何が壊れているのかを確かめる手立てが消える。
+  const stopName = (stopId: string): string => network.findStop(stopId)?.stopName ?? stopId;
+
   const issues: ValidationIssue[] = [];
 
   for (const [previous, current] of adjacentPairs(block.trips)) {
@@ -120,7 +125,7 @@ function checkBlockConnection(block: Block): ValidationIssue[] {
       issues.push(
         issue(
           'V-01',
-          `前の便は ${previous.terminalStopId} 着ですが、この便は ${current.originStopId} 発です`,
+          `前の便は ${stopName(previous.terminalStopId)} 着ですが、この便は ${stopName(current.originStopId)} 発です`,
           { blockId: block.blockId, tripId: current.trip.tripId },
         ),
       );

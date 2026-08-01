@@ -166,6 +166,15 @@ export interface AppActions {
   readonly setSplitRatio: (ratio: number) => void;
 
   /**
+   * 検証パネルを開く・閉じる（仕様書 §6.6、T-34）。
+   *
+   * **履歴に載せず、未保存にもしない。** 送りや分割と同じで、どこを見ているかを
+   * 変えただけである。何を見るか（着色・フィルタ・編集中のダイヤ）は編集として
+   * 履歴に載るが、パネルの開閉はそれには当たらない。
+   */
+  readonly setValidationPanelOpen: (open: boolean) => void;
+
+  /**
    * 片方を最大化する（仕様書 §6.4、T-32）。`null` で 2 分割へ戻す。
    *
    * 保存しないため、ここだけはプロジェクトに触れない（`ui`）。
@@ -393,6 +402,12 @@ export function createAppStore(): AppStoreHook {
         const splitRatio = clampSplitRatio(ratio);
         if (project === null || project.view.splitRatio === splitRatio) return;
         setView({ ...project.view, splitRatio });
+      },
+
+      setValidationPanelOpen: (open): void => {
+        const { project } = get();
+        if (project === null || project.view.validationPanelOpen === open) return;
+        setView({ ...project.view, validationPanelOpen: open });
       },
 
       setMaximizedPane: (maximized): void => {

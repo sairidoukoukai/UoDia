@@ -228,6 +228,16 @@ describe('状態の形', () => {
     expect(state().project).toBe(before);
   });
 
+  it('**検証パネルの開閉も履歴に載らず、未保存にもならない**（T-34）', () => {
+    state().setValidationPanelOpen(false);
+
+    expect(state().project?.view.validationPanelOpen).toBe(false);
+    expect(state().history.past).toHaveLength(0);
+    expect(selectIsDirty(state())).toBe(false);
+    // 保存すればファイルに入る（開き直して同じ姿になる）。
+    expect(state().file.savedProject?.view.validationPanelOpen).toBe(false);
+  });
+
   it('**最大化は保存しない**（開き直した画面が潰れていない。T-32）', () => {
     state().setMaximizedPane('diagram');
 

@@ -14,6 +14,8 @@
   --color-grid: #e4e4e4;
   --color-grid-faint: #f0f0f0;
   --color-error: #c0392b;
+  /* 警告（検証パネル、T-34）。エラーの赤と情報の灰の間に置く。 */
+  --color-warning: #b26a00;
   /* アンカーの升目。色だけに頼らず太字も併用する（仕様書 §9.4）。 */
   --color-anchor: #fff2b8;
   --color-focus: #2f6fdb;
@@ -45,6 +47,7 @@
     --color-grid: #333333;
     --color-grid-faint: #2a2a2a;
     --color-error: #ff7b6b;
+    --color-warning: #e0a458;
     --color-anchor: #5a4a12;
     --color-focus: #7aa8ff;
     --color-invalid: #6b2a22;
@@ -78,7 +81,8 @@ body {
  */
 .app-shell {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  /* ツールバー・本体・検証パネル・ステータスバー。伸びるのは本体だけである。 */
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
   height: 100%;
   /* 子（分割領域）が縮めるようにする。既定の auto では中身の高さが下限になる。 */
   min-height: 0;
@@ -293,6 +297,107 @@ body {
 .split--dragging {
   cursor: row-resize;
   user-select: none;
+}
+
+/*
+ * 検証パネル（仕様書 §6.6、T-34）。
+ *
+ * 畳んでいるときは 1 行の帯である。**件数は畳んでも見える**（`ValidationPanel`）。
+ */
+.validation {
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg-accent);
+  font-size: 0.8125rem;
+}
+
+.validation__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.2rem 0.5rem;
+}
+
+.validation__toggle {
+  padding: 0 0.25rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.validation__count {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 色と記号を併用する（§9.4）。記号は `SEVERITY_MARK` が出す。 */
+.validation__count--error,
+.validation__item--error .validation__mark {
+  color: var(--color-error);
+}
+
+.validation__count--warning,
+.validation__item--warning .validation__mark {
+  color: var(--color-warning);
+}
+
+.validation__count--info,
+.validation__item--info .validation__mark {
+  color: var(--color-fg-muted);
+}
+
+.validation__summary {
+  color: var(--color-fg-muted);
+}
+
+.validation__filters {
+  display: flex;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+/* 一覧は伸ばしすぎない。画面の下半分を指摘で埋めると、直す場所が見えない。 */
+.validation__list {
+  max-height: 9rem;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  border-top: 1px solid var(--color-border);
+  list-style: none;
+}
+
+.validation__item {
+  display: flex;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.1rem 0.5rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.validation__item:hover {
+  background: var(--color-selected);
+}
+
+.validation__item:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+.validation__id {
+  flex: 0 0 auto;
+  color: var(--color-fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.validation__empty {
+  padding: 0.25rem 0.5rem;
+  color: var(--color-fg-muted);
 }
 
 /* ステータスバー（仕様書 §6.4）。 */
