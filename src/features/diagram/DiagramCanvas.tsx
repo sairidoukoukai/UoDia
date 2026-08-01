@@ -10,7 +10,6 @@ import { useEffect, useRef, type ReactElement } from 'react';
 import { useAppStore } from '@/store';
 import { attachDiagram } from './canvasHost';
 import { cursorAt, type DiagramCursor } from './cursor';
-import { DiagramControls } from './DiagramControls';
 import { viewportForCanvas } from './interaction';
 import { attachTripControls } from './tripControls';
 import { attachViewportControls } from './viewportControls';
@@ -110,7 +109,6 @@ export function DiagramCanvas(props: DiagramCanvasProps): ReactElement {
 
   return (
     <div className="diagram">
-      <DiagramControls />
       {/*
         **焦点を受け取れるようにする。** スペース + 引きずりと Ctrl+0 は
         キーボードの出来事であり、焦点の無い要素には届かない。押した時点で

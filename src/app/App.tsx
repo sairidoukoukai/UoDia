@@ -25,6 +25,7 @@ import {
   watchWindowTitle,
 } from '@/features/file';
 import { SplitLayout, StatusBar, Toolbar, attachShortcuts } from '@/features/shell';
+import { SidePanel } from '@/features/sidebar';
 import { Timetable } from '@/features/timetable';
 import { usePlatform, type RecentFile } from '@/platform';
 import { selectIsDirty, useAppStore } from '@/store';
@@ -197,7 +198,15 @@ export function App(): ReactElement {
         }
       />
 
-      <SplitLayout top={<DiagramCanvas onCursor={handleCursor} />} bottom={<Timetable />} />
+      {/*
+        サイドパネルは上下 2 分割の**外**に置く。ダイヤ・パターン・運用・表示は
+        どちらの画面にも同じように効くものであり（§6.4）、中に入れると
+        片方を最大化したときに消える。
+      */}
+      <div className="app-body">
+        <SidePanel />
+        <SplitLayout top={<DiagramCanvas onCursor={handleCursor} />} bottom={<Timetable />} />
+      </div>
 
       <StatusBar cursor={cursor} message={statusMessage} />
 
