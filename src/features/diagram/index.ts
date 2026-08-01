@@ -26,6 +26,24 @@ export {
 export { drawTrips, isTripVisible, tripPolyline, type ScreenPoint } from './drawTrips';
 
 export {
+  DEFAULT_DIAGRAM_VIEW,
+  axisBoundsOf,
+  clampScroll,
+  sameView,
+  viewAfterDrag,
+  viewAfterWheel,
+  viewportForCanvas,
+  type AxisBounds,
+  type WheelInput,
+} from './interaction';
+
+export {
+  attachViewportControls,
+  type ViewportControlOptions,
+  type ViewportStore,
+} from './viewportControls';
+
+export {
   selectDiagramScene,
   type DiagramScene,
   type ScenePoint,

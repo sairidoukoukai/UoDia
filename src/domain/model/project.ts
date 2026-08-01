@@ -107,12 +107,59 @@ export const diagramViewSchema = z.object({
   pxPerMinute: z.number().positive().default(3),
   /** 縦軸の拡大率（`axisPosition` 1 単位あたりの px）。 */
   pxPerAxisUnit: z.number().positive().default(6),
-  /** 表示左端の時刻。 */
-  scrollTime: secondsSchema.default(fromHM(7, 0)),
+  /**
+   * 表示左端の時刻（秒）。
+   *
+   * **5 分の倍数に縛らない**（v4.17）。5 分刻みの決まり（仕様書 §2.1）は便の
+   * 時刻についてのものであって、画面をどこまで送ったかについてのものではない。
+   * 縛ると、拡大の中心をカーソルに合わせられず（§6.2.3）、送りも 5 分単位に
+   * 飛ぶ。`Seconds` を名乗らないのはそのためである。
+   */
+  scrollTime: z.number().finite().default(fromHM(7, 0)),
   /** 表示上端の軸位置。 */
   scrollAxis: z.number().default(0),
 });
 export type DiagramView = z.infer<typeof diagramViewSchema>;
+
+/**
+ * 拡大率の下限と上限（仕様書 §6.2.3）。
+ *
+ * 下限は「1 日分（15 時間）がおよそ画面に収まる」ところ、上限は「1 分が指で
+ * 掴める幅になる」ところに置く。**際限なく縮められると、格子も文字も潰れた
+ * 灰色の帯だけが残り、戻す手立てが分からなくなる。**
+ */
+export const DIAGRAM_ZOOM_LIMITS = {
+  minPxPerMinute: 0.5,
+  maxPxPerMinute: 40,
+  minPxPerAxisUnit: 1,
+  maxPxPerAxisUnit: 60,
+} as const;
+
+/**
+ * 拡大率を下限と上限に収める。
+ *
+ * スキーマで縛らないのは、**範囲外の値を持つファイルを拒みたくない**ためで
+ * ある。開けないより、収めて開くほうがよい。
+ */
+export function clampDiagramView(view: DiagramView): DiagramView {
+  const pxPerMinute = clamp(
+    view.pxPerMinute,
+    DIAGRAM_ZOOM_LIMITS.minPxPerMinute,
+    DIAGRAM_ZOOM_LIMITS.maxPxPerMinute,
+  );
+  const pxPerAxisUnit = clamp(
+    view.pxPerAxisUnit,
+    DIAGRAM_ZOOM_LIMITS.minPxPerAxisUnit,
+    DIAGRAM_ZOOM_LIMITS.maxPxPerAxisUnit,
+  );
+  if (pxPerMinute === view.pxPerMinute && pxPerAxisUnit === view.pxPerAxisUnit) return view;
+
+  return { ...view, pxPerMinute, pxPerAxisUnit };
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
 
 /**
  * 表示設定（仕様書 §5.10）。プロジェクトに保存され、開き直しても再現される。

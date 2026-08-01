@@ -27,8 +27,10 @@ export {
 
 export {
   anchorSchema,
+  clampDiagramView,
   colorModeSchema,
   CURRENT_FORMAT_VERSION,
+  DIAGRAM_ZOOM_LIMITS,
   diagramViewSchema,
   documentInfoSchema,
   metaSchema,

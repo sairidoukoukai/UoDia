@@ -22,7 +22,7 @@
 
 import { applyPatches, enablePatches, produceWithPatches, type Patch } from 'immer';
 import { create } from 'zustand';
-import type { NetworkDef, Project, Trip } from '@/domain/model';
+import type { DiagramView, NetworkDef, Project, Trip } from '@/domain/model';
 import { validateNetwork, type NetworkIssue } from '@/domain/network';
 import type { FileHandle } from '@/platform';
 import {
@@ -132,6 +132,17 @@ export interface AppActions {
    * もない（選択と同じ扱い）。
    */
   readonly copyTrips: (trips: readonly Trip[]) => void;
+
+  /**
+   * ダイヤグラムの視野を変える（仕様書 §6.2.3、T-27）。
+   *
+   * **履歴に載せない。** 画面を送ることも拡げることも編集ではない。undo が
+   * 「さっき縮めたぶん」を戻し始めたら、便を直した記憶にたどり着けない。
+   *
+   * **未保存にもしない。** 視野はファイルに保存されるが（仕様書 §5.10）、それは
+   * 開き直したときの便宜であって、保存を促すほどの中身ではない。
+   */
+  readonly setDiagramView: (view: DiagramView) => void;
 }
 
 export type AppStore = AppState & AppActions;
@@ -281,6 +292,21 @@ export function createAppStore(): AppStoreHook {
 
       copyTrips: (trips): void => {
         set({ ui: { ...get().ui, clipboard: [...trips] } });
+      },
+
+      setDiagramView: (diagram): void => {
+        const { project, file } = get();
+        if (project === null || project.view.diagram === diagram) return;
+
+        const next: Project = { ...project, view: { ...project.view, diagram } };
+        set({
+          project: next,
+          // **保存済みだったなら保存済みのままにする。** 未保存かどうかは
+          // 「保存した内容と同じ参照か」で決まるため（`selectIsDirty`）、
+          // 何もしないと画面を送っただけで未保存になり、閉じるたびに
+          // 保存を尋ねられる。編集中（既に未保存）なら触らない。
+          file: file.savedProject === project ? { ...file, savedProject: next } : file,
+        });
       },
     };
   });

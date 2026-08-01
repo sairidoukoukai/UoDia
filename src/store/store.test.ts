@@ -10,7 +10,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createProject } from '@/domain/io';
-import type { Project, Trip } from '@/domain/model';
+import type { DiagramView, Project, Trip } from '@/domain/model';
 import { loadNetworkDef, type NetworkIndex } from '@/domain/network';
 import { fromHM } from '@/domain/time';
 import { createAppStore, type AppStore } from './store';
@@ -66,6 +66,13 @@ function state(): AppStore {
   return store.getState();
 }
 
+/** いまの視野。開いていなければ既定値（テストでは常に開いている）。 */
+function view(): DiagramView {
+  const diagram = store.getState().project?.view.diagram;
+  if (diagram === undefined) throw new Error('プロジェクトが開かれていません');
+  return diagram;
+}
+
 beforeEach(() => {
   store = createAppStore();
   store.getState().setNetworkDef(network.def);
@@ -98,6 +105,66 @@ describe('状態の形', () => {
     state().copyTrips([makeTrip('S1', 8, 0)]);
     state().clearSelection();
     expect(state().ui.clipboard).toHaveLength(1);
+  });
+
+  it('**視野を変えても履歴に載らない**（画面を送ることは編集ではない。T-27）', () => {
+    state().editProject('便を置く', (project) => {
+      project.document.name = '試作';
+    });
+    const before = state().history.past.length;
+
+    state().setDiagramView({ ...view(), pxPerMinute: 6 });
+
+    expect(state().history.past.length).toBe(before);
+    // 取り消しても視野は戻らない（戻る先は 1 つ前の編集である）。
+    state().undo();
+    expect(state().project?.view.diagram.pxPerMinute).toBe(6);
+  });
+
+  it('**視野を変えても未保存にならない**（閉じるたびに保存を尋ねられない）', () => {
+    expect(selectIsDirty(state())).toBe(false);
+
+    state().setDiagramView({ ...view(), scrollTime: fromHM(9, 0) });
+
+    expect(selectIsDirty(state())).toBe(false);
+    expect(state().project?.view.diagram.scrollTime).toBe(fromHM(9, 0));
+  });
+
+  it('編集中なら未保存のままである', () => {
+    state().editProject('文書名の変更', (project) => {
+      project.document.name = '試作';
+    });
+    expect(selectIsDirty(state())).toBe(true);
+
+    state().setDiagramView({ ...view(), scrollTime: fromHM(9, 0) });
+    expect(selectIsDirty(state())).toBe(true);
+  });
+
+  it('**保存すれば視野もファイルに入る**（開き直して再現される）', () => {
+    state().setDiagramView({ ...view(), pxPerMinute: 12 });
+    const saved = state().project;
+
+    expect(saved?.view.diagram.pxPerMinute).toBe(12);
+    expect(state().file.savedProject).toBe(saved);
+  });
+
+  it('同じ視野を渡しても状態を作り直さない', () => {
+    const before = state().project;
+    state().setDiagramView(view());
+
+    expect(state().project).toBe(before);
+  });
+
+  it('プロジェクトが無ければ何も起きない', () => {
+    const fresh = createAppStore();
+    fresh.getState().setDiagramView({
+      pxPerMinute: 3,
+      pxPerAxisUnit: 6,
+      scrollTime: fromHM(7, 0),
+      scrollAxis: 0,
+    });
+
+    expect(fresh.getState().project).toBeNull();
   });
 
   it('初期状態では何も読み込まれていない', () => {

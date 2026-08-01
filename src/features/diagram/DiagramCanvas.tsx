@@ -10,6 +10,7 @@ import { useEffect, useRef, type ReactElement } from 'react';
 import { useAppStore } from '@/store';
 import { attachDiagram } from './canvasHost';
 import { DiagramControls } from './DiagramControls';
+import { attachViewportControls } from './viewportControls';
 import type { SceneTheme } from './scene';
 
 /** 画面のテーマから描画に使う色を読む（仕様書 §9.4）。 */
@@ -38,13 +39,25 @@ export function DiagramCanvas(): ReactElement {
     // **色は繋ぐときに 1 度だけ読む。** `attachDiagram` がその参照を毎フレーム
     // 使い回すため、場面の組み立てが無駄に走らない（`selectDiagramScene`）。
     // テーマの切り替えに追随させるのは T-39 の仕事である。
-    return attachDiagram({ canvas, store: useAppStore, theme: readTheme(canvas) });
+    const theme = readTheme(canvas);
+    const detachDiagram = attachDiagram({ canvas, store: useAppStore, theme });
+    const detachControls = attachViewportControls({ canvas, store: useAppStore, theme });
+
+    return () => {
+      detachControls();
+      detachDiagram();
+    };
   }, []);
 
   return (
     <div className="diagram">
       <DiagramControls />
-      <canvas ref={canvasRef} className="diagram__canvas" aria-label="ダイヤグラム" />
+      {/*
+        **焦点を受け取れるようにする。** スペース + 引きずりと Ctrl+0 は
+        キーボードの出来事であり、焦点の無い要素には届かない。押した時点で
+        焦点を移す（`viewportControls.ts`）。
+      */}
+      <canvas ref={canvasRef} className="diagram__canvas" aria-label="ダイヤグラム" tabIndex={0} />
     </div>
   );
 }
