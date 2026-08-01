@@ -87,6 +87,26 @@ describe('V-01: 同一運用内の停留所不一致', () => {
     expect(found?.severity).toBe('error');
     expect(found?.target).toEqual({ blockId: '1', tripId: trips[1]?.tripId });
   });
+
+  it('名前を引けない停留所は ID のまま出す（伏せると何が壊れたか分からない）', () => {
+    // 路線図と便が食い違っている状態を作る。名前が無いからといって黙ると、
+    // 「前の便は  着です」という読めない指摘になる。
+    const broken: NetworkIndex = { ...network, findStop: () => undefined };
+    const found = validateService([trip('S1', 8, 0, '1'), trip('S1', 9, 0, '1')], broken).find(
+      (i) => i.id === 'V-01',
+    );
+
+    expect(found?.message).toMatch(/\d+_\d+/);
+  });
+
+  it('**停留所は名前で言う**（`4_0` と書かれても直せない。T-34）', () => {
+    const trips = [trip('S1', 8, 0, '1'), trip('S1', 9, 0, '1')];
+    const found = validateService(trips, network).find((i) => i.id === 'V-01');
+
+    expect(found?.message).toContain('工学部前');
+    expect(found?.message).toContain('豊中学舎');
+    expect(found?.message).not.toMatch(/\d+_\d+/);
+  });
 });
 
 describe('V-02: 折返し時分が負', () => {

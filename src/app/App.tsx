@@ -27,6 +27,7 @@ import {
 import { SplitLayout, StatusBar, Toolbar, attachShortcuts } from '@/features/shell';
 import { SidePanel } from '@/features/sidebar';
 import { Timetable } from '@/features/timetable';
+import { ValidationPanel } from '@/features/validation';
 import { usePlatform, type RecentFile } from '@/platform';
 import { selectIsDirty, useAppStore } from '@/store';
 
@@ -207,6 +208,12 @@ export function App(): ReactElement {
         <SidePanel />
         <SplitLayout top={<DiagramCanvas onCursor={handleCursor} />} bottom={<Timetable />} />
       </div>
+
+      {/*
+        検証パネルはサイドパネルの下も含めて画面の幅いっぱいに置く（§6.4）。
+        指摘は 1 行の文であり、狭い柱に押し込むと読めない。
+      */}
+      <ValidationPanel />
 
       <StatusBar cursor={cursor} message={statusMessage} />
 

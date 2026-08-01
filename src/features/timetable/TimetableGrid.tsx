@@ -197,6 +197,24 @@ export function TimetableGrid(props: TimetableGridProps): ReactElement {
     cellElement(grid, focus)?.focus();
   }, [focus, editing]);
 
+  /**
+   * 選ばれた便の列を画面に入れる（T-34 の「該当箇所へジャンプする」）。
+   *
+   * **焦点は移さない。** 検証パネルから飛んだときも、時刻表を触ったときも、
+   * 利用者の手はまだそこに無い。見えるところまで寄せるだけにする。
+   */
+  const firstSelected = selectedTripIds[0];
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (grid === null || firstSelected === undefined) return;
+
+    const column = grid.querySelector<HTMLElement>(`[data-trip-id="${firstSelected}"]`);
+    // jsdom には `scrollIntoView` が無い。寄せられない環境でも表は正しく出る。
+    if (typeof column?.scrollIntoView === 'function') {
+      column.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    }
+  }, [firstSelected]);
+
   // 丸めの点滅は一定時間で消す（仕様書 §6.1.2）。
   useEffect(() => {
     if (flash === null) return;
@@ -315,6 +333,8 @@ export function TimetableGrid(props: TimetableGridProps): ReactElement {
                 key={column?.trip.tripId ?? `empty-${String(index)}`}
                 scope="col"
                 className={columnClass(column?.pattern ?? null, marks(column))}
+                // 選ばれた便の列を探すための目印（T-34）。
+                data-trip-id={column?.trip.tripId}
               >
                 {/*
                   列見出しは押しボタンにする。便を選ぶ手立てがここしか無く、
