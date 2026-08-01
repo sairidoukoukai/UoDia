@@ -1,4 +1,6 @@
-export { DiagramCanvas } from './DiagramCanvas';
+export { DiagramCanvas, type DiagramCanvasProps } from './DiagramCanvas';
+
+export { cursorAt, type DiagramCursor } from './cursor';
 
 export {
   attachDiagram,

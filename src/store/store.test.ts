@@ -10,7 +10,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createProject } from '@/domain/io';
-import type { DiagramView, Project, Trip } from '@/domain/model';
+import { projectSchema, type DiagramView, type Project, type Trip } from '@/domain/model';
 import { loadNetworkDef, type NetworkIndex } from '@/domain/network';
 import { fromHM } from '@/domain/time';
 import { createAppStore, type AppStore } from './store';
@@ -87,16 +87,19 @@ describe('状態の形', () => {
   });
 
   it('表示設定は project.view にあり、ui には無い（二重管理を避ける）', () => {
-    // ui に置くのは保存しないものだけである——選択・写した便・囲んでいる最中の枠。
-    // 拡大率や送りの位置（`view.diagram`）は保存されるため、ここには無い（T-27）。
+    // ui に置くのは保存しないものだけである——選択・写した便・囲んでいる最中の枠、
+    // それに最大化（T-32）。拡大率や送りの位置（`view.diagram`）、分割比率
+    // （`view.splitRatio`）は保存されるため、ここには無い。
     expect(Object.keys(state().ui).sort()).toEqual([
       'clipboard',
+      'maximized',
       'selectedTripIds',
       'selectionRect',
       'tripShift',
     ]);
     expect(state().project?.view.activeDirection).toBe(0);
     expect(state().project?.view.diagram.pxPerMinute).toBe(3);
+    expect(state().project?.view.splitRatio).toBe(0.6);
   });
 
   it('**写した便は履歴に載らない**（取り消しても消えない。T-53）', () => {
@@ -196,6 +199,49 @@ describe('状態の形', () => {
     expect(state().history.past).toHaveLength(0);
     expect(selectIsDirty(state())).toBe(false);
     expect(state().ui.tripShift?.minutes).toBe(15);
+  });
+
+  it('**分割比率も履歴に載らず、未保存にもならない**（T-32）', () => {
+    state().setSplitRatio(0.3);
+
+    expect(state().history.past).toHaveLength(0);
+    expect(selectIsDirty(state())).toBe(false);
+    // 保存すればファイルに入る（開き直して再現される）。
+    expect(state().file.savedProject?.view.splitRatio).toBe(0.3);
+  });
+
+  it('**分割比率は下限と上限に収める**（開けないファイルを作らない）', () => {
+    state().setSplitRatio(2);
+    expect(state().project?.view.splitRatio).toBe(0.9);
+
+    state().setSplitRatio(-1);
+    expect(state().project?.view.splitRatio).toBe(0.1);
+
+    // スキーマが縛っている範囲であること——収めずに書くと読み込めなくなる。
+    expect(() => projectSchema.parse(state().project)).not.toThrow();
+  });
+
+  it('同じ比率を渡しても状態を作り直さない', () => {
+    const before = state().project;
+    state().setSplitRatio(before?.view.splitRatio ?? 0.6);
+
+    expect(state().project).toBe(before);
+  });
+
+  it('**最大化は保存しない**（開き直した画面が潰れていない。T-32）', () => {
+    state().setMaximizedPane('diagram');
+
+    expect(state().ui.maximized).toBe('diagram');
+    expect(state().history.past).toHaveLength(0);
+    expect(selectIsDirty(state())).toBe(false);
+    expect(state().project?.view).not.toHaveProperty('maximized');
+  });
+
+  it('プロジェクトを差し替えても最大化は残る（画面の姿はファイルに紐付かない）', () => {
+    state().setMaximizedPane('timetable');
+    state().setProject(makeProject([]));
+
+    expect(state().ui.maximized).toBe('timetable');
   });
 
   it('プロジェクトを差し替えると枠は消える', () => {
