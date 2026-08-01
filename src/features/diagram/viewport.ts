@@ -12,13 +12,7 @@
  * レンダラを書き直すことになる。
  */
 
-import {
-  fromHM,
-  GRAIN_SECONDS,
-  MAX_SECONDS,
-  SECONDS_PER_MINUTE,
-  type Seconds,
-} from '@/domain/time';
+import { fromHM, GRAIN_SECONDS, MAX_SECONDS, SECONDS_PER_MINUTE } from '@/domain/time';
 
 /**
  * 描画の視野。
@@ -66,8 +60,14 @@ export const TIME_LABEL_HEIGHT = 24;
 export const DIAGRAM_START_TIME = fromHM(7, 0);
 export const DIAGRAM_END_TIME = fromHM(22, 0);
 
-/** 時刻 → x 座標。 */
-export function timeToX(time: Seconds, viewport: Viewport): number {
+/**
+ * 時刻 → x 座標。
+ *
+ * **`Seconds` に限らない。** 送りの位置や矩形選択の端は 5 分の倍数にならない
+ * （T-27、T-28）。ここは掛け算と足し算しかしておらず、5 分の倍数であることを
+ * 使ってもいない。
+ */
+export function timeToX(time: number, viewport: Viewport): number {
   return (
     viewport.originX + ((time - viewport.startTime) / SECONDS_PER_MINUTE) * viewport.pxPerMinute
   );
@@ -129,6 +129,42 @@ export function plotXRange(
   const left = Math.max(viewport.originX, timeToX(DIAGRAM_START_TIME, viewport));
   const right = Math.min(viewport.width, timeToX(DIAGRAM_END_TIME, viewport));
   return right > left ? { left, right } : null;
+}
+
+/** 画面上の矩形（px）。 */
+export interface ScreenRect {
+  readonly left: number;
+  readonly top: number;
+  readonly right: number;
+  readonly bottom: number;
+}
+
+/**
+ * 描くものの座標で持った矩形を、画面の座標に直す。
+ *
+ * 矩形選択の枠（T-28）に使う。**引数の型を構造で受ける**ことで、この層が
+ * ストアの型（`SelectionRect`）を知らずに済む。
+ */
+export function screenRect(
+  rect: {
+    readonly fromTime: number;
+    readonly toTime: number;
+    readonly fromAxis: number;
+    readonly toAxis: number;
+  },
+  viewport: Viewport,
+): ScreenRect {
+  const x1 = timeToX(rect.fromTime, viewport);
+  const x2 = timeToX(rect.toTime, viewport);
+  const y1 = axisToY(rect.fromAxis, viewport);
+  const y2 = axisToY(rect.toAxis, viewport);
+
+  return {
+    left: Math.min(x1, x2),
+    right: Math.max(x1, x2),
+    top: Math.min(y1, y2),
+    bottom: Math.max(y1, y2),
+  };
 }
 
 /** プロジェクトに保存された表示設定と canvas の大きさから視野を作る。 */

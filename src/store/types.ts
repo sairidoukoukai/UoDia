@@ -29,10 +29,30 @@ import type { NetworkDef, Project, Trip } from '@/domain/model';
 import type { FileHandle } from '@/platform';
 import type { History } from './history';
 
+/**
+ * 矩形選択で囲んでいる範囲（仕様書 §6.3.1、T-28）。
+ *
+ * **画面の px ではなく、描くものの座標（時刻と軸位置）で持つ。** px で持つと、
+ * 拡大率や canvas の大きさが変わった瞬間に、囲んでいた範囲が別の便を指す。
+ */
+export interface SelectionRect {
+  readonly fromTime: number;
+  readonly toTime: number;
+  readonly fromAxis: number;
+  readonly toAxis: number;
+}
+
 /** 保存しない状態。 */
 export interface UiState {
   /** 選択中の便。時刻表とダイヤグラムで共有する（仕様書 §6.3.1）。 */
   readonly selectedTripIds: readonly string[];
+  /**
+   * 引きずっている最中の選択の矩形。掴んでいなければ `null`。
+   *
+   * 引きずり終えれば消える。**画面に出ている途中経過であって、編集の結果では
+   * ない**ため、履歴にもファイルにも入らない。
+   */
+  readonly selectionRect: SelectionRect | null;
   /**
    * 写した便（仕様書 §6.1.4、§8.1、T-53）。貼り付けるまで持つ。
    *

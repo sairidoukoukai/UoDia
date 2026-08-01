@@ -87,9 +87,15 @@ describe('状態の形', () => {
   });
 
   it('表示設定は project.view にあり、ui には無い（二重管理を避ける）', () => {
-    // ui に置くのは保存しないもの（選択と写した便）だけである。
-    expect(Object.keys(state().ui).sort()).toEqual(['clipboard', 'selectedTripIds']);
+    // ui に置くのは保存しないものだけである——選択・写した便・囲んでいる最中の枠。
+    // 拡大率や送りの位置（`view.diagram`）は保存されるため、ここには無い（T-27）。
+    expect(Object.keys(state().ui).sort()).toEqual([
+      'clipboard',
+      'selectedTripIds',
+      'selectionRect',
+    ]);
     expect(state().project?.view.activeDirection).toBe(0);
+    expect(state().project?.view.diagram.pxPerMinute).toBe(3);
   });
 
   it('**写した便は履歴に載らない**（取り消しても消えない。T-53）', () => {
@@ -165,6 +171,29 @@ describe('状態の形', () => {
     });
 
     expect(fresh.getState().project).toBeNull();
+  });
+
+  it('**囲んでいる最中の枠は履歴に載らない**（T-28）', () => {
+    state().setSelectionRect({ fromTime: 0, toTime: 100, fromAxis: 0, toAxis: 10 });
+    expect(state().history.past).toHaveLength(0);
+    expect(selectIsDirty(state())).toBe(false);
+
+    state().setSelectionRect(null);
+    expect(state().ui.selectionRect).toBeNull();
+  });
+
+  it('同じ枠を渡しても状態を作り直さない', () => {
+    const before = state().ui;
+    state().setSelectionRect(null);
+
+    expect(state().ui).toBe(before);
+  });
+
+  it('プロジェクトを差し替えると枠は消える', () => {
+    state().setSelectionRect({ fromTime: 0, toTime: 100, fromAxis: 0, toAxis: 10 });
+    state().setProject(makeProject([]));
+
+    expect(state().ui.selectionRect).toBeNull();
   });
 
   it('初期状態では何も読み込まれていない', () => {

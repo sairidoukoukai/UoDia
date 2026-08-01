@@ -219,6 +219,7 @@ describe('送りの範囲', () => {
       stops: [],
       trips: [],
       selectedTripIds: new Set(),
+      selectionRect: null,
       theme: {
         background: '#fff',
         axis: '#ccc',

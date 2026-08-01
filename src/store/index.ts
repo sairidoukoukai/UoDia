@@ -12,6 +12,7 @@ export {
   type AppState,
   type DocumentState,
   type FileState,
+  type SelectionRect,
   type UiState,
 } from './types';
 
