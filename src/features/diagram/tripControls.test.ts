@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 
 /**
- * 選択の結線の検証（T-28）。
+ * 選択と移動の結線の検証（T-28／T-29）。
  *
  * 当たり判定そのものは `selection.test.ts` が見る。ここで確かめるのは
- * **押し下げが選択に繋がるか**と、**送り（T-27）と取り合わないか**である。
+ * **押し下げが選ぶ・囲む・動かすのどれに繋がるか**と、**送り（T-27）と
+ * 取り合わないか**である。
  */
 
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -15,7 +16,7 @@ import { loadNetworkDef, type NetworkIndex } from '@/domain/network';
 import { fromHM } from '@/domain/time';
 import { createAppStore } from '@/store';
 import type { SceneTheme } from './scene';
-import { attachSelectionControls } from './selectionControls';
+import { attachTripControls } from './tripControls';
 import { attachViewportControls } from './viewportControls';
 
 const loaded = loadNetworkDef(routeJson);
@@ -89,7 +90,7 @@ beforeEach(() => {
   canvas.tabIndex = 0;
   sizeOf(canvas, 1000, 420);
   document.body.append(canvas);
-  detach = attachSelectionControls({ canvas, store, theme });
+  detach = attachTripControls({ canvas, store, theme });
 });
 
 describe('クリックで選ぶ', () => {
@@ -203,7 +204,7 @@ describe('送り（T-27）と取り合わない', () => {
     // 画面と同じ順に繋ぐ。押し下げは登録した順に届く。
     detach();
     const detachViewport = attachViewportControls({ canvas, store, theme });
-    const detachSelection = attachSelectionControls({ canvas, store, theme });
+    const detachSelection = attachTripControls({ canvas, store, theme });
     detach = () => {
       detachSelection();
       detachViewport();
@@ -236,6 +237,159 @@ describe('送り（T-27）と取り合わない', () => {
     pointer('pointerup', ON_LINE, window);
 
     expect(selected()).toEqual(['t1']);
+  });
+});
+
+describe('引きずって動かす（仕様書 §6.3.2、T-29）', () => {
+  /** ある点から dx・dy だけ引きずる。既定はスジの上から。 */
+  function drag(dx: number, dy = 0, from: MouseEventInit = ON_LINE): void {
+    const to = { clientX: (from.clientX ?? 0) + dx, clientY: (from.clientY ?? 0) + dy };
+    pointer('pointerdown', { button: 0, ...from });
+    pointer('pointermove', to, window);
+    pointer('pointerup', to, window);
+  }
+
+  const anchorOf = (tripId: string) =>
+    store.getState().project?.services[0]?.trips.find((trip) => trip.tripId === tripId)?.anchor ??
+    null;
+
+  it('**便が水平に動く**（1 分 3px なら 45px で 15 分）', () => {
+    drag(45);
+
+    expect(anchorOf('t1')?.time).toBe(fromHM(8, 15));
+    // アンカー停留所は変わらない（仕様書 §6.3.2）。
+    expect(anchorOf('t1')?.stopId).toBe('1_0');
+  });
+
+  it('**5 分に吸い付く**（20px = 6.7 分 → 5 分）', () => {
+    drag(20);
+    expect(anchorOf('t1')?.time).toBe(fromHM(8, 5));
+  });
+
+  it('左へ引きずれば早くなる', () => {
+    drag(-45);
+    expect(anchorOf('t1')?.time).toBe(fromHM(7, 45));
+  });
+
+  it('**縦の動きは無視する**（傾きは区間所要時間で決まる）', () => {
+    drag(45, 200);
+    expect(anchorOf('t1')?.time).toBe(fromHM(8, 15));
+  });
+
+  it('**傾きは変わらない**（アンカーだけが動く）', () => {
+    const before = store.getState().project?.services[0]?.trips[0];
+    drag(45);
+    const after = store.getState().project?.services[0]?.trips[0];
+
+    expect(after?.patternId).toBe(before?.patternId);
+    expect(after?.anchor?.stopId).toBe(before?.anchor?.stopId);
+  });
+
+  it('掴んだスジが選ばれる（何が動くのかを見せてから動かす）', () => {
+    drag(45);
+    expect(selected()).toEqual(['t1']);
+  });
+
+  it('**選んである便はまとめて動く**（仕様書 §6.3.2）', () => {
+    store.getState().selectTrips(['t1', 't2']);
+    drag(45);
+
+    expect(anchorOf('t1')?.time).toBe(fromHM(8, 15));
+    expect(anchorOf('t2')?.time).toBe(fromHM(9, 15));
+    expect([...selected()].sort()).toEqual(['t1', 't2']);
+  });
+
+  it('選択に入っていないスジを掴んだら、その 1 本だけが動く', () => {
+    store.getState().selectTrips(['t2']);
+    drag(45);
+
+    expect(anchorOf('t1')?.time).toBe(fromHM(8, 15));
+    expect(anchorOf('t2')?.time).toBe(fromHM(9, 0));
+    expect(selected()).toEqual(['t1']);
+  });
+
+  it('**引きずり全体が 1 回の取り消しで戻る**（受入条件）', () => {
+    const before = store.getState().history.past.length;
+
+    // 途中経過を何度も挟む。
+    pointer('pointerdown', { button: 0, ...ON_LINE });
+    for (const dx of [15, 30, 45, 60]) {
+      pointer('pointermove', { clientX: ON_LINE.clientX + dx, clientY: ON_LINE.clientY }, window);
+    }
+    pointer('pointerup', { clientX: ON_LINE.clientX + 60, clientY: ON_LINE.clientY }, window);
+
+    expect(anchorOf('t1')?.time).toBe(fromHM(8, 20));
+    expect(store.getState().history.past.length).toBe(before + 1);
+
+    store.getState().undo();
+    expect(anchorOf('t1')?.time).toBe(fromHM(8, 0));
+  });
+
+  it('**2 回引きずれば 2 回の取り消しになる**（鍵を使い回さない）', () => {
+    drag(45);
+    // 1 度目で線が 45px 右へ動いている。**動いた先を掴み直す。**
+    drag(45, 0, { clientX: ON_LINE.clientX + 45, clientY: ON_LINE.clientY });
+    expect(anchorOf('t1')?.time).toBe(fromHM(8, 30));
+
+    store.getState().undo();
+    expect(anchorOf('t1')?.time).toBe(fromHM(8, 15));
+  });
+
+  it('**Esc で元の位置に戻る**（受入条件）', () => {
+    pointer('pointerdown', { button: 0, ...ON_LINE });
+    pointer('pointermove', { clientX: ON_LINE.clientX + 45, clientY: ON_LINE.clientY }, window);
+    expect(anchorOf('t1')?.time).toBe(fromHM(8, 15));
+
+    canvas.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', cancelable: true }));
+
+    expect(anchorOf('t1')?.time).toBe(fromHM(8, 0));
+    expect(store.getState().ui.tripShift).toBeNull();
+  });
+
+  it('Esc のあとに離しても選択は変わらない', () => {
+    store.getState().selectTrips(['t2']);
+    pointer('pointerdown', { button: 0, ...ON_LINE });
+    pointer('pointermove', { clientX: ON_LINE.clientX + 45, clientY: ON_LINE.clientY }, window);
+    canvas.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', cancelable: true }));
+    pointer('pointerup', { clientX: ON_LINE.clientX + 45, clientY: ON_LINE.clientY }, window);
+
+    expect(anchorOf('t1')?.time).toBe(fromHM(8, 0));
+  });
+
+  it('**動かしていなければ Esc で前の編集を消さない**', () => {
+    const before = store.getState().history.past.length;
+    pointer('pointerdown', { button: 0, ...ON_LINE });
+    canvas.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', cancelable: true }));
+
+    expect(store.getState().history.past.length).toBe(before);
+  });
+
+  it('**移動量が画面に出る**（離すと消える）', () => {
+    pointer('pointerdown', { button: 0, ...ON_LINE });
+    pointer('pointermove', { clientX: ON_LINE.clientX + 45, clientY: ON_LINE.clientY }, window);
+
+    expect(store.getState().ui.tripShift?.minutes).toBe(15);
+
+    pointer('pointerup', { clientX: ON_LINE.clientX + 45, clientY: ON_LINE.clientY }, window);
+    expect(store.getState().ui.tripShift).toBeNull();
+  });
+
+  it('**表せる範囲を外れるなら動かさない**（1 便でも外れたら全部止める）', () => {
+    // 8:00 の便を 10 時間以上早めることはできない。
+    drag(-2000);
+
+    expect(anchorOf('t1')?.time).toBe(fromHM(8, 0));
+  });
+
+  it('掴んだ場所が何も無ければ矩形選択になる（動かさない）', () => {
+    pointer('pointerdown', { button: 0, clientX: 900, clientY: 380 });
+    pointer('pointermove', { clientX: 950, clientY: 400 }, window);
+
+    expect(store.getState().ui.selectionRect).not.toBeNull();
+    expect(store.getState().ui.tripShift).toBeNull();
+
+    pointer('pointerup', { clientX: 950, clientY: 400 }, window);
+    expect(anchorOf('t1')?.time).toBe(fromHM(8, 0));
   });
 });
 

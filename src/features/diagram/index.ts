@@ -46,10 +46,10 @@ export {
 
 export {
   DRAG_THRESHOLD,
-  attachSelectionControls,
-  type SelectionControlOptions,
-  type SelectionStore,
-} from './selectionControls';
+  attachTripControls,
+  type TripControlOptions,
+  type TripControlStore,
+} from './tripControls';
 
 export {
   HIT_TOLERANCE,

@@ -93,6 +93,7 @@ describe('状態の形', () => {
       'clipboard',
       'selectedTripIds',
       'selectionRect',
+      'tripShift',
     ]);
     expect(state().project?.view.activeDirection).toBe(0);
     expect(state().project?.view.diagram.pxPerMinute).toBe(3);
@@ -187,6 +188,14 @@ describe('状態の形', () => {
     state().setSelectionRect(null);
 
     expect(state().ui).toBe(before);
+  });
+
+  it('**引きずっている最中の移動量も履歴に載らない**（T-29）', () => {
+    state().setTripShift({ minutes: 15, atTime: 0, atAxis: 0 });
+
+    expect(state().history.past).toHaveLength(0);
+    expect(selectIsDirty(state())).toBe(false);
+    expect(state().ui.tripShift?.minutes).toBe(15);
   });
 
   it('プロジェクトを差し替えると枠は消える', () => {

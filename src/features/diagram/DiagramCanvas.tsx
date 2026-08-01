@@ -10,7 +10,7 @@ import { useEffect, useRef, type ReactElement } from 'react';
 import { useAppStore } from '@/store';
 import { attachDiagram } from './canvasHost';
 import { DiagramControls } from './DiagramControls';
-import { attachSelectionControls } from './selectionControls';
+import { attachTripControls } from './tripControls';
 import { attachViewportControls } from './viewportControls';
 import type { SceneTheme } from './scene';
 
@@ -43,9 +43,9 @@ export function DiagramCanvas(): ReactElement {
     const theme = readTheme(canvas);
     const detachDiagram = attachDiagram({ canvas, store: useAppStore, theme });
     // **送りを先に繋ぐ。** 押し下げは登録した順に届く。送りの側が先に受け取って
-    // `preventDefault` を立てることで、選択の側が譲れる（`selectionControls.ts`）。
+    // `preventDefault` を立てることで、選択の側が譲れる（`tripControls.ts`）。
     const detachViewport = attachViewportControls({ canvas, store: useAppStore, theme });
-    const detachSelection = attachSelectionControls({ canvas, store: useAppStore, theme });
+    const detachSelection = attachTripControls({ canvas, store: useAppStore, theme });
 
     return () => {
       detachSelection();

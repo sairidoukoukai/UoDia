@@ -33,6 +33,7 @@ import {
   selectVisibleStops,
   type AppState,
   type SelectionRect,
+  type TripShift,
 } from '@/store';
 import { assignPatternDashes, SOLID } from './tripStyle';
 
@@ -113,6 +114,8 @@ export interface DiagramScene {
   readonly selectedTripIds: ReadonlySet<string>;
   /** 引きずっている最中の選択の枠（仕様書 §6.3.1、T-28）。掴んでいなければ `null`。 */
   readonly selectionRect: SelectionRect | null;
+  /** 引きずっている最中の移動量（仕様書 §6.3.2、T-29）。掴んでいなければ `null`。 */
+  readonly tripShift: TripShift | null;
   readonly theme: SceneTheme;
 }
 
@@ -243,12 +246,14 @@ const sceneOf = memoizeByIdentity(
     trips: readonly SceneTrip[],
     selectedTripIds: readonly string[],
     selectionRect: SelectionRect | null,
+    tripShift: TripShift | null,
     theme: SceneTheme,
   ): DiagramScene => ({
     stops,
     trips,
     selectedTripIds: new Set(selectedTripIds),
     selectionRect,
+    tripShift,
     theme,
   }),
 );
@@ -287,6 +292,7 @@ export function selectDiagramScene(state: AppState, theme: SceneTheme): DiagramS
         ),
     state.ui.selectedTripIds,
     state.ui.selectionRect,
+    state.ui.tripShift,
     theme,
   );
 }

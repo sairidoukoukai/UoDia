@@ -42,6 +42,20 @@ export interface SelectionRect {
   readonly toAxis: number;
 }
 
+/**
+ * 引きずっている最中のスジの移動量（仕様書 §6.3.2、T-29）。
+ *
+ * 便そのものは**その場で動いている**（履歴には `mergeKey` で 1 操作にまとまる）。
+ * ここにあるのは画面に出す数字だけであり、動いた結果を持っているわけではない。
+ */
+export interface TripShift {
+  /** ずらした分。5 分の倍数。 */
+  readonly minutes: number;
+  /** 数字を出す場所（カーソルの位置）。描くものの座標で持つ。 */
+  readonly atTime: number;
+  readonly atAxis: number;
+}
+
 /** 保存しない状態。 */
 export interface UiState {
   /** 選択中の便。時刻表とダイヤグラムで共有する（仕様書 §6.3.1）。 */
@@ -53,6 +67,8 @@ export interface UiState {
    * ない**ため、履歴にもファイルにも入らない。
    */
   readonly selectionRect: SelectionRect | null;
+  /** 引きずっている最中の移動量。掴んでいなければ `null`（T-29）。 */
+  readonly tripShift: TripShift | null;
   /**
    * 写した便（仕様書 §6.1.4、§8.1、T-53）。貼り付けるまで持つ。
    *

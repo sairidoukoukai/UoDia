@@ -34,7 +34,7 @@ import {
   type History,
   type HistoryEntry,
 } from './history';
-import type { AppState, DocumentState, SelectionRect } from './types';
+import type { AppState, DocumentState, SelectionRect, TripShift } from './types';
 
 // パッチの記録は Immer の任意機能であり、使う前に有効化する必要がある。
 enablePatches();
@@ -150,6 +150,13 @@ export interface AppActions {
    * 履歴に載せない。囲んでいる最中の枠は編集の結果ではない。
    */
   readonly setSelectionRect: (rect: SelectionRect | null) => void;
+
+  /**
+   * 引きずっている最中の移動量を置く（仕様書 §6.3.2、T-29）。
+   *
+   * 履歴に載せない。便そのものの移動は `editProject` が積む。
+   */
+  readonly setTripShift: (shift: TripShift | null) => void;
 }
 
 export type AppStore = AppState & AppActions;
@@ -169,7 +176,7 @@ export interface AppStoreHook {
 const INITIAL_STATE: AppState = {
   networkDef: null,
   project: null,
-  ui: { selectedTripIds: [], clipboard: [], selectionRect: null },
+  ui: { selectedTripIds: [], clipboard: [], selectionRect: null, tripShift: null },
   history: createHistory(),
   file: { handle: null, savedProject: null },
 };
@@ -264,7 +271,7 @@ export function createAppStore(): AppStoreHook {
           project,
           history: createHistory(get().history.limit),
           // 別のプロジェクトの便を選んだままにしない。
-          ui: { selectedTripIds: [], clipboard: [], selectionRect: null },
+          ui: { selectedTripIds: [], clipboard: [], selectionRect: null, tripShift: null },
           file: { handle, savedProject: project },
         });
       },
@@ -273,7 +280,7 @@ export function createAppStore(): AppStoreHook {
         set({
           project,
           history: createHistory(get().history.limit),
-          ui: { selectedTripIds: [], clipboard: [], selectionRect: null },
+          ui: { selectedTripIds: [], clipboard: [], selectionRect: null, tripShift: null },
           // savedProject を null にすることで未保存になる（`selectIsDirty`）。
           file: { handle: null, savedProject: null },
         });
@@ -304,6 +311,11 @@ export function createAppStore(): AppStoreHook {
       setSelectionRect: (selectionRect): void => {
         if (get().ui.selectionRect === selectionRect) return;
         set({ ui: { ...get().ui, selectionRect } });
+      },
+
+      setTripShift: (tripShift): void => {
+        if (get().ui.tripShift === tripShift) return;
+        set({ ui: { ...get().ui, tripShift } });
       },
 
       setDiagramView: (diagram): void => {

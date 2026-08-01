@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm test *)",
+      "Bash(nohup npx vite preview --port 4173)",
+      "Bash(disown)",
+      "Bash(OUT_DIR=/tmp/claude-1000/-home-yamaguchi-sairi-UoDia/bc89dde0-a225-49ac-8d4b-bb265bae624d/scratchpad node verify-drag.mjs)"
+    ]
+  }
+}
