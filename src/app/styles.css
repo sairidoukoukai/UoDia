@@ -138,10 +138,25 @@ body {
 .app-shell {
   display: grid;
   /*
-    メニューバー・案内・ツールバー・本体・検証パネル・ステータスバー。
-    伸びるのは本体だけである。**`auto` は無い行を潰す**ため、案内が出ていない
-    ときに隙間は空かない。
+    **居場所は名前で与える（並び順に頼らない）。**
+
+    行の並びだけで割り当てると、途中の要素が消えたときに以下が全部繰り上がる。
+    案内（`BrowserNotice`）はふだん何も描かない——デスクトップ版でも、上書き
+    保存できるブラウザでも `null` である——ため、並び順で書いていた頃は
+    **伸びる行が本体ではなく検証パネルになっていた**（#135）。検証パネルを
+    畳んでも枠だけが残り、本体は中身なりの高さのままだった。
+
+    名前で与えれば、要素が 1 つ増えても減っても他はずれない。
   */
+  grid-template-areas:
+    'menubar'
+    'notice'
+    'toolbar'
+    'body'
+    'validation'
+    'statusbar';
+  /* 伸びるのは本体だけである。**`auto` は無い行を潰す**ため、案内が出ていない
+     ときに隙間は空かない。 */
   grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
   height: 100%;
   /* 子（分割領域）が縮めるようにする。既定の auto では中身の高さが下限になる。 */
@@ -150,6 +165,7 @@ body {
 
 /* 対応していないブラウザへの案内（§10.4、T-42）。 */
 .notice {
+  grid-area: notice;
   display: flex;
   align-items: baseline;
   gap: 0.75rem;
@@ -171,6 +187,7 @@ body {
 
 /* メニューバー（仕様書 §8.1、T-37）。 */
 .menubar {
+  grid-area: menubar;
   display: flex;
   align-items: stretch;
   border-bottom: 1px solid var(--color-border);
@@ -528,6 +545,7 @@ body {
 
 /* ツールバー（仕様書 §6.4）。作図モードの切り替えは T-30 が足す。 */
 .toolbar {
+  grid-area: toolbar;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -558,6 +576,7 @@ body {
 
 /* サイドパネルと上下 2 分割を横に並べる段（仕様書 §6.4）。 */
 .app-body {
+  grid-area: body;
   display: flex;
   min-height: 0;
 }
@@ -743,6 +762,7 @@ body {
  * 畳んでいるときは 1 行の帯である。**件数は畳んでも見える**（`ValidationPanel`）。
  */
 .validation {
+  grid-area: validation;
   border-top: 1px solid var(--color-border);
   background: var(--color-bg-accent);
   font-size: 0.8125rem;
@@ -840,6 +860,7 @@ body {
 
 /* ステータスバー（仕様書 §6.4）。 */
 .status-bar {
+  grid-area: statusbar;
   display: flex;
   align-items: center;
   gap: 0.75rem;
