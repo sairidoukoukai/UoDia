@@ -124,6 +124,7 @@ function render(
     root.render(
       <TimetableGrid
         timetable={timetable}
+        direction={0}
         onCommit={onCommit}
         selectedTripIds={extras.selectedTripIds ?? []}
         onSelectTrip={extras.onSelectTrip ?? (() => undefined)}
@@ -235,6 +236,32 @@ function rowOf(shortName: string): (string | null)[] {
   if (heading === undefined) throw new Error(`${shortName} の行がありません`);
   return [...(heading.parentElement?.querySelectorAll('td') ?? [])].map((td) => td.textContent);
 }
+
+/**
+ * どちらの方向を見ているか（#136）。
+ *
+ * タブは表の外にあり、升目を追っているあいだは視野から外れる。**表そのものが
+ * 名乗る。**
+ */
+describe('表の名前', () => {
+  it('**方向を出す**（目を落とした先に手がかりを置く）', () => {
+    render([makeTrip('S1', 8, 0)]);
+
+    expect(container.querySelector('caption')?.textContent).toContain('吹田方面');
+  });
+
+  it('**起点と終点を添える**（行が上から下へどちらへ進むのか）', () => {
+    render([makeTrip('S1', 8, 0)]);
+
+    expect(container.querySelector('caption')?.textContent).toContain('豊中 → 工学部');
+  });
+
+  it('便が 1 つも無くても名乗る', () => {
+    render([]);
+
+    expect(container.querySelector('caption')?.textContent).toContain('吹田方面');
+  });
+});
 
 describe('見出し', () => {
   it('**見出しは 3 行**（列見出し = 便番号・パターン・運用。T-47）', () => {

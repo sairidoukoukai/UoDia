@@ -359,6 +359,7 @@ export function Timetable(): ReactElement {
       ) : (
         <TimetableGrid
           timetable={timetable}
+          direction={direction}
           onCommit={handleCommit}
           selectedTripIds={selectedTripIds}
           onSelectTrip={handleSelectTrip}

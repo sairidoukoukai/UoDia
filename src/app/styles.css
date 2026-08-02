@@ -966,25 +966,45 @@ body {
   min-width: 0;
 }
 
+/*
+ * 方向タブ（§6.1.1、#136）。
+ *
+ * **選んでいる側を、選んでいない側より弱く見せない。** タブは「押せる 2 つ」
+ * ではなく「いまこちらを見ている」という状態の表示である。地色の差だけでは
+ * 弱く、目を表へ落とした瞬間に手がかりが消える——表そのものにも方向を書く
+ * （`.timetable__caption`）。
+ */
 .timetable__tabs {
   display: flex;
   gap: 0.25rem;
+  /* 選んでいるタブが、この線を跨いで表と繋がって見えるようにする。 */
+  border-bottom: 1px solid var(--color-border);
   margin-bottom: 0.5rem;
 }
 
 .timetable__tab {
+  position: relative;
+  bottom: -1px;
   padding: 0.25rem 0.75rem;
-  border: 1px solid var(--color-border);
+  border: 1px solid transparent;
   border-radius: 0.25rem 0.25rem 0 0;
   background: transparent;
   color: var(--color-fg-muted);
   cursor: pointer;
 }
 
-.timetable__tab--active {
-  background: var(--color-bg-accent);
+.timetable__tab:hover {
   color: var(--color-fg);
-  font-weight: 600;
+}
+
+.timetable__tab--active {
+  /* 上に色の帯を置く。**色だけに頼らず**、太字と地色も併せて変える（§9.4）。 */
+  border-color: var(--color-border);
+  border-top: 3px solid var(--color-focus);
+  border-bottom-color: var(--color-bg);
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-weight: 700;
 }
 
 .timetable__scroll {
@@ -1001,14 +1021,60 @@ body {
   white-space: nowrap;
 }
 
+/*
+ * 表そのものに方向を書く（#136）。
+ *
+ * **目を落とした先に手がかりを置く。** タブは表の外にあり、升目を追っている
+ * ときには視野から外れる。起点と終点も添える——行の並び（上から下へ）が
+ * どちらへ進むのかは、そこに書いてあれば読み違えようがない。
+ */
+.timetable__caption {
+  padding: 0.25rem 0.5rem;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-accent);
+  color: var(--color-fg);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  text-align: left;
+}
+
+.timetable__caption-route {
+  margin-left: 0.5rem;
+  color: var(--color-fg-muted);
+  font-weight: normal;
+}
+
 .timetable th,
 .timetable td {
-  padding: 0.15rem 0.5rem;
+  padding: 0.15rem 0.25rem;
   border-right: 1px solid var(--color-border);
   border-bottom: 1px solid var(--color-border);
   font-size: 0.875rem;
   font-weight: normal;
   text-align: right;
+}
+
+/*
+ * 升目の幅を中身から切り離す（#137）。
+ *
+ * **入っていても空でも同じ幅にする。** 幅を中身に任せると、時刻の無い升目だけが
+ * 左右の余白ぶんまで縮み、狙って押せない。
+ *
+ * どの升目にも `88:88` の**見えない型**を敷く。表せる最長の時刻（`47:55`）と
+ * 同じ字数であり、数字は等幅で出しているため（`tabular-nums`）、これが入る幅は
+ * どの時刻も入る幅である。**px を決め打ちにしない**——字の幅は環境で変わり、
+ * 決め打ちにすると、ある環境でだけ `25:30` がはみ出す。
+ *
+ * `visibility: hidden` は読み上げからも外す。`88:88` を升目ごとに読まれては
+ * かなわない（§9.4）。`height: 0` で縦には場所を取らない。
+ */
+.timetable th:not([scope='row'])::before,
+.timetable td:not(.timetable__link-cell)::before {
+  content: '88:88';
+  display: block;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
 }
 
 .timetable thead th,
@@ -1099,8 +1165,27 @@ body {
 }
 
 /* 運用番号の欄（T-22、仕様書 §6.1.3）。自由記入のテキスト。 */
+/*
+ * パターンの選択欄も列の幅を決めない（#137）。
+ *
+ * **列の幅を決めるのは時刻である。** この表は時刻を並べるためのものであり、
+ * 見出しの部品がそれより広い場所を要求してよい理由が無い。選んだパターンの
+ * 正式な名前は `title`（かざすと出る）と、開いた一覧で読める。
+ */
+.timetable__pattern {
+  width: 100%;
+  min-width: 0;
+}
+
 .timetable__block {
-  width: 3.5rem;
+  /*
+   * 升目いっぱいに広げる（#137）。決め打ちの幅（3.5rem）を持たせていた頃は、
+   * **運用番号の欄が列の幅を決めていた**——1〜2 文字しか入らない欄のために、
+   * 便の列だけが空の列より広くなっていた。`min-width: 0` の理由は時刻の
+   * 入力欄と同じである。
+   */
+  width: 100%;
+  min-width: 0;
   padding: 0;
   border: 0;
   background: transparent;
@@ -1180,10 +1265,11 @@ body {
 
 .timetable__input {
   /*
-   * 幅を決め打ちにする。`width: 100%` だと、入力欄が持つ既定の文字数
-   * （20 文字）で列が広がり、編集を始めた瞬間に表がずれる。
+   * 升目いっぱいに広げる。**`min-width: 0` が要る**——入力欄は既定で 20 文字ぶんの
+   * 幅を持とうとし、それが列の最小幅になると、編集を始めた瞬間に表がずれる（#137）。
    */
-  width: 4rem;
+  width: 100%;
+  min-width: 0;
   padding: 0;
   border: 0;
   background: transparent;
