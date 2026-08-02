@@ -3,7 +3,6 @@ export { createFileService, type FileService, type FileServiceOptions } from './
 export type { BackupDialogs, DialogAnswer, FileDialogs } from './prompts';
 
 export {
-  DEFAULT_BACKUP_INTERVAL_MS,
   createBackupService,
   type BackupService,
   type BackupServiceOptions,

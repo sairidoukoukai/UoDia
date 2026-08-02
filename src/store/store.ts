@@ -24,6 +24,7 @@ import { applyPatches, enablePatches, produceWithPatches, type Patch } from 'imm
 import { create } from 'zustand';
 import {
   clampSplitRatio,
+  diagramViewSchema,
   type DiagramView,
   type DirectionId,
   type NetworkDef,
@@ -32,6 +33,7 @@ import {
 } from '@/domain/model';
 import { validateNetwork, type NetworkIssue } from '@/domain/network';
 import type { FileHandle } from '@/platform';
+import { DEFAULT_BACKUP_INTERVAL_MS, clampBackupInterval } from './settings';
 import {
   createHistory,
   pushHistory,
@@ -42,6 +44,7 @@ import {
   type HistoryEntry,
 } from './history';
 import type {
+  AppSettings,
   AppState,
   DiagramTool,
   DocumentState,
@@ -101,6 +104,13 @@ export interface AppActions {
   readonly redo: () => boolean;
   /** 履歴段数を変える（既定 100、範囲 10〜1000）。範囲外は丸める。 */
   readonly setHistoryLimit: (limit: number) => void;
+
+  /**
+   * 設定を変える（仕様書 §6.5.2、§6.5.3、T-35）。
+   *
+   * **履歴に載せない。** 道具の使い方を変えることは、便の編集ではない。
+   */
+  readonly setSettings: (settings: Partial<AppSettings>) => void;
 
   /**
    * ネットワーク定義を読み込む。**編集ではないため履歴を捨てる。**
@@ -242,6 +252,10 @@ const INITIAL_STATE: AppState = {
   },
   history: createHistory(),
   file: { handle: null, savedProject: null },
+  settings: {
+    backupIntervalMs: DEFAULT_BACKUP_INTERVAL_MS,
+    defaultDiagramView: diagramViewSchema.parse({}),
+  },
 };
 
 /**
@@ -350,6 +364,14 @@ export function createAppStore(): AppStoreHook {
       undo: (): boolean => applyStep(takeUndo(get().history), (entry) => entry.inversePatches),
 
       redo: (): boolean => applyStep(takeRedo(get().history), (entry) => entry.patches),
+
+      setSettings: (settings): void => {
+        const current = get().settings;
+        const next = { ...current, ...settings };
+        set({
+          settings: { ...next, backupIntervalMs: clampBackupInterval(next.backupIntervalMs) },
+        });
+      },
 
       setHistoryLimit: (limit): void => {
         set({ history: setHistoryLimit(get().history, limit) });

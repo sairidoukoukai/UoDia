@@ -12,7 +12,7 @@
  * 汎用処理とし、スキーマの変更が自動的に反映されるようにしている。
  */
 
-import type { Project } from '@/domain/model';
+import type { NetworkDef, Project } from '@/domain/model';
 
 /**
  * プロジェクトを `.uodia` の中身にする。
@@ -22,6 +22,19 @@ import type { Project } from '@/domain/model';
  */
 export function serializeProject(project: Project): string {
   return `${JSON.stringify(sortKeys(project), null, 2)}\n`;
+}
+
+/**
+ * ネットワーク定義を `route.json` の中身にする（仕様書 §6.5.1、T-35）。
+ *
+ * **キーは並べ替えない。** `.uodia` と違い、`route.json` は人が手で直すことの
+ * ある固定データであり（停留所そのものは設定ダイアログから編集できない。
+ * §6.5.4）、辞書順に並べ替えると書き戻した瞬間に全行が動く。スキーマを通った
+ * 値はスキーマの順に並ぶため、**同じ内容からは同じバイト列が出る**という約束は
+ * これで満たされる。
+ */
+export function serializeNetworkDef(def: NetworkDef): string {
+  return `${JSON.stringify(def, null, 2)}\n`;
 }
 
 /**

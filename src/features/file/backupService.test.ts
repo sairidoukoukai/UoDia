@@ -17,8 +17,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createProject, parseBackup } from '@/domain/io';
 import { loadNetworkDef, type NetworkIndex } from '@/domain/network';
 import { createMemoryPlatform, type MemoryPlatform } from '@/platform';
-import { createAppStore, selectIsDirty, type AppStoreHook } from '@/store';
-import { createBackupService, DEFAULT_BACKUP_INTERVAL_MS } from './backupService';
+import {
+  DEFAULT_BACKUP_INTERVAL_MS,
+  createAppStore,
+  selectIsDirty,
+  type AppStoreHook,
+} from '@/store';
+import { createBackupService } from './backupService';
 import type { BackupDialogs } from './prompts';
 
 const routeJsonPath = fileURLToPath(new URL('../../../data/route.json', import.meta.url));
