@@ -20,7 +20,6 @@ import type { DiagramView } from '@/domain/model';
 import type { AppState } from '@/store';
 import {
   axisBoundsOf,
-  DEFAULT_DIAGRAM_VIEW,
   sameView,
   viewAfterDrag,
   viewAfterWheel,
@@ -135,11 +134,9 @@ export function attachViewportControls(options: ViewportControlOptions): () => v
       return;
     }
 
-    // Ctrl+0 で既定の視野に戻す（仕様書 §6.2.3）。
-    if (event.key === '0' && (event.ctrlKey || event.metaKey)) {
-      event.preventDefault();
-      apply(DEFAULT_DIAGRAM_VIEW);
-    }
+    // **Ctrl+0（既定の視野に戻す）はここでは受けない。** ショートカットの定義は
+    // 1 か所（`features/shell/commands.ts`）にまとめてあり、窓に張った受け口が
+    // 拾う（T-37）。ここでも受けると、canvas に焦点があるときだけ 2 回走る。
   };
 
   const onKeyUp = (event: KeyboardEvent): void => {

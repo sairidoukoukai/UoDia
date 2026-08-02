@@ -171,35 +171,17 @@ describe('掴んで動かす', () => {
 });
 
 describe('既定に戻す', () => {
-  it('**Ctrl+0 で戻る**', () => {
-    wheel({ deltaY: -300, ctrlKey: true, clientX: 500 });
-    wheel({ deltaY: 200, shiftKey: true });
-    expect(view()?.pxPerMinute).not.toBe(3);
-
-    const event = key('keydown', { key: '0', ctrlKey: true });
-
-    expect(event.defaultPrevented).toBe(true);
-    expect(view()).toEqual({
-      pxPerMinute: 3,
-      pxPerAxisUnit: 8,
-      scrollTime: fromHM(7, 0),
-      scrollAxis: 0,
-    });
-  });
-
-  it('修飾の無い 0 では戻らない（時刻の入力を邪魔しない）', () => {
+  it('**Ctrl+0 はここでは受けない**（ショートカットの定義は 1 か所。T-37）', () => {
     wheel({ deltaY: -300, ctrlKey: true, clientX: 500 });
     const zoomed = view()?.pxPerMinute;
 
-    key('keydown', { key: '0' });
+    const event = key('keydown', { key: '0', ctrlKey: true });
+
+    // canvas に焦点があるときだけ 2 回走る、という食い違いを作らない。
+    expect(event.defaultPrevented).toBe(false);
     expect(view()?.pxPerMinute).toBe(zoomed);
   });
-
-  it('スペースはページを送らせない', () => {
-    expect(key('keydown', { key: ' ' }).defaultPrevented).toBe(true);
-  });
 });
-
 describe('繋ぎを解く', () => {
   it('**解いたあとは何も起きない**', () => {
     detach();
