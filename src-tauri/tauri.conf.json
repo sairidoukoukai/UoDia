@@ -46,6 +46,11 @@
       "deb": {
         "section": "utils"
       }
+    },
+    "windows": {
+      "wix": {
+        "language": ["ja-JP"]
+      }
     }
   }
 }
