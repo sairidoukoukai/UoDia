@@ -17,9 +17,17 @@ import { DIRECTION_LABEL } from '@/features/timetable';
 import { selectNetwork, selectView, useAppStore } from '@/store';
 import { withHidden } from './filters';
 
+/** 空の一覧。**毎回作らない**——参照が変わると購読が動く。 */
+const NO_IDS: readonly string[] = [];
+
 export function PatternList(): ReactElement {
   const network = useAppStore(selectNetwork);
-  const view = useAppStore(selectView);
+  /**
+   * **必要な項目だけを購読する**（T-40）。`view` を丸ごと見ると、ダイヤグラムを
+   * 送るたびに（`view.diagram` が変わる）この一覧が描き直される。1 秒に 60 回、
+   * 押しても何も変わっていない一覧を作り直すことになる。
+   */
+  const hidden = useAppStore((state) => selectView(state)?.hiddenPatternIds ?? NO_IDS);
   const editProject = useAppStore((state) => state.editProject);
 
   const dashes = useMemo(
@@ -40,7 +48,6 @@ export function PatternList(): ReactElement {
     () => (network?.def.patterns ?? []).filter((pattern) => !pattern.isDeadhead),
     [network],
   );
-  const hidden = view?.hiddenPatternIds ?? [];
 
   const toggle = (patternId: string, show: boolean): void => {
     editProject('パターンの表示の変更', (project) => {

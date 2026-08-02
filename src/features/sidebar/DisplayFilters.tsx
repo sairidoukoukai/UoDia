@@ -17,11 +17,23 @@ import { withHidden } from './filters';
 
 const DIRECTIONS: readonly DirectionId[] = [0, 1];
 
+/** 空の一覧。**毎回作らない**——参照が変わると購読が動く。 */
+const NO_DIRECTIONS: readonly DirectionId[] = [];
+
 export function DisplayFilters(): ReactElement {
-  const view = useAppStore(selectView);
+  /**
+   * **必要な項目だけを購読する**（T-40）。`view` を丸ごと見ると、ダイヤグラムを
+   * 送るたびにこの節が描き直される——送りも `view` の一部だからである。
+   */
+  const hasView = useAppStore((state) => selectView(state) !== null);
+  const colorMode = useAppStore((state) => selectView(state)?.colorMode ?? 'pattern');
+  const hiddenDirections = useAppStore(
+    (state) => selectView(state)?.hiddenDirections ?? NO_DIRECTIONS,
+  );
+  const showDeadhead = useAppStore((state) => selectView(state)?.showDeadhead ?? true);
   const editProject = useAppStore((state) => state.editProject);
 
-  if (view === null) return <section className="panel__section" />;
+  if (!hasView) return <section className="panel__section" />;
 
   return (
     <section className="panel__section">
@@ -30,7 +42,7 @@ export function DisplayFilters(): ReactElement {
       <label className="panel__field">
         着色{' '}
         <select
-          value={view.colorMode}
+          value={colorMode}
           onChange={(event) => {
             const colorMode = event.target.value === 'block' ? 'block' : 'pattern';
             editProject('着色モードの変更', (project) => {
@@ -47,7 +59,7 @@ export function DisplayFilters(): ReactElement {
         <label key={directionId} className="panel__field">
           <input
             type="checkbox"
-            checked={!view.hiddenDirections.includes(directionId)}
+            checked={!hiddenDirections.includes(directionId)}
             onChange={(event) => {
               const show = event.target.checked;
               editProject('方向の表示の変更', (project) => {
@@ -66,7 +78,7 @@ export function DisplayFilters(): ReactElement {
       <label className="panel__field">
         <input
           type="checkbox"
-          checked={view.showDeadhead}
+          checked={showDeadhead}
           onChange={(event) => {
             const showDeadhead = event.target.checked;
             editProject('回送便の表示の変更', (project) => {
