@@ -31,6 +31,8 @@ export {
   type Move,
 } from './editing';
 
+export { focusTripColumn } from './focus';
+
 export { directionToShow } from './sync';
 
 export { Timetable } from './Timetable';

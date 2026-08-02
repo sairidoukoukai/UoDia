@@ -497,3 +497,62 @@ describe('作図モード（T-30、仕様書 §6.3.3）', () => {
     expect(trips()).toHaveLength(0);
   });
 });
+
+describe('右クリック（T-31、仕様書 §6.3.4）', () => {
+  let opened: ({ x: number; y: number } | null)[] = [];
+
+  beforeEach(() => {
+    detach();
+    opened = [];
+    detach = attachTripControls({
+      canvas,
+      store,
+      theme,
+      onContextMenu: (at) => opened.push(at),
+    });
+  });
+
+  /** 右クリックを届ける。既定のメニューを止めたかを返す。 */
+  function rightClick(init: MouseEventInit): boolean {
+    const event = new MouseEvent('contextmenu', { cancelable: true, bubbles: true, ...init });
+    canvas.dispatchEvent(event);
+    return event.defaultPrevented;
+  }
+
+  it('**スジの上で開き、その便が選ばれる**', () => {
+    const prevented = rightClick(ON_LINE);
+
+    expect(prevented).toBe(true);
+    expect(opened).toEqual([{ x: ON_LINE.clientX, y: ON_LINE.clientY }]);
+    expect(selected()).toEqual(['t1']);
+  });
+
+  it('**既に選ばれている便では選択を崩さない**（まとめて効かせるため）', () => {
+    store.getState().selectTrips(['t1', 't2']);
+    rightClick(ON_LINE);
+
+    expect(selected()).toEqual(['t1', 't2']);
+  });
+
+  it('選ばれていない便を押したら、その便だけを選ぶ', () => {
+    store.getState().selectTrips(['t2']);
+    rightClick(ON_LINE);
+
+    expect(selected()).toEqual(['t1']);
+  });
+
+  it('何も無い場所では閉じるだけ（選択も解かない）', () => {
+    store.getState().selectTrips(['t1']);
+    rightClick(OFF_LINE);
+
+    expect(opened).toEqual([null]);
+    expect(selected()).toEqual(['t1']);
+  });
+
+  it('繋ぎを解けば開かない', () => {
+    detach();
+    rightClick(ON_LINE);
+
+    expect(opened).toEqual([]);
+  });
+});

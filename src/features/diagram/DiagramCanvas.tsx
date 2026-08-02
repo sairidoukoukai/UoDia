@@ -6,12 +6,13 @@
  * 再描画が仮想 DOM の差分計算を引き連れてくる。
  */
 
-import { useEffect, useRef, type ReactElement } from 'react';
+import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { useAppStore } from '@/store';
 import { attachDiagram } from './canvasHost';
 import { cursorAt, type DiagramCursor } from './cursor';
 import { viewportForCanvas } from './interaction';
 import { attachSelectionReveal } from './revealControls';
+import { TripContextMenu, type MenuPosition } from './TripContextMenu';
 import { attachTripControls } from './tripControls';
 import { attachViewportControls } from './viewportControls';
 import { selectDiagramScene, type SceneTheme } from './scene';
@@ -48,6 +49,9 @@ export function DiagramCanvas(props: DiagramCanvasProps): ReactElement {
 
   // 繋ぎ直さずに差し替えられるようにする。繋ぎ（下の `useEffect`）は 1 度きりで
   // あり、呼び先を直接見ると、親が描き直すたびに canvas を繋ぎ直すことになる。
+  /** 右クリックで出すメニューの場所。出していなければ `null`（T-31）。 */
+  const [menu, setMenu] = useState<MenuPosition | null>(null);
+
   const onCursorRef = useRef(props.onCursor);
   useEffect(() => {
     onCursorRef.current = props.onCursor;
@@ -65,7 +69,12 @@ export function DiagramCanvas(props: DiagramCanvasProps): ReactElement {
     // **送りを先に繋ぐ。** 押し下げは登録した順に届く。送りの側が先に受け取って
     // `preventDefault` を立てることで、選択の側が譲れる（`tripControls.ts`）。
     const detachViewport = attachViewportControls({ canvas, store: useAppStore, theme });
-    const detachSelection = attachTripControls({ canvas, store: useAppStore, theme });
+    const detachSelection = attachTripControls({
+      canvas,
+      store: useAppStore,
+      theme,
+      onContextMenu: setMenu,
+    });
     // 時刻表で選ばれた便を画面に入れる（T-38）。**選択が変わったときだけ**動く。
     const detachReveal = attachSelectionReveal({ canvas, store: useAppStore, theme });
 
@@ -119,6 +128,19 @@ export function DiagramCanvas(props: DiagramCanvasProps): ReactElement {
         焦点を移す（`viewportControls.ts`）。
       */}
       <canvas ref={canvasRef} className="diagram__canvas" aria-label="ダイヤグラム" tabIndex={0} />
+
+      {menu !== null && (
+        <TripContextMenu
+          at={menu}
+          onClose={(options) => {
+            setMenu(null);
+            // 焦点を canvas へ返す。返さないと、閉じた直後のキーボード操作
+            // （Ctrl+0・スペース + 引きずり）がどこにも届かない。
+            // **時刻表へ移したときだけは奪い返さない**（§6.3.4）。
+            if (options?.keepFocus !== true) canvasRef.current?.focus();
+          }}
+        />
+      )}
     </div>
   );
 }
