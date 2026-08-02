@@ -56,6 +56,23 @@ describe('カーソルが指しているもの', () => {
     expect(cursor?.shortName).toBe('豊中');
   });
 
+  it('**同じ高さの停留所は連ねて出す**（#117）', () => {
+    // コンベ前と人科前は同じ軸位置にある。片方だけを出すと、方向によっては
+    // 時刻表の行と違う名前がステータスバーに出る。
+    const shared: DiagramScene = {
+      ...SCENE,
+      stops: [
+        stop('toyonaka', '豊中', 0),
+        stop('conv', 'コンベ前', 40),
+        stop('human', '人科前', 40),
+      ],
+    };
+    const cursor = cursorAt(shared, VIEWPORT, AXIS_LABEL_WIDTH + 90, TIME_LABEL_HEIGHT + 240);
+
+    expect(cursor?.shortName).toBe('コンベ前・人科前');
+    expect(cursor?.stopId).toBe('conv');
+  });
+
   it('**5 分に丸める**（打てない時刻を出さない）', () => {
     // 7px = 2 分 20 秒。5 分刻みのこのソフトで 7:02 と出すと、そこに便を
     // 置けるように見える（仕様書 §2.1）。

@@ -91,18 +91,48 @@ describe('route.json — 停留所（仕様書 付録 A.1）', () => {
     const positions = order.map(
       (id) => network.stops.find((s) => s.stopId === id)?.axisPosition ?? Number.NaN,
     );
+    // **戻らなければよい。** 所要時間 0 の区間（微研→工学部前）と、同じ所要時間の
+    // 停留所（コンベ前・人科前）は同じ位置に来る（#117）。
     for (let i = 1; i < positions.length; i++) {
-      expect(positions[i]).toBeGreaterThan(positions[i - 1] ?? Number.NaN);
+      expect(positions[i]).toBeGreaterThanOrEqual(positions[i - 1] ?? Number.NaN);
     }
   });
 
-  it('コンベンションセンター前と人間科学部前が別位置にある', () => {
+  it('**コンベ前と人科前が同じ位置にある**（#117）', () => {
+    // どちらも工学部前から 5 分である。違う高さに置くと、同じ 5 分の区間が
+    // 違う傾きで描かれ、ダイヤグラムの読み方（傾き＝速さ）が壊れる。
     const conv = network.stops.find((s) => s.stopId === '3_0')?.axisPosition;
     const human = network.stops.find((s) => s.stopId === '5_0')?.axisPosition;
-    expect(conv).not.toBe(human);
+    expect(conv).toBe(human);
   });
 
-  it('営業所が営業区間の外側に配置されている（仕様書 §6.2.1）', () => {
+  it('**軸差が所要時間と一致する**（同じ所要時間は同じ傾きになる。#117）', () => {
+    const posOf = (id: string): number =>
+      network.stops.find((s) => s.stopId === id)?.axisPosition ?? Number.NaN;
+    const depotIds = new Set(network.stops.filter((s) => s.isDepot).map((s) => s.stopId));
+
+    /**
+     * 一致させられない区間。
+     *
+     * 網目の路線を 1 本の縦軸に潰した以上、すべては合わせられない。**直行は
+     * 箕面を経由しないぶん速い**ため、箕面を通る軸の上では必ず寝る（往復とも
+     * 25 分 = 35 単位で、食い違い方は揃っている）。人科前→箕面も、箕面と
+     * 工学部前の位置が先に決まっている以上、動かす余地が無い。
+     */
+    const unavoidable = new Set(['1_0>3_0', '5_0>1_0', '5_0>2_0']);
+
+    for (const segment of network.segments) {
+      if (depotIds.has(segment.fromStopId) || depotIds.has(segment.toStopId)) continue;
+      const key = `${segment.fromStopId}>${segment.toStopId}`;
+      if (unavoidable.has(key)) continue;
+
+      expect(Math.abs(posOf(segment.toStopId) - posOf(segment.fromStopId)), key).toBe(
+        segment.runMinutes,
+      );
+    }
+  });
+
+  it('営業所の axisPosition が営業区間の外側にある（縦軸には並べない。#118）', () => {
     const depot = network.stops.find((s) => s.isDepot)?.axisPosition ?? Number.NaN;
     const serviceMax = Math.max(
       ...network.stops.filter((s) => !s.isDepot).map((s) => s.axisPosition),
@@ -229,7 +259,8 @@ describe('route.json — 方向と経路の整合', () => {
       for (let i = 1; i < p.stopSequence.length; i++) {
         const prev = posOf(p.stopSequence[i - 1]?.stopId ?? '');
         const curr = posOf(p.stopSequence[i]?.stopId ?? '');
-        expect(curr, p.patternId).toBeGreaterThan(prev);
+        // 所要時間 0 の区間（微研→工学部前）は同じ位置に来る（#117）。
+        expect(curr, p.patternId).toBeGreaterThanOrEqual(prev);
       }
     }
   });
@@ -241,7 +272,7 @@ describe('route.json — 方向と経路の整合', () => {
       for (let i = 1; i < p.stopSequence.length; i++) {
         const prev = posOf(p.stopSequence[i - 1]?.stopId ?? '');
         const curr = posOf(p.stopSequence[i]?.stopId ?? '');
-        expect(curr, p.patternId).toBeLessThan(prev);
+        expect(curr, p.patternId).toBeLessThanOrEqual(prev);
       }
     }
   });

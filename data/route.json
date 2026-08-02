@@ -28,7 +28,7 @@
       "stopName": "コンベンションセンター前",
       "shortName": "コンベ前",
       "area": "吹田地区",
-      "axisPosition": 33,
+      "axisPosition": 35,
       "gridStyle": "normal",
       "hiddenInEditor": false,
       "isDepot": false
@@ -38,7 +38,7 @@
       "stopName": "人間科学部前",
       "shortName": "人科前",
       "area": "吹田地区",
-      "axisPosition": 37,
+      "axisPosition": 35,
       "gridStyle": "normal",
       "hiddenInEditor": false,
       "isDepot": false
@@ -48,7 +48,7 @@
       "stopName": "微生物研究所前",
       "shortName": "微研",
       "area": "吹田地区",
-      "axisPosition": 39,
+      "axisPosition": 40,
       "gridStyle": "dashed",
       "hiddenInEditor": true,
       "isDepot": false

@@ -43,7 +43,7 @@ describe('停留所線を押す', () => {
   it('押した停留所と時刻を返す', () => {
     const target = creationTargetAt(SCENE, VIEWPORT, ON_B.x, ON_B.y);
 
-    expect(target?.stopId).toBe('b');
+    expect(target?.stopIds).toEqual(['b']);
     // 左端から 180px = 60 分後 = 8:00。
     expect(target?.time).toBe(fromHM(8, 0));
   });
@@ -58,7 +58,16 @@ describe('停留所線を押す', () => {
 
   it('線から少し外れていても拾う', () => {
     const above = creationTargetAt(SCENE, VIEWPORT, ON_B.x, ON_B.y - (STOP_LINE_TOLERANCE - 1));
-    expect(above?.stopId).toBe('b');
+    expect(above?.stopIds).toEqual(['b']);
+  });
+
+  it('**同じ高さの停留所はまとめて返す**（#117。線は 1 本しか無い）', () => {
+    // コンベ前と人科前は工学部前からどちらも 5 分であり、同じ軸位置にある。
+    // どちらの便を作るのかは開いている方向が決める（`tripControls`）。
+    const shared: DiagramScene = { ...SCENE, stops: [stop('a', 0), stop('b', 20), stop('c', 20)] };
+    const target = creationTargetAt(shared, VIEWPORT, ON_B.x, ON_B.y);
+
+    expect(target?.stopIds).toEqual(['b', 'c']);
   });
 
   it('**離れていれば何も起きない**（覚えのない便を作らない）', () => {
@@ -69,7 +78,7 @@ describe('停留所線を押す', () => {
   it('近いほうの停留所を選ぶ', () => {
     // 軸 0 と 20 のちょうど中間より少し上なら `a`。
     const upper = creationTargetAt(SCENE, VIEWPORT, ON_B.x, TIME_LABEL_HEIGHT + 8, 100);
-    expect(upper?.stopId).toBe('a');
+    expect(upper?.stopIds).toEqual(['a']);
   });
 
   it('**営業所の帯には引かせない**（車庫発は出区として作る。§6.1.7）', () => {

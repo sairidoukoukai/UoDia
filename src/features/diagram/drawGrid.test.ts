@@ -36,18 +36,9 @@ const theme: SceneTheme = {
 const stops: readonly SceneStop[] = [
   { stopId: '1_0', shortName: '豊中', axisPosition: 0, gridStyle: 'bold' },
   { stopId: '2_0', shortName: '箕面', axisPosition: 20, gridStyle: 'bold' },
-  {
-    stopId: '3_0',
-    shortName: 'コンベ前',
-    axisPosition: 33,
-    gridStyle: 'normal',
-  },
-  {
-    stopId: '5_0',
-    shortName: '人科前',
-    axisPosition: 37,
-    gridStyle: 'normal',
-  },
+  // コンベ前と人科前は**同じ軸位置**にある（#117）。どちらも工学部前から 5 分。
+  { stopId: '3_0', shortName: 'コンベ前', axisPosition: 35, gridStyle: 'normal' },
+  { stopId: '5_0', shortName: '人科前', axisPosition: 35, gridStyle: 'normal' },
   { stopId: '4_0', shortName: '工学部', axisPosition: 40, gridStyle: 'bold' },
 ];
 
@@ -224,8 +215,8 @@ describe('停留所線', () => {
     // bold: 太い実線 / normal: 細い実線 / dashed: 破線。
     expect(at(0)?.lineWidth).toBe(2);
     expect(at(0)?.dash).toEqual([]);
-    expect(at(33)?.lineWidth).toBe(1);
-    expect(at(33)?.dash).toEqual([]);
+    expect(at(35)?.lineWidth).toBe(1);
+    expect(at(35)?.dash).toEqual([]);
 
     const dashed = draw({}, dashedScene)
       .segments.filter(isHorizontal)
@@ -323,12 +314,25 @@ describe('停留所名', () => {
     expect(label?.maxWidth).toBeLessThanOrEqual(viewport.originX);
   });
 
+  it('**同じ高さの停留所は名前を上下に振り分ける**（#117）', () => {
+    const labels = draw().labels.filter((label) => !label.text.includes(':'));
+    const yOf = (text: string): number =>
+      labels.find((label) => label.text === text)?.y ?? Number.NaN;
+
+    // コンベ前と人科前は同じ線の上にある。**どちらも出す**——重ならない置き方が
+    // あるのに片方を落とすと、その停留所はどの拡大率でも読めないままになる。
+    const line = axisToY(35, viewport);
+    expect(yOf('コンベ前')).toBe(line - MIN_STOP_LABEL_GAP / 2);
+    expect(yOf('人科前')).toBe(line + MIN_STOP_LABEL_GAP / 2);
+    expect(yOf('人科前') - yOf('コンベ前')).toBe(MIN_STOP_LABEL_GAP);
+  });
+
   it('**縮めたときは近すぎる名前を落とす**（重ねない）', () => {
     const labels = draw({ pxPerAxisUnit: 2 }).labels.filter((label) => !label.text.includes(':'));
     const ys = labels.map((label) => label.y);
 
-    // 人科前（37）はコンベ前（33）に近すぎる。
-    expect(labels.map((label) => label.text)).not.toContain('人科前');
+    // 工学部（40）はコンベ前・人科前（35）の名前に近すぎる。
+    expect(labels.map((label) => label.text)).not.toContain('工学部');
     for (let i = 1; i < ys.length; i += 1) {
       expect(ys[i]! - ys[i - 1]!).toBeGreaterThanOrEqual(MIN_STOP_LABEL_GAP);
     }

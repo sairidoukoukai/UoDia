@@ -47,21 +47,32 @@ export function cursorAt(
   return { time: roundToGrain(time), stopId: stop.stopId, shortName: stop.shortName };
 }
 
-/** 画面上の縦位置に一番近い停留所。停留所が無ければ `null`。 */
+/**
+ * 画面上の縦位置に一番近い停留所。停留所が無ければ `null`。
+ *
+ * **同じ高さの停留所は連ねて出す**（#117）。コンベ前と人科前は同じ軸位置にあり、
+ * どちらか一方だけを出すと、方向によっては時刻表の行と違う名前が出る。
+ */
 function nearestStop(
   scene: DiagramScene,
   viewport: Viewport,
   y: number,
 ): { readonly stopId: string; readonly shortName: string } | null {
-  let best: { readonly stopId: string; readonly shortName: string } | null = null;
+  let bestAxis: number | null = null;
   let bestDistance = Number.POSITIVE_INFINITY;
 
   for (const stop of scene.stops) {
     const distance = Math.abs(axisToY(stop.axisPosition, viewport) - y);
     if (distance >= bestDistance) continue;
     bestDistance = distance;
-    best = { stopId: stop.stopId, shortName: stop.shortName };
+    bestAxis = stop.axisPosition;
   }
 
-  return best;
+  if (bestAxis === null) return null;
+
+  const found = scene.stops.filter((stop) => stop.axisPosition === bestAxis);
+  const first = found[0];
+  if (first === undefined) return null;
+
+  return { stopId: first.stopId, shortName: found.map((stop) => stop.shortName).join('・') };
 }

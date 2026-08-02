@@ -437,6 +437,23 @@ describe('作図モード（T-30、仕様書 §6.3.3）', () => {
     expect(selected()).toEqual(trips().map((trip) => trip.tripId));
   });
 
+  it('**同じ線でも、開いている方向が通るほうの停留所に作る**（#117）', () => {
+    // コンベ前（3_0）と人科前（5_0）は同じ軸位置 35 にある。線は 1 本しか無い。
+    // y = 24 + 35 × 8 = 304。
+    const ON_SHARED_LINE = { clientX: 236, clientY: 304 };
+
+    pointer('pointerdown', { button: 0, ...ON_SHARED_LINE });
+    // 吹田方面ではコンベ前を通る便になる。
+    expect(trips()[0]?.anchor?.stopId).toBe('3_0');
+
+    setTrips([]);
+    store.getState().setActiveDirection(1);
+    pointer('pointerdown', { button: 0, ...ON_SHARED_LINE });
+    // 豊中方面はコンベ前を通らない。**押しても何も起きない**のではなく、
+    // その線が指すもう 1 つの停留所（人科前）の便になる。
+    expect(trips()[0]?.anchor?.stopId).toBe('5_0');
+  });
+
   it('運用番号も提案される（時刻表で作ったときと同じ）', () => {
     pointer('pointerdown', { button: 0, ...ON_STOP_LINE });
 
