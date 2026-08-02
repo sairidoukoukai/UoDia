@@ -35,6 +35,14 @@ export interface RecordedLabel {
   readonly maxWidth: number | undefined;
 }
 
+/** 塗られた丸 1 つ（停車の点。#115）。 */
+export interface RecordedDot {
+  readonly x: number;
+  readonly y: number;
+  readonly radius: number;
+  readonly fillStyle: string;
+}
+
 /** 塗られた矩形 1 つ（帯・ハンドル）。 */
 export interface RecordedRect {
   readonly x: number;
@@ -56,12 +64,14 @@ export class Recorder implements DrawContext {
   readonly segments: RecordedSegment[] = [];
   readonly labels: RecordedLabel[] = [];
   readonly rects: RecordedRect[] = [];
+  readonly dots: RecordedDot[] = [];
   /** `clip` で切り取られた範囲。 */
   readonly clips: { x: number; y: number; width: number; height: number }[] = [];
 
   #dash: readonly number[] = [];
   #path: { x: number; y: number }[][] = [];
   #pending: { x: number; y: number; width: number; height: number }[] = [];
+  #circles: { x: number; y: number; radius: number }[] = [];
 
   save(): void {
     // 状態の保存は数えない。
@@ -82,6 +92,16 @@ export class Recorder implements DrawContext {
   beginPath(): void {
     this.#path = [];
     this.#pending = [];
+    this.#circles = [];
+  }
+
+  arc(x: number, y: number, radius: number): void {
+    this.#circles.push({ x, y, radius });
+  }
+
+  fill(): void {
+    for (const circle of this.#circles) this.dots.push({ ...circle, fillStyle: this.fillStyle });
+    this.#circles = [];
   }
 
   moveTo(x: number, y: number): void {

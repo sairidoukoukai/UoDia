@@ -19,6 +19,8 @@ export type DrawContext = Pick<
   | 'moveTo'
   | 'lineTo'
   | 'stroke'
+  | 'arc'
+  | 'fill'
   | 'setLineDash'
   | 'fillText'
   | 'rect'

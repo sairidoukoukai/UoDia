@@ -50,6 +50,21 @@ const SELECTED_SCALE = 2;
 /** 選択されたスジの端点に置く四角の 1 辺。 */
 const HANDLE_SIZE = 7;
 
+/**
+ * 停車を示す点の半径（px。#115、仕様書 §6.2.2）。
+ *
+ * **線幅と同じく画面の量で持つ。** 拡大しても点は大きくならない——点は「そこに
+ * 停まる」という事実の印であって、長さでも時間でもない。
+ *
+ * **傾いた線は横に太く見える。** 線幅 1.5px でも、急なスジは 1 行あたり 4px ほどを
+ * 覆う。半径 2.5px では線が少し膨らんだだけに見えたため（実機で確かめた）、
+ * 3.5px とした。選んで太くしたスジ（線幅 3px）にも埋もれない。
+ */
+const STOP_DOT_RADIUS = 3.5;
+
+/** 丸 1 周（ラジアン）。 */
+const FULL_CIRCLE = Math.PI * 2;
+
 /** 便番号ラベル。 */
 const LABEL_FONT = '11px system-ui, sans-serif';
 const LABEL_HEIGHT = 12;
@@ -218,6 +233,8 @@ function drawTrip(ctx: DrawContext, entry: TripPolyline, selected: boolean): voi
   for (const point of points.slice(1)) ctx.lineTo(point.x, point.y);
   ctx.stroke();
 
+  drawStopDots(ctx, entry);
+
   if (!selected) return;
 
   // 端点のハンドル（§6.2.2）。掴める場所を示す（引きずるのは T-29）。
@@ -281,6 +298,32 @@ function drawTripShift(ctx: DrawContext, scene: DiagramScene, viewport: Viewport
  * 便が密なところで全部に番号を付けると、数字が重なって**どれも読めなくなる**。
  * 番号は時刻表にも出ているため、ここで落ちても失われる情報は無い。
  */
+/**
+ * 停車する停留所に点を打つ（#115、仕様書 §6.2.2）。
+ *
+ * **箕面学舎に寄るかどうかが、折れ角だけでは読めない。** 豊中学舎→箕面学舎が
+ * 20 分、箕面学舎→コンベ前が 15 分であり、軸位置を引き直した後（#117）でも
+ * 傾きの差は小さい。拡大率によってはほとんど直線に見える。
+ *
+ * **打つのは折れ点すべてである。** パターンに含まれる停留所はすべて乗り降りの
+ * できる停留所であり（§5.4 に「通過」は無い）、「経由するが停まらない」点は
+ * 存在しない。直行便に箕面学舎の点が出ないのは、そこを**通っていない**からで
+ * ある——線種（#114）が種別を、点が停車の事実を示す 2 段になる。
+ *
+ * 回送には打たない。客を乗せない便に「停まる」は無い。
+ */
+function drawStopDots(ctx: DrawContext, entry: TripPolyline): void {
+  if (entry.trip.isDeadhead) return;
+
+  ctx.fillStyle = entry.trip.color;
+  for (const point of entry.points) {
+    // **1 点ずつ道を起こす。** 続けて弧を足すと、点と点が線で繋がって塗られる。
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, STOP_DOT_RADIUS, 0, FULL_CIRCLE);
+    ctx.fill();
+  }
+}
+
 function drawTripNumbers(
   ctx: DrawContext,
   drawn: readonly TripPolyline[],
