@@ -24,12 +24,8 @@ const theme = {
 const stops: readonly SceneStop[] = [
   { stopId: '1_0', shortName: '豊中', axisPosition: 0, gridStyle: 'bold' },
   { stopId: '2_0', shortName: '箕面', axisPosition: 20, gridStyle: 'bold' },
-  {
-    stopId: '3_0',
-    shortName: 'コンベ前',
-    axisPosition: 33,
-    gridStyle: 'normal',
-  },
+  { stopId: '3_0', shortName: 'コンベ前', axisPosition: 35, gridStyle: 'normal' },
+  { stopId: '5_0', shortName: '人科前', axisPosition: 35, gridStyle: 'normal' },
   { stopId: '4_0', shortName: '工学部', axisPosition: 40, gridStyle: 'bold' },
 ];
 
@@ -134,7 +130,7 @@ describe('折れ線', () => {
     const points = tripPolyline(through(), sceneOf([]), viewport);
 
     expect(points.map((point) => point.y)).not.toContain(axisToY(20, viewport));
-    // 豊中学舎（0）からコンベンションセンター前（33）へ一気に下る線が、
+    // 豊中学舎（0）からコンベ前（35）へ一気に下る線が、
     // 箕面学舎（20）の高さを横切っている。
     const [first, second] = points;
     expect(first?.y).toBeLessThan(axisToY(20, viewport));
@@ -161,6 +157,63 @@ describe('折れ線', () => {
 
   it('罫線より太く描く（格子に沈まない）', () => {
     expect(draw([through()]).segments[0]?.lineWidth).toBeGreaterThan(1);
+  });
+});
+
+describe('停車の点（#115、仕様書 §6.2.2）', () => {
+  it('**折れ点それぞれに点を打つ**（受入条件）', () => {
+    const dots = draw([through()]).dots;
+
+    // 豊中（0）→ コンベ前（35）→ 工学部（40）の 3 点。
+    expect(dots.map((dot) => dot.y)).toEqual([
+      axisToY(0, viewport),
+      axisToY(35, viewport),
+      axisToY(40, viewport),
+    ]);
+    expect(dots.map((dot) => dot.x)).toEqual([
+      timeToX(fromHM(8, 0), viewport),
+      timeToX(fromHM(8, 25), viewport),
+      timeToX(fromHM(8, 30), viewport),
+    ]);
+  });
+
+  it('**箕面に寄る便だけが箕面の線の上に点を持つ**（直行との差別化。受入条件）', () => {
+    const local = through({
+      points: [
+        { stopId: '1_0', time: fromHM(8, 0) },
+        { stopId: '2_0', time: fromHM(8, 20) },
+        { stopId: '3_0', time: fromHM(8, 35) },
+        { stopId: '4_0', time: fromHM(8, 40) },
+      ],
+    });
+    const minoh = axisToY(20, viewport);
+
+    expect(draw([local]).dots.map((dot) => dot.y)).toContain(minoh);
+    // 直行便は箕面学舎を通らない。点の打ちようが無い。
+    expect(draw([through()]).dots.map((dot) => dot.y)).not.toContain(minoh);
+  });
+
+  it('スジと同じ色で塗る', () => {
+    const dots = draw([through()]).dots;
+    for (const dot of dots) expect(dot.fillStyle).toBe(through().color);
+  });
+
+  it('**拡大しても大きさが変わらない**（受入条件。線幅と同じ扱い）', () => {
+    const wide = draw([through()], [], { pxPerMinute: 12, pxPerAxisUnit: 24 }).dots;
+    const narrow = draw([through()], [], { pxPerMinute: 1, pxPerAxisUnit: 2 }).dots;
+
+    expect(new Set([...wide, ...narrow].map((dot) => dot.radius)).size).toBe(1);
+  });
+
+  it('選んでも大きさは変わらない（太さだけが変わる）', () => {
+    const plain = draw([through()]).dots[0]?.radius;
+    const selected = draw([through()], ['t1']).dots[0]?.radius;
+
+    expect(selected).toBe(plain);
+  });
+
+  it('**回送には打たない**（客を乗せない便に「停まる」は無い）', () => {
+    expect(draw([pullOut()]).dots).toEqual([]);
   });
 });
 
