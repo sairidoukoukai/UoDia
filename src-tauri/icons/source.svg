@@ -1,0 +1,42 @@
+<!--
+  UoDia のアイコン（T-41）。
+
+  **ダイヤグラムそのものを描く。** 停留所線（横）と 2 本のスジ（往復）で、
+  この道具が何を作るためのものかを 32px でも読ませる。色は route.json の
+  パターン色から採った（吹田方面の青、豊中方面の赤）。
+
+  ここが版元である。配布用の PNG / ICO / ICNS は次の 2 つで作り直す。
+
+      convert -background none src-tauri/icons/source.svg -resize 1024x1024 /tmp/uodia.png
+      npx tauri icon /tmp/uodia.png
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <rect width="1024" height="1024" rx="180" fill="#12233a" />
+
+  <!-- 停留所線。上から 豊中・箕面・工学部。 -->
+  <g stroke="#5b6a7d" stroke-width="14" stroke-linecap="round">
+    <line x1="150" y1="270" x2="874" y2="270" />
+    <line x1="150" y1="512" x2="874" y2="512" />
+    <line x1="150" y1="754" x2="874" y2="754" />
+  </g>
+
+  <!-- 吹田方面のスジ（右下がり）。停まるところに点を打つ（#115）。 -->
+  <g stroke="#7fb0dd" stroke-width="42" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <polyline points="230,270 470,512 640,754" />
+  </g>
+  <g fill="#7fb0dd">
+    <circle cx="230" cy="270" r="34" />
+    <circle cx="470" cy="512" r="34" />
+    <circle cx="640" cy="754" r="34" />
+  </g>
+
+  <!-- 豊中方面のスジ（右上がり）。 -->
+  <g stroke="#e5a08c" stroke-width="42" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <polyline points="390,754 560,512 800,270" />
+  </g>
+  <g fill="#e5a08c">
+    <circle cx="390" cy="754" r="34" />
+    <circle cx="560" cy="512" r="34" />
+    <circle cx="800" cy="270" r="34" />
+  </g>
+</svg>

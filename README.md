@@ -38,7 +38,7 @@ npm install
 | `npm run dev` | Web 版の開発サーバ（http://localhost:1420） |
 | `npm run dev:desktop` | デスクトップ版の開発起動（WSL は自動判定） |
 | `npm run build:web` | Web 版のビルド |
-| `npm run build:desktop` | デスクトップ版のビルド |
+| `npm run build:desktop` | デスクトップ版のビルド（配布物も作る） |
 | `npm run test` | テスト実行 |
 | `npm run test:coverage` | カバレッジ付きテスト |
 | `npm run lint` | ESLint |
@@ -79,6 +79,38 @@ libEGL warning: egl: failed to create dri2 screen
 `GDK_BACKEND=x11` で X11（Xwayland）経由にすると描画される。あわせてソフトウェアレンダリングに倒し、`libEGL warning: DRI3 error` が出続けないようにしている。既に設定されている環境変数は上書きしないため、意図して指定した設定は奪われない。
 
 Web 版（`npm run dev`）は WSL でもそのまま動作する。ブラウザで確認するだけなら、こちらの方が起動が速い。
+
+## 配布物を作る（T-41）
+
+```
+npm run build:desktop            # 3 OS それぞれの機械で走らせる
+node scripts/check-bundle-size.mjs   # 出来た配布物と実行ファイルの大きさ
+```
+
+| OS | 出来るもの |
+| --- | --- |
+| Linux | `.deb` / `.rpm` / `.AppImage` |
+| Windows | `.msi` / `.exe`（NSIS） |
+| macOS | `.dmg` / `.app` |
+
+**`route.json` は同梱される**（`bundle.resources`）。初回起動時に設定ディレクトリへ複製し、以後はそちらを読む——インストール先が書き込み不可のことがあり、隠し設定からの書き戻し（T-36）ができなくなるためである（`src-tauri/src/paths.rs`）。
+
+**アイコンの版元は `src-tauri/icons/source.svg`** である。描き直したら次の 2 つで作り直す。
+
+```
+convert -background none src-tauri/icons/source.svg -resize 1024x1024 /tmp/uodia.png
+npx tauri icon /tmp/uodia.png
+```
+
+### 公開
+
+**タグを打ったときだけ** CI が 3 OS でビルドし、GitHub Releases に**下書き**として上げる（`.github/workflows/ci.yml`）。
+
+```
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+自動で公開しないのは、公開が取り消せない操作だからである。中身を見てから、Releases の画面で公開する。
 
 ## 進め方
 
