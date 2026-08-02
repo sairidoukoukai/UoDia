@@ -27,6 +27,11 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "publisher": "再履同好会",
+    "copyright": "© 2026 再履同好会",
+    "category": "Productivity",
+    "shortDescription": "再履バスのダイヤグラム設計ソフトウェア",
+    "longDescription": "大阪大学 学内連絡バス（再履バス）のダイヤグラムを作るための道具。時刻表とダイヤグラムを行き来しながら、便・運用・出入庫を組み立てる。大阪大学の公式なソフトウェアではない。",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -36,6 +41,11 @@
     ],
     "resources": {
       "../data/route.json": "route.json"
+    },
+    "linux": {
+      "deb": {
+        "section": "utils"
+      }
     }
   }
 }

@@ -129,3 +129,88 @@ jobs:
 
       - name: ビルド
         run: npm run build:desktop
+
+      # 仕様書 §9.1 の「バイナリサイズ 30MB 以内」を機械が見る。**入れ物ではなく
+      # 実行ファイルを測る**——インストーラは圧縮の効き方が OS ごとに違い、
+      # 比べる意味が薄い。
+      - name: バイナリサイズの確認
+        shell: bash
+        run: node scripts/check-bundle-size.mjs
+
+      # 出来た配布物を残す。**PR では走らないジョブ**であり（push のみ）、
+      # 手元に 3 OS を揃えられない以上、ここが唯一の確かめる手立てになる。
+      - name: 配布物の保存
+        uses: actions/upload-artifact@v4
+        with:
+          name: uodia-${{ matrix.label }}
+          path: |
+            src-tauri/target/release/bundle/**/*
+            !src-tauri/target/release/bundle/**/*.txt
+          retention-days: 14
+          if-no-files-found: warn
+
+  # ---------------------------------------------------------------------------
+  # 配布（T-41）。**タグを打ったときだけ**走る。
+  #
+  # 自動で公開しないのは、公開が取り消せない操作だからである。タグを打つのは
+  # 人の判断であり、そこまでは手で行う。
+  # ---------------------------------------------------------------------------
+  release:
+    name: 配布物の公開 (${{ matrix.label }})
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            label: Linux
+          - os: windows-latest
+            label: Windows
+          - os: macos-latest
+            label: macOS
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Linux の依存パッケージ
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libgtk-3-dev \
+            libxdo-dev \
+            libssl-dev \
+            build-essential \
+            patchelf \
+            file
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust のキャッシュ
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ./src-tauri -> target
+
+      - name: 依存のインストール
+        run: npm ci
+
+      # **下書きとして作る。** 中身を見てから公開できるようにするためであり、
+      # 3 つの OS のビルドが揃うのを待つ意味もある。
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: UoDia ${{ github.ref_name }}
+          releaseDraft: true
+          prerelease: false
