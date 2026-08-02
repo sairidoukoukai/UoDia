@@ -32,16 +32,20 @@ import {
   segmentRows,
   type SegmentEdits,
 } from './segments';
+import { PatternsTab } from './PatternsTab';
 import { applySegmentEdits, saveNetworkDef } from './settingsService';
 
 /** タブ。 */
-type TabId = 'segments' | 'behavior' | 'display';
+type TabId = 'segments' | 'behavior' | 'display' | 'patterns';
 
 const TABS: readonly { readonly id: TabId; readonly label: string }[] = [
   { id: 'segments', label: '区間所要時間' },
   { id: 'behavior', label: '動作' },
   { id: 'display', label: '表示' },
 ];
+
+/** 隠し設定のタブ（§6.5.4）。有効化されるまで出さない。 */
+const HIDDEN_TAB = { id: 'patterns', label: '停車パターン' } as const;
 
 export interface SettingsDialogProps {
   readonly open: boolean;
@@ -54,6 +58,10 @@ export interface SettingsDialogProps {
 export function SettingsDialog(props: SettingsDialogProps): ReactElement {
   const ref = useRef<HTMLDialogElement>(null);
   const [tab, setTab] = useState<TabId>('segments');
+  // **通常の操作では到達できない**（受入条件）。有効化するまでタブ自体が無く、
+  // 中身も組み立てない（`unlock.ts`）。
+  const unlocked = useAppStore((state) => state.settings.patternsUnlocked);
+  const tabs = unlocked ? [...TABS, HIDDEN_TAB] : TABS;
 
   useEffect(() => {
     const dialog = ref.current;
@@ -77,7 +85,7 @@ export function SettingsDialog(props: SettingsDialogProps): ReactElement {
       }}
     >
       <div className="settings__tabs" role="tablist" aria-label="設定の区分">
-        {TABS.map((entry) => (
+        {tabs.map((entry) => (
           <button
             key={entry.id}
             type="button"
@@ -98,6 +106,9 @@ export function SettingsDialog(props: SettingsDialogProps): ReactElement {
       )}
       {tab === 'behavior' && <BehaviorTab />}
       {tab === 'display' && <DisplayTab />}
+      {props.open && unlocked && tab === 'patterns' && (
+        <PatternsTab platform={props.platform} onNotice={props.onNotice} />
+      )}
 
       <div className="settings__actions">
         <button type="button" onClick={props.onClose}>

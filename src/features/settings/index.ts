@@ -1,4 +1,21 @@
+export { PatternsTab, type PatternsTabProps } from './PatternsTab';
 export { SettingsDialog, type SettingsDialogProps } from './SettingsDialog';
+
+export { attachUnlock, isUnlockShortcut, type UnlockOptions } from './unlock';
+
+export {
+  affectedTripCount as affectedByPatterns,
+  changedPatternIds,
+  duplicatedPattern,
+  movedStop,
+  patternRows,
+  samePattern,
+  withHandling,
+  withPatterns,
+  withStopAdded,
+  withStopRemoved,
+  type PatternRow,
+} from './patterns';
 
 export {
   affectedTripCount,
@@ -11,6 +28,7 @@ export {
 } from './segments';
 
 export {
+  applyPatterns,
   applySegmentEdits,
   saveNetworkDef,
   type ApplyResult,

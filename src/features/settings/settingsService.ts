@@ -18,7 +18,9 @@
 import { serializeNetworkDef } from '@/domain/io';
 import { segmentKey } from '@/domain/network';
 import type { PlatformAdapter } from '@/platform';
+import type { StopPattern } from '@/domain/model';
 import type { AppStore } from '@/store';
+import { changedPatternIds } from './patterns';
 import type { SegmentEdits } from './segments';
 
 /** 読み書きに要るだけの入れ口。 */
@@ -61,6 +63,41 @@ export function applySegmentEdits(store: SettingsStore, edits: SegmentEdits): Ap
   if (!result.changed) return { ok: true, message: '変わった区間はありません' };
 
   return { ok: true, message: '区間所要時間を変えました' };
+}
+
+/**
+ * 停車パターンの変更を当てる（履歴に載る。§6.5.4、T-36）。
+ *
+ * 区間所要時間と同じで、**検証は `execute` が行う**。R-03（隣接停留所対が区間表に
+ * あるか）に引っかかれば、その場で止まり、状態は変わらない。
+ */
+export function applyPatterns(store: SettingsStore, patterns: readonly StopPattern[]): ApplyResult {
+  const state = store.getState();
+  if (state.networkDef === null) return { ok: false, message: '路線図を読み込んでいません' };
+
+  // **変わっていなければ触らない。** 配列を入れ替えると、中身が同じでも Immer は
+  // 変更として記録し、履歴に空の 1 段が積まれる（区間表と違い、ここは配列ごと
+  // 差し替えるため値ごとの比較が効かない）。
+  if (changedPatternIds(state.networkDef.patterns, patterns).length === 0) {
+    return { ok: true, message: '変わったパターンはありません' };
+  }
+
+  const result = state.editNetwork('停車パターンの変更', (def) => {
+    def.patterns = [...patterns];
+  });
+
+  if (!result.ok) {
+    const first = result.issues[0];
+    return {
+      ok: false,
+      message:
+        first === undefined
+          ? '変更を適用できません'
+          : `変更を適用できません: [${first.rule}] ${first.message}`,
+    };
+  }
+
+  return { ok: true, message: '停車パターンを変えました' };
 }
 
 /**

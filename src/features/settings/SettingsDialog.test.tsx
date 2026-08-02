@@ -272,6 +272,53 @@ describe('表示タブ（§6.5.3）', () => {
   });
 });
 
+describe('隠し設定（§6.5.4、T-36。受入条件）', () => {
+  it('**通常の操作では到達できない**（タブが無い）', () => {
+    mount();
+
+    expect(container.textContent).not.toContain('停車パターン');
+    expect(() => button('停車パターン')).toThrow();
+  });
+
+  it('有効にすればタブが出て、パターンを直せる', () => {
+    useAppStore.getState().setSettings({ patternsUnlocked: true });
+    mount();
+
+    act(() => {
+      button('停車パターン').click();
+    });
+
+    expect(container.textContent).toContain('S3');
+    expect(container.textContent).toContain('豊中 → 箕面 → コンベ前');
+  });
+
+  it('**区間表にない停留所対を作ると、足りない区間を名指しして止める**', () => {
+    useAppStore.getState().setSettings({ patternsUnlocked: true });
+    mount();
+    act(() => {
+      button('停車パターン').click();
+    });
+
+    // S3（豊中 → 箕面 → コンベ前 → 微研 → 工学部）から、コンベ前と微研を外す。
+    act(() => {
+      const list = [
+        ...container.querySelectorAll<HTMLButtonElement>('.settings__pattern-list button'),
+      ];
+      list.find((item) => item.textContent.startsWith('S3'))?.click();
+    });
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[aria-label="3_0 を外す"]')?.click();
+    });
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[aria-label="6_0 を外す"]')?.click();
+    });
+
+    expect(container.textContent).toContain('[R-03]');
+    expect(container.textContent).toContain('2_0→4_0');
+    expect(button('変更を適用').disabled).toBe(true);
+  });
+});
+
 describe('閉じる', () => {
   it('閉じるを押すと知らせる', () => {
     mount();

@@ -255,6 +255,7 @@ const INITIAL_STATE: AppState = {
   settings: {
     backupIntervalMs: DEFAULT_BACKUP_INTERVAL_MS,
     defaultDiagramView: diagramViewSchema.parse({}),
+    patternsUnlocked: false,
   },
 };
 
