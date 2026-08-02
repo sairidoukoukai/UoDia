@@ -16,13 +16,16 @@ import { blockColorsOf } from '@/features/timetable';
 import { selectBlocks, selectTrips, selectView, useAppStore } from '@/store';
 import { withHidden } from './filters';
 
+/** 空の一覧。**毎回作らない**——参照が変わると購読が動く。 */
+const NO_IDS: readonly string[] = [];
+
 export function BlockList(): ReactElement {
   const derivation = useAppStore(selectBlocks);
   const trips = useAppStore(selectTrips);
-  const view = useAppStore(selectView);
+  // 必要な項目だけを購読する（T-40）。送りのたびに描き直さないためである。
+  const hidden = useAppStore((state) => selectView(state)?.hiddenBlockIds ?? NO_IDS);
   const editProject = useAppStore((state) => state.editProject);
 
-  const hidden = view?.hiddenBlockIds ?? [];
   const blocks = derivation?.blocks ?? [];
 
   // 運用番号 → 色。**時刻表・ダイヤグラムと同じ道具で割り当てる**（`blockColorsOf`）。
