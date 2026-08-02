@@ -38,6 +38,7 @@ npm install
 | `npm run dev` | Web 版の開発サーバ（http://localhost:1420） |
 | `npm run dev:desktop` | デスクトップ版の開発起動（WSL は自動判定） |
 | `npm run build:web` | Web 版のビルド |
+| `npm run build:web:dist` | Web 版のビルド + 事前圧縮（配布用） |
 | `npm run build:desktop` | デスクトップ版のビルド（配布物も作る） |
 | `npm run test` | テスト実行 |
 | `npm run test:coverage` | カバレッジ付きテスト |
@@ -101,6 +102,23 @@ node scripts/check-bundle-size.mjs   # 出来た配布物と実行ファイル�
 convert -background none src-tauri/icons/source.svg -resize 1024x1024 /tmp/uodia.png
 npx tauri icon /tmp/uodia.png
 ```
+
+## Web 版を置く（T-42）
+
+```
+npm run build:web:dist   # ビルドして .gz / .br も作る
+```
+
+`dist/` を**そのまま**静的ホスティングに置く。サーバ側の設定は要らない。
+
+| 決め | 内容 |
+| --- | --- |
+| 置き場所 | **どこでもよい。** 資産は相対で書き出してあり、`https://例/tools/uodia/` のようなサブディレクトリでも動く |
+| 絶対パスにしたいとき | `UODIA_BASE=/uodia/ npm run build:web` |
+| 圧縮 | `.gz` と `.br` を隣に置いてある。対応するサーバはそれを配る。対応していなくても元のファイルが配られるだけで害はない |
+| 初回に落ちる量 | **約 107KB**（gzip 後。目標は 1MB 以内） |
+
+**配信先は決めていない。** CI に自動デプロイは入れていない（GitHub Pages は 2026-07-25 に不採用と決定）。決まったら別のタスクとして追加する。
 
 ### 公開
 

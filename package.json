@@ -9,6 +9,7 @@
     "dev": "vite",
     "dev:desktop": "tauri dev",
     "build:web": "tsc --noEmit && vite build",
+    "build:web:dist": "npm run build:web && node scripts/compress-dist.mjs",
     "build:desktop": "tauri build",
     "preview": "vite preview",
     "tauri": "tauri",
