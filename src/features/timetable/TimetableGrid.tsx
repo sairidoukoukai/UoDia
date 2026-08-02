@@ -13,7 +13,7 @@
  */
 
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
-import type { StopPattern } from '@/domain/model';
+import type { DirectionId, StopPattern } from '@/domain/model';
 import { formatTime } from '@/domain/time';
 import {
   initialEditText,
@@ -23,6 +23,7 @@ import {
   type Move,
 } from './editing';
 import {
+  DIRECTION_LABEL,
   NOT_SERVED,
   type LinkCell,
   type Timetable,
@@ -103,6 +104,13 @@ export interface TimetableGridProps {
    */
   readonly onTogglePullOut: (tripId: string) => void;
   readonly onTogglePullIn: (tripId: string) => void;
+  /**
+   * いま出している方向（仕様書 §6.1.1、#136）。**表の名前として出す**ために要る。
+   *
+   * 選ぶ手立ては外（方向タブ）にあり、ここでは変えない。表が自分の名前を
+   * 名乗れないと、升目を追っているあいだ手がかりが無くなる。
+   */
+  readonly direction: DirectionId;
 }
 
 /** 丸めを知らせる点滅の長さ（ミリ秒）。 */
@@ -150,6 +158,16 @@ export function TimetableGrid(props: TimetableGridProps): ReactElement {
   ];
   const size = { rows: stops.length, columns: slots.length };
   const selected = new Set(selectedTripIds);
+
+  /**
+   * 表の名前に添える起点と終点（#136）。
+   *
+   * 行は進行方向の順に並ぶ（仕様書 §6.1.1）。**その並びが上から下へどちらへ
+   * 進むのかを、言葉でも書いておく。**
+   */
+  const first = stops[0]?.shortName;
+  const last = stops.at(-1)?.shortName;
+  const ends = first !== undefined && last !== undefined ? { first, last } : null;
 
   /**
    * 今その列を照らしている運用番号。空文字は「照らしていない」。
@@ -290,6 +308,20 @@ export function TimetableGrid(props: TimetableGridProps): ReactElement {
   return (
     <div className="timetable__scroll" ref={gridRef}>
       <table className="timetable">
+        {/*
+          表の名前として方向を出す（#136）。**タブは表の外にあり、升目を追って
+          いるあいだは視野から外れる。** 起点と終点も添えて、行が上から下へ
+          どちらへ進むのかを書いておく。
+        */}
+        <caption className="timetable__caption">
+          {DIRECTION_LABEL[props.direction]}
+          {ends !== null && (
+            <span className="timetable__caption-route">
+              {ends.first} → {ends.last}
+            </span>
+          )}
+        </caption>
+
         <thead>
           {/*
             見出しは 3 行（列見出し = 便番号・パターン・運用。仕様書 §6.1.1）。
