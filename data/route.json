@@ -100,6 +100,7 @@
       "color": "#1a4f8a",
       "isDefault": false,
       "isDeadhead": false,
+      "serviceType": "express",
       "stopSequence": [
         { "stopId": "1_0", "handling": "boardOnly" },
         { "stopId": "3_0", "handling": "stop" },
@@ -115,6 +116,7 @@
       "color": "#2e6fb5",
       "isDefault": true,
       "isDeadhead": false,
+      "serviceType": "local",
       "stopSequence": [
         { "stopId": "1_0", "handling": "boardOnly" },
         { "stopId": "2_0", "handling": "stop" },
@@ -131,6 +133,7 @@
       "color": "#5490cc",
       "isDefault": false,
       "isDeadhead": false,
+      "serviceType": "local",
       "stopSequence": [
         { "stopId": "2_0", "handling": "boardOnly" },
         { "stopId": "3_0", "handling": "stop" },
@@ -146,6 +149,7 @@
       "color": "#7fb0dd",
       "isDefault": false,
       "isDeadhead": false,
+      "serviceType": "local",
       "stopSequence": [
         { "stopId": "1_0", "handling": "boardOnly" },
         { "stopId": "2_0", "handling": "alightOnly" }
@@ -159,6 +163,7 @@
       "color": "#a63a2e",
       "isDefault": false,
       "isDeadhead": false,
+      "serviceType": "express",
       "stopSequence": [
         { "stopId": "4_0", "handling": "boardOnly" },
         { "stopId": "5_0", "handling": "stop" },
@@ -173,6 +178,7 @@
       "color": "#c9553f",
       "isDefault": true,
       "isDeadhead": false,
+      "serviceType": "local",
       "stopSequence": [
         { "stopId": "4_0", "handling": "boardOnly" },
         { "stopId": "5_0", "handling": "stop" },
@@ -188,6 +194,7 @@
       "color": "#d97a63",
       "isDefault": false,
       "isDeadhead": false,
+      "serviceType": "local",
       "stopSequence": [
         { "stopId": "2_0", "handling": "boardOnly" },
         { "stopId": "1_0", "handling": "alightOnly" }
@@ -201,6 +208,7 @@
       "color": "#e5a08c",
       "isDefault": false,
       "isDeadhead": false,
+      "serviceType": "local",
       "stopSequence": [
         { "stopId": "4_0", "handling": "boardOnly" },
         { "stopId": "5_0", "handling": "stop" },

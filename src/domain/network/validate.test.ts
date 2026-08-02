@@ -98,6 +98,8 @@ function makePattern(options: {
   isDeadhead?: boolean;
   stops: readonly string[];
 }): StopPattern {
+  const isDeadhead = options.isDeadhead ?? false;
+
   return {
     patternId: options.patternId,
     patternName: options.patternId,
@@ -105,7 +107,9 @@ function makePattern(options: {
     directionId: options.directionId,
     color: '#123456',
     isDefault: options.isDefault,
-    isDeadhead: options.isDeadhead ?? false,
+    isDeadhead,
+    // 営業パターンは各駅・通過の別を持つ（R-12）。回送は持たない。
+    ...(isDeadhead ? {} : { serviceType: 'local' as const }),
     stopSequence: options.stops.map((stopId, index) => ({
       stopId,
       handling:
@@ -408,6 +412,28 @@ describe('segmentKey', () => {
   it('有向であることが分かる形にする', () => {
     expect(segmentKey('A', 'B')).toBe('A→B');
     expect(segmentKey('A', 'B')).not.toBe(segmentKey('B', 'A'));
+  });
+});
+
+describe('R-12: 各駅・通過の別（#114）', () => {
+  it('営業パターンに serviceType が無ければ報告する', () => {
+    const network = makeValidNetwork();
+    const pattern = network.patterns[0];
+    if (pattern === undefined) throw new Error('パターンがありません');
+    network.patterns[0] = { ...pattern, serviceType: undefined };
+
+    expect(rulesOf(network)).toContain('R-12');
+  });
+
+  it('**回送に serviceType があれば報告する**（客を乗せない便に各駅・通過は無い）', () => {
+    const network = makeValidNetwork();
+    const deadhead = network.patterns.find((p) => p.isDeadhead);
+    if (deadhead === undefined) throw new Error('回送パターンがありません');
+    network.patterns = network.patterns.map((p) =>
+      p === deadhead ? { ...p, serviceType: 'local' as const } : p,
+    );
+
+    expect(rulesOf(network)).toContain('R-12');
   });
 });
 

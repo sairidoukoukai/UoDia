@@ -1,31 +1,32 @@
 /**
  * スジの線種（仕様書 §6.2.2、§9.4、T-26）。
  *
- * **パターンの識別を色だけに頼らせない。** 8 本のパターン色は色相で分けてあるが、
- * 色の見分けがつかない利用者には 1 色に見える。線種を併せて変えれば、色に頼らず
- * 数えられる。
+ * **パターンの識別を色だけに頼らせない。** 色の見分けがつかない利用者には
+ * 8 本のパターン色が 1 色に見える。線種を併せて変えれば、色に頼らず読める。
  *
- * ## 番号でも位置でもなく、定義の順で決める
+ * ## 見分けたいのは「各駅か通過か」だけである
  *
- * 運用の色（`domain/block/colors.ts`）と同じ考え方である。線種をデータとして
- * 持たせると、パターンを増やすたびに線種の管理が要る。`route.json` に書かれた
- * **方向ごとの定義順**から決めれば、同じ路線図を別の環境で開いても同じ絵になる。
+ * かつては方向ごとの定義順で 4 種類を配っていた（実線 → 破線 → 点線 →
+ * 一点鎖線）。**線種が 4 つあると、どの線が何を意味するのかを覚えていないと
+ * 読めない。** 実際に見分けたいのは「箕面学舎に寄るか、直行か」であり、区間便か
+ * どうかはスジの端がどこにあるかで読める（#114）。
+ *
+ * 区別する必要の無いものに別の記号を与えると、記号のほうが多くなる。
+ *
+ * ## どちらのタイプかはデータが決める
+ *
+ * 停留所の並びから推し量ると、実装が特定の停留所 ID を名指しすることになる。
+ * 各駅か通過かは路線側の事実であり、`route.json` の `serviceType` が持つ
+ * （R-12 で検証）。
  */
 
-import type { StopPattern } from '@/domain/model';
+import type { ServiceType, StopPattern } from '@/domain/model';
 
-/**
- * 営業パターンの線種。方向ごとに定義順で割り当てる。
- *
- * 方向は線の傾き（右下がり／右上がり）で分かるため、線種は方向をまたいで
- * 使い回してよい。実際の路線は方向ごとに 4 本であり、巡回は起きない。
- */
-const PATTERN_DASHES: readonly (readonly number[])[] = [
-  [], // 実線
-  [8, 4], // 破線
-  [2, 3], // 点線
-  [10, 4, 2, 4], // 一点鎖線
-];
+/** 各駅タイプ（`local`）。箕面学舎に停まる便。 */
+const LOCAL_DASH: readonly number[] = [];
+
+/** 通過タイプ（`express`）。箕面学舎を通らない直行便。 */
+const EXPRESS_DASH: readonly number[] = [8, 4];
 
 /** 実線。 */
 export const SOLID: readonly number[] = [];
@@ -33,9 +34,9 @@ export const SOLID: readonly number[] = [];
 /** 回送スジ（仕様書 §6.2.2）。営業パターンには使わない短い破線とする。 */
 export const DEADHEAD_DASH: readonly number[] = [5, 4];
 
-/** 定義順に対応する線種。数を超えた分は先頭から巡回する。 */
-export function patternDashAt(index: number): readonly number[] {
-  return PATTERN_DASHES[index % PATTERN_DASHES.length] ?? SOLID;
+/** 運行の種別に対応する線種。 */
+export function dashForServiceType(serviceType: ServiceType): readonly number[] {
+  return serviceType === 'express' ? EXPRESS_DASH : LOCAL_DASH;
 }
 
 /**
@@ -43,21 +44,21 @@ export function patternDashAt(index: number): readonly number[] {
  *
  * 回送はすべて同じ破線とする。回送どうしを見分ける必要はない——どの営業便から
  * 展開されたかは、繋がっている営業便のスジが示している。
+ *
+ * `serviceType` の無い営業パターンは各駅として描く（R-12 が別に報告する）。
+ * **絵を出さないより、既定を決めて出すほうがよい。**
  */
 export function assignPatternDashes(
   patterns: readonly StopPattern[],
 ): Map<string, readonly number[]> {
   const dashes = new Map<string, readonly number[]>();
-  const countByDirection = new Map<number, number>();
 
   for (const pattern of patterns) {
-    if (pattern.isDeadhead) {
-      dashes.set(pattern.patternId, DEADHEAD_DASH);
-      continue;
-    }
-    const index = countByDirection.get(pattern.directionId) ?? 0;
-    countByDirection.set(pattern.directionId, index + 1);
-    dashes.set(pattern.patternId, patternDashAt(index));
+    dashes.set(
+      pattern.patternId,
+      pattern.isDeadhead ? DEADHEAD_DASH : dashForServiceType(pattern.serviceType ?? 'local'),
+    );
   }
+
   return dashes;
 }

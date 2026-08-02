@@ -88,7 +88,7 @@ export {
   type SceneTrip,
 } from './scene';
 
-export { DEADHEAD_DASH, SOLID, assignPatternDashes, patternDashAt } from './tripStyle';
+export { DEADHEAD_DASH, SOLID, assignPatternDashes, dashForServiceType } from './tripStyle';
 
 export {
   AXIS_LABEL_WIDTH,

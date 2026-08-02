@@ -59,6 +59,19 @@ export const segmentSchema = z.object({
 });
 export type Segment = z.infer<typeof segmentSchema>;
 
+/**
+ * 運行の種別（仕様書 §5.5、#114）。**線種はここから決まる。**
+ *
+ * 見分けたいのは「箕面学舎に寄るか、直行か」だけである。区間便かどうかは
+ * スジの端がどこにあるかで読めるため、線種を分ける理由が無い——区別する必要の
+ * 無いものに別の記号を与えると、記号のほうが多くなる。
+ *
+ * **判定はデータが持つ。** 停留所の並びから推し量ると、実装が特定の停留所 ID を
+ * 名指しすることになる。各駅か通過かは路線側の事実であり、`route.json` に書く。
+ */
+export const serviceTypeSchema = z.enum(['local', 'express']);
+export type ServiceType = z.infer<typeof serviceTypeSchema>;
+
 /** 停車パターン内の 1 停留所。 */
 export const patternStopSchema = z.object({
   stopId: idSchema,
@@ -86,6 +99,13 @@ export const stopPatternSchema = z.object({
   isDefault: z.boolean(),
   /** true なら回送。営業運行ではなく、GTFS 出力から除外される。 */
   isDeadhead: z.boolean(),
+  /**
+   * 各駅（`local`）か通過（`express`）か。**回送は持たない**（R-12 で検証）。
+   *
+   * 乗る人にとっての区別であり、客を乗せない回送には当てはまらない。回送の
+   * 線種は営業パターンと別に決まっている（`DEADHEAD_DASH`）。
+   */
+  serviceType: serviceTypeSchema.optional(),
   /** 通過順。先頭が始発、末尾が終着。2 要素以上（R-06 で検証）。 */
   stopSequence: z.array(patternStopSchema),
 });
