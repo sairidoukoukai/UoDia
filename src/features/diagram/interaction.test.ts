@@ -25,8 +25,8 @@ import { AXIS_LABEL_WIDTH, viewportOf, xToTime, yToAxis, type Viewport } from '.
 const view: DiagramView = DEFAULT_DIAGRAM_VIEW;
 const viewport: Viewport = viewportOf(view, 1000, 420);
 
-/** 千里営業所まで含む縦軸（0〜52）。 */
-const bounds: AxisBounds = { min: 0, max: 52 };
+/** 縦軸の範囲（0〜40）。営業所は縦軸に並ばない（#118）。 */
+const bounds: AxisBounds = { min: 0, max: 40 };
 
 function wheel(overrides: Partial<WheelInput> = {}): WheelInput {
   return {
@@ -195,7 +195,7 @@ describe('送りの範囲', () => {
   });
 
   it('**全体が入っているときは端に寄せる**（何も無い場所へ迷い込ませない）', () => {
-    // 既定では縦軸（0〜52）が画面に収まっている。
+    // 既定では縦軸（0〜40）が画面に収まっている。
     const next = viewAfterWheel(view, wheel({ deltaY: 500 }), viewport, bounds);
     expect(next.scrollAxis).toBe(0);
   });
@@ -227,7 +227,6 @@ describe('送りの範囲', () => {
         grid: '#e4e4e4',
         gridFaint: '#f0f0f0',
         label: '#666',
-        lane: '#f4f4f4',
       },
     };
     const next = clampScroll({ ...view, scrollAxis: 30 }, viewport, axisBoundsOf(empty));
@@ -238,12 +237,12 @@ describe('送りの範囲', () => {
   it('場面から縦軸の端を取る', () => {
     const scene = {
       stops: [
-        { stopId: 'a', stopName: '', axisPosition: 0, gridStyle: 'bold', isDepot: false },
-        { stopId: 'b', stopName: '', axisPosition: 52, gridStyle: 'dashed', isDepot: true },
+        { stopId: 'a', stopName: '', axisPosition: 0, gridStyle: 'bold' },
+        { stopId: 'b', stopName: '', axisPosition: 40, gridStyle: 'dashed' },
       ],
     } as unknown as DiagramScene;
 
-    expect(axisBoundsOf(scene)).toEqual({ min: 0, max: 52 });
+    expect(axisBoundsOf(scene)).toEqual({ min: 0, max: 40 });
   });
 });
 
@@ -251,7 +250,7 @@ describe('既定に戻す（Ctrl+0）', () => {
   it('**スキーマの既定値と同じ**（新規作成した直後と同じ画面になる）', () => {
     expect(DEFAULT_DIAGRAM_VIEW).toEqual({
       pxPerMinute: 3,
-      pxPerAxisUnit: 6,
+      pxPerAxisUnit: 8,
       scrollTime: fromHM(7, 0),
       scrollAxis: 0,
     });

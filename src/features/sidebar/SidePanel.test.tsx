@@ -33,7 +33,6 @@ const THEME: SceneTheme = {
   grid: '#ccc',
   gridFaint: '#eee',
   label: '#333',
-  lane: '#f4f4f4',
 };
 
 let counter = 0;

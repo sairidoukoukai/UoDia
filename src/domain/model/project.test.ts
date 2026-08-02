@@ -208,10 +208,10 @@ describe('projectSchema', () => {
 describe('ダイヤグラムの視野（仕様書 §6.2.3、T-27）', () => {
   const defaults = diagramViewSchema.parse({});
 
-  it('既定は 7:00 から、1 分 3px', () => {
+  it('既定は 7:00 から、1 分 3px・軸 1 単位 8px', () => {
     expect(defaults).toEqual({
       pxPerMinute: 3,
-      pxPerAxisUnit: 6,
+      pxPerAxisUnit: 8,
       scrollTime: fromHM(7, 0),
       scrollAxis: 0,
     });

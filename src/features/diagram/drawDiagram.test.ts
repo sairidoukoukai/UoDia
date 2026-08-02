@@ -22,13 +22,12 @@ const theme = {
   grid: '#e4e4e4',
   gridFaint: '#f0f0f0',
   label: '#666666',
-  lane: '#f4f4f4',
 };
 
 const scene: DiagramScene = {
   stops: [
-    { stopId: '1_0', shortName: '豊中', axisPosition: 0, gridStyle: 'bold', isDepot: false },
-    { stopId: '4_0', shortName: '工学部', axisPosition: 40, gridStyle: 'bold', isDepot: false },
+    { stopId: '1_0', shortName: '豊中', axisPosition: 0, gridStyle: 'bold' },
+    { stopId: '4_0', shortName: '工学部', axisPosition: 40, gridStyle: 'bold' },
   ],
   trips: [
     {

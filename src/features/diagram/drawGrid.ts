@@ -24,7 +24,7 @@ import {
   seconds,
   type Seconds,
 } from '@/domain/time';
-import type { DiagramScene, SceneStop, SceneTheme } from './scene';
+import type { DiagramScene, SceneTheme } from './scene';
 import {
   axisToY,
   DIAGRAM_END_TIME,
@@ -114,28 +114,13 @@ const TIME_LABEL_STEPS: readonly number[] = [60, 120, 180, 360];
 /** これより縮めたときは重なりを許す。拡大率の下限は T-27 が定める。 */
 const WIDEST_TIME_LABEL_STEP = 720;
 
-/** 千里営業所の専用レーン（仕様書 §6.2.1）。 */
-export interface DepotLane {
-  /** 営業停留所と営業所を隔てる線の y。 */
-  readonly boundaryY: number;
-  /** レーンの地色を塗る範囲。描画領域の中に収めてある。 */
-  readonly top: number;
-  readonly bottom: number;
-}
-
 export function drawGrid(ctx: DrawContext, scene: DiagramScene, viewport: Viewport): void {
   const range = plotXRange(viewport);
   // 表示範囲（7:00〜22:00）が視野から外れている。描く格子が無い。
   if (range === null) return;
 
-  const lane = depotLane(scene, viewport);
-  if (lane !== null) drawLaneBand(ctx, scene.theme, range, lane);
-
   drawTimeLines(ctx, scene.theme, viewport);
   drawStopLines(ctx, scene, viewport, range);
-  // 境界線は罫線の上に置く。縦軸の内と外を隔てるものが罫線に埋もれては困る。
-  if (lane !== null) drawLaneBoundary(ctx, scene.theme, viewport, range, lane);
-
   drawTimeLabels(ctx, scene.theme, viewport);
   drawStopLabels(ctx, scene, viewport);
 }
@@ -176,75 +161,6 @@ export function timeLabelStepMinutes(pxPerMinute: number): number {
     if (step * pxPerMinute >= MIN_TIME_LABEL_GAP) return step;
   }
   return WIDEST_TIME_LABEL_STEP;
-}
-
-/**
- * 営業所レーンの位置。営業所が縦軸のどちら側にあるかは軸位置が決める。
- *
- * @returns 営業所か営業停留所が無いときは `null`（隔てるものが決まらない）
- */
-export function depotLane(scene: DiagramScene, viewport: Viewport): DepotLane | null {
-  const depot = scene.stops.find((stop) => stop.isDepot);
-  if (depot === undefined) return null;
-
-  const nearest = nearestRevenueStop(scene.stops, depot);
-  if (nearest === null) return null;
-
-  const boundaryY = axisToY((depot.axisPosition + nearest.axisPosition) / 2, viewport);
-  const below = depot.axisPosition > nearest.axisPosition;
-
-  return {
-    boundaryY,
-    top: below ? Math.max(boundaryY, viewport.originY) : viewport.originY,
-    bottom: below ? viewport.height : Math.min(boundaryY, viewport.height),
-  };
-}
-
-/** 営業所に軸位置が最も近い営業停留所。そこが縦軸の端である。 */
-function nearestRevenueStop(stops: readonly SceneStop[], depot: SceneStop): SceneStop | null {
-  let nearest: SceneStop | null = null;
-  let distance = Number.POSITIVE_INFINITY;
-
-  for (const stop of stops) {
-    if (stop.isDepot) continue;
-    const gap = Math.abs(stop.axisPosition - depot.axisPosition);
-    if (gap < distance) {
-      nearest = stop;
-      distance = gap;
-    }
-  }
-  return nearest;
-}
-
-function drawLaneBand(
-  ctx: DrawContext,
-  theme: SceneTheme,
-  range: { readonly left: number; readonly right: number },
-  lane: DepotLane,
-): void {
-  if (lane.bottom <= lane.top) return;
-
-  ctx.fillStyle = theme.lane;
-  ctx.fillRect(range.left, lane.top, range.right - range.left, lane.bottom - lane.top);
-}
-
-function drawLaneBoundary(
-  ctx: DrawContext,
-  theme: SceneTheme,
-  viewport: Viewport,
-  range: { readonly left: number; readonly right: number },
-  lane: DepotLane,
-): void {
-  if (lane.boundaryY < viewport.originY || lane.boundaryY > viewport.height) return;
-
-  ctx.strokeStyle = theme.axis;
-  ctx.lineWidth = 1;
-  ctx.setLineDash([]);
-  ctx.beginPath();
-  const y = crisp(lane.boundaryY, 1);
-  ctx.moveTo(range.left, y);
-  ctx.lineTo(range.right, y);
-  ctx.stroke();
 }
 
 function drawTimeLines(ctx: DrawContext, theme: SceneTheme, viewport: Viewport): void {

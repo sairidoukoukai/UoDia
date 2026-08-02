@@ -447,9 +447,10 @@ describe('セレクタ — 取り出し', () => {
     expect(selectSelectedTrips(state())).toEqual([]);
   });
 
-  it('表示する停留所を縦軸の順に返す（微研は除く）', () => {
+  it('表示する停留所を縦軸の順に返す（微研と営業所は除く）', () => {
     const stops = selectVisibleStops(state());
-    expect(stops.map((s) => s.stopId)).toEqual(['1_0', '2_0', '3_0', '5_0', '4_0', '9_0']);
+    // 営業所（9_0）は縦軸に置き場所が無い（#118）。回送はヒゲで示す。
+    expect(stops.map((s) => s.stopId)).toEqual(['1_0', '2_0', '3_0', '5_0', '4_0']);
   });
 });
 

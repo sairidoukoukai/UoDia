@@ -28,7 +28,6 @@ const theme: SceneTheme = {
   grid: '#e4e4e4',
   gridFaint: '#f0f0f0',
   label: '#666666',
-  lane: '#f4f4f4',
 };
 
 function makeTrip(tripId: string, hours: number): Trip {

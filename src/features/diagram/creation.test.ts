@@ -16,15 +16,15 @@ const THEME: SceneTheme = {
   grid: '#ccc',
   gridFaint: '#eee',
   label: '#333',
-  lane: '#f4f4f4',
 };
 
-function stop(stopId: string, axisPosition: number, isDepot = false): SceneStop {
-  return { stopId, shortName: stopId, axisPosition, gridStyle: 'normal', isDepot };
+function stop(stopId: string, axisPosition: number): SceneStop {
+  return { stopId, shortName: stopId, axisPosition, gridStyle: 'normal' };
 }
 
+// 営業所は縦軸に並ばない（#118）。引ける線は営業停留所だけである。
 const SCENE: DiagramScene = {
-  stops: [stop('a', 0), stop('b', 20), stop('depot', 52, true)],
+  stops: [stop('a', 0), stop('b', 20)],
   trips: [],
   selectedTripIds: new Set(),
   selectionRect: null,
@@ -33,11 +33,11 @@ const SCENE: DiagramScene = {
 };
 
 const VIEW: DiagramView = DEFAULT_DIAGRAM_VIEW;
-/** 7:00 が左端、1 分 3px、軸 1 単位 6px。 */
+/** 7:00 が左端、1 分 3px、軸 1 単位 8px。 */
 const VIEWPORT: Viewport = viewportOf(VIEW, 1000, 420);
 
-/** 停留所 `b`（軸 20 = 上端から 120px）の線の上。 */
-const ON_B = { x: AXIS_LABEL_WIDTH + 180, y: TIME_LABEL_HEIGHT + 120 };
+/** 停留所 `b`（軸 20 = 上端から 160px）の線の上。 */
+const ON_B = { x: AXIS_LABEL_WIDTH + 180, y: TIME_LABEL_HEIGHT + 160 };
 
 describe('停留所線を押す', () => {
   it('押した停留所と時刻を返す', () => {

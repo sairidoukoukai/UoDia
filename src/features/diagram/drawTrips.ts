@@ -32,6 +32,18 @@ const TRIP_WIDTH = 1.5;
  */
 const DEADHEAD_WIDTH = 1;
 
+/**
+ * 営業所側へ伸ばす「ヒゲ」の長さ（px。#118、仕様書 §6.2.2）。
+ *
+ * **軸の単位ではなく画面の量で持つ。** 軸の単位で決めると、縦に拡げるたびに
+ * ヒゲが伸び、いま直したはずの「回送が全体を横断する」状態が戻ってくる。線幅や
+ * 破線の刻みと同じで、これは**絵の記号の大きさ**であって、距離でも時間でもない。
+ *
+ * 伸ばす向きは下と決める。営業所は縦軸の外——一番下の停留所線より先にあるものと
+ * して描いていた（v4.15 の営業所レーン）読み方をそのまま引き継ぐ。
+ */
+export const STUB_LENGTH = 15;
+
 /** 選択されたスジの太さ（仕様書 §6.2.2）。細い回送も同じ比で太くする。 */
 const SELECTED_SCALE = 2;
 
@@ -107,10 +119,8 @@ export function drawTrips(ctx: DrawContext, scene: DiagramScene, viewport: Viewp
  * 視野に掛かるスジの座標。
  *
  * **描画（T-26）と当たり判定（T-28）が同じ列を使う。** 両者が別々に座標を組むと、
- * 見えている線と掴める線がずれる。**座標は 1 本につき 1 度だけ求める。**
- *
- * 縦軸に無い停留所は場面に含まれていない（`scene.ts`）ため、折れ点は必ず座標を
- * 持つ。
+ * 見えている線と掴める線がずれる。**座標は 1 本につき 1 度だけ求める。** ヒゲも
+ * この列に入るため、ヒゲを掴めば元の営業便が選ばれる（§6.3.1）。
  */
 export function tripPolylines(scene: DiagramScene, viewport: Viewport): readonly TripPolyline[] {
   const axis = axisPositions(scene);
@@ -148,15 +158,35 @@ function polyline(
   axis: ReadonlyMap<string, number>,
   viewport: Viewport,
 ): readonly ScreenPoint[] {
-  const points: ScreenPoint[] = [];
-
-  for (const point of trip.points) {
+  // 縦軸に乗る点の y。営業所（`offAxis`）はここでは決まらない。
+  const ys = trip.points.map((point) => {
     const axisPosition = axis.get(point.stopId);
-    if (axisPosition === undefined) continue;
-    points.push({ x: timeToX(point.time, viewport), y: axisToY(axisPosition, viewport) });
+    return axisPosition === undefined ? null : axisToY(axisPosition, viewport);
+  });
+
+  const points: ScreenPoint[] = [];
+  for (const [index, point] of trip.points.entries()) {
+    const y = ys[index] ?? stubY(ys, index);
+    // 縦軸に乗る点が 1 つも無い便。伸ばす元が無く、線にならない。
+    if (y === null) continue;
+    points.push({ x: timeToX(point.time, viewport), y });
   }
 
   return points;
+}
+
+/**
+ * ヒゲの先の y（#118）。
+ *
+ * **一番近い縦軸上の点から一定の px だけ下へ伸ばす。** 回送は営業便の端に付く
+ * 線であり、伸ばす元はその隣の折れ点である。
+ */
+function stubY(ys: readonly (number | null)[], index: number): number | null {
+  for (let distance = 1; distance < ys.length; distance += 1) {
+    const y = ys[index - distance] ?? ys[index + distance];
+    if (y !== null && y !== undefined) return y + STUB_LENGTH;
+  }
+  return null;
 }
 
 /**
