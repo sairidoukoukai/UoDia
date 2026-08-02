@@ -1,45 +1,66 @@
 /**
- * 最大化のショートカット（仕様書 §6.4、T-32）。
+ * キーボードショートカット（仕様書 §8.1、T-37）。
  *
- * **窓に張る。** 最大化はどこに焦点があっても効くべきものであり、時刻表の升目を
- * 打っている最中にも押される。要素ごとに張ると、焦点の位置によって効いたり
- * 効かなかったりする。
+ * **窓に張る。** ショートカットはどこに焦点があっても効くべきものであり、要素
+ * ごとに張ると、焦点の位置によって効いたり効かなかったりする。
  *
- * どの鍵がどちらを指すかは `layout.ts` の純関数が決める。ここは受け取って
- * ストアへ渡すだけである。
+ * どの鍵がどの操作かは `commands.ts` の表が決める。ここがするのは、押された鍵を
+ * その表に照らし、渡された動きを呼ぶことだけである——**メニューと同じ表を読む**
+ * ため、片方だけが古くなることが起こらない。
  */
 
-import type { AppState, MaximizedPane } from '@/store';
-import { maximizeShortcut, togglePane } from './layout';
+import { matchCommand, type Command, type CommandId } from './commands';
 
-/** 最大化の読み書きに要るだけの入れ口。 */
-export interface ShortcutStore {
-  getState(): AppState & { readonly setMaximizedPane: (pane: MaximizedPane) => void };
-}
+/**
+ * 操作に対する動き。
+ *
+ * `null` は「今は使えない」を表す（取り消せるものが無い、設定ダイアログがまだ
+ * 無い、など）。使えないものは**何もせず、既定の動きも止めない**。
+ */
+export type CommandActions = Readonly<Partial<Record<CommandId, (() => void) | null>>>;
 
 export interface ShortcutOptions {
-  readonly store: ShortcutStore;
+  readonly actions: CommandActions;
   /** 受け口を張る先。既定は `window`（テストで差し替える）。 */
   readonly target?: Pick<Window, 'addEventListener' | 'removeEventListener'>;
 }
 
 /** ショートカットを繋ぐ。返った関数を呼ぶと繋ぎを解く。 */
 export function attachShortcuts(options: ShortcutOptions): () => void {
-  const { store } = options;
   const target = options.target ?? window;
 
   const onKeyDown = (event: KeyboardEvent): void => {
-    const pane = maximizeShortcut(event);
-    if (pane === null) return;
+    const command = matchCommand(event);
+    if (command === null) return;
+    if (isTypingInField(event.target) && command.nativeInField === true) return;
 
-    // ブラウザのタブ切り替えに渡さない（Tauri では既定の動きが無い）。
+    const run = options.actions[command.id];
+    if (run === undefined || run === null) return;
+
+    // 既定の動きに渡さない。Ctrl+S でブラウザの保存が開いては困る。
     event.preventDefault();
-    const { ui, setMaximizedPane } = store.getState();
-    setMaximizedPane(togglePane(ui.maximized, pane));
+    run();
   };
 
   target.addEventListener('keydown', onKeyDown as EventListener);
   return () => {
     target.removeEventListener('keydown', onKeyDown as EventListener);
   };
+}
+
+/**
+ * 文字を打っている最中か。
+ *
+ * 記入欄の中では、取り消しも写しも**文字が相手**である（仕様書 §6.1.4、
+ * T-37 の受入条件）。表の操作として横取りすると、打ち間違いを 1 文字だけ戻す
+ * ことができなくなる。
+ */
+export function isTypingInField(target: EventTarget | null): boolean {
+  return target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
+}
+
+/** その操作が今使えるか。 */
+export function isEnabled(command: Command, actions: CommandActions): boolean {
+  const run = actions[command.id];
+  return run !== undefined && run !== null;
 }

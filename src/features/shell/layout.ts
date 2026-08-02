@@ -73,26 +73,6 @@ export function ratioAfterKey(ratio: number, key: string): number | null {
   }
 }
 
-/**
- * 最大化のショートカット（仕様書 §6.4）。当てはまらなければ `null`。
- *
- * <kbd>Ctrl</kbd>+<kbd>1</kbd> がダイヤグラム、<kbd>Ctrl</kbd>+<kbd>2</kbd> が
- * 時刻表。**修飾キーが増えているときは受け取らない。** 別の操作のつもりで
- * 押されたものを横取りしない。
- */
-export function maximizeShortcut(event: {
-  readonly key: string;
-  readonly ctrlKey: boolean;
-  readonly metaKey: boolean;
-  readonly altKey: boolean;
-  readonly shiftKey: boolean;
-}): Pane | null {
-  if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return null;
-  if (event.key === '1') return 'diagram';
-  if (event.key === '2') return 'timetable';
-  return null;
-}
-
 /** 画面に出す百分率。 */
 export function ratioPercent(ratio: number): number {
   return Math.round(ratio * 100);

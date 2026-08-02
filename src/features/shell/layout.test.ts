@@ -12,20 +12,11 @@ import {
   SPLIT_STEP,
   effectiveRatio,
   isCollapsed,
-  maximizeShortcut,
   ratioAfterKey,
   ratioAtPointer,
   ratioPercent,
   togglePane,
 } from './layout';
-
-/** 修飾キーを省いて書けるようにする。 */
-function key(
-  k: string,
-  modifiers: Partial<Record<'ctrlKey' | 'metaKey' | 'altKey' | 'shiftKey', boolean>> = {},
-): Parameters<typeof maximizeShortcut>[0] {
-  return { key: k, ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, ...modifiers };
-}
 
 describe('境界の引きずり', () => {
   it('掴んだ位置がそのまま比率になる', () => {
@@ -106,24 +97,6 @@ describe('最大化', () => {
     expect(isCollapsed('diagram', 'diagram')).toBe(false);
     expect(isCollapsed('diagram', null)).toBe(false);
     expect(isCollapsed('timetable', null)).toBe(false);
-  });
-});
-
-describe('ショートカット', () => {
-  it('Ctrl+1 がダイヤグラム、Ctrl+2 が時刻表（仕様書 §6.4）', () => {
-    expect(maximizeShortcut(key('1', { ctrlKey: true }))).toBe('diagram');
-    expect(maximizeShortcut(key('2', { ctrlKey: true }))).toBe('timetable');
-    // macOS の Command でも同じ。
-    expect(maximizeShortcut(key('1', { metaKey: true }))).toBe('diagram');
-  });
-
-  it('修飾が足りない・多いときは受け取らない', () => {
-    expect(maximizeShortcut(key('1'))).toBeNull();
-    expect(maximizeShortcut(key('1', { ctrlKey: true, shiftKey: true }))).toBeNull();
-    expect(maximizeShortcut(key('1', { ctrlKey: true, altKey: true }))).toBeNull();
-    expect(maximizeShortcut(key('3', { ctrlKey: true }))).toBeNull();
-    // Ctrl+0 は視野を戻す操作である（T-27）。横取りしない。
-    expect(maximizeShortcut(key('0', { ctrlKey: true }))).toBeNull();
   });
 });
 

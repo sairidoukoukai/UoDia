@@ -83,15 +83,6 @@ export interface TimetableGridProps {
    */
   readonly onClearTime: (tripId: string) => void;
   /**
-   * 便を写す・切り取る・貼り付ける（仕様書 §8.1、T-53）。
-   *
-   * <kbd>Ctrl</kbd>+<kbd>C</kbd> / <kbd>X</kbd> / <kbd>V</kbd> を表の上で拾う。
-   * 文字を打っている最中は拾わない——そこでのコピーは**文字のコピー**である。
-   */
-  readonly onCopy: () => void;
-  readonly onCut: () => void;
-  readonly onPaste: () => void;
-  /**
    * 空の列の升目に時刻が確定された（仕様書 §6.1.1、§6.1.2）。
    *
    * ここで便ができる。「便を追加」という操作を持たないのは、表計算ソフトに
@@ -296,22 +287,8 @@ export function TimetableGrid(props: TimetableGridProps): ReactElement {
     setEditing({ at, text, failure: null });
   };
 
-  /** 表の上での <kbd>Ctrl</kbd>+<kbd>C</kbd> / <kbd>X</kbd> / <kbd>V</kbd>。 */
-  const handleClipboard = (event: KeyboardEvent<HTMLElement>): void => {
-    if (!event.ctrlKey && !event.metaKey) return;
-    // 記入欄の中では文字のコピーである。表の操作として横取りしない。
-    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement) {
-      return;
-    }
-
-    const action = { c: props.onCopy, x: props.onCut, v: props.onPaste }[event.key.toLowerCase()];
-    if (action === undefined) return;
-    event.preventDefault();
-    action();
-  };
-
   return (
-    <div className="timetable__scroll" ref={gridRef} onKeyDown={handleClipboard}>
+    <div className="timetable__scroll" ref={gridRef}>
       <table className="timetable">
         <thead>
           {/*

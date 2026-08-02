@@ -81,11 +81,160 @@ body {
  */
 .app-shell {
   display: grid;
-  /* ツールバー・本体・検証パネル・ステータスバー。伸びるのは本体だけである。 */
-  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  /*
+    メニューバー・ツールバー・本体・検証パネル・ステータスバー。
+    伸びるのは本体だけである。
+  */
+  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
   height: 100%;
   /* 子（分割領域）が縮めるようにする。既定の auto では中身の高さが下限になる。 */
   min-height: 0;
+}
+
+/* メニューバー（仕様書 §8.1、T-37）。 */
+.menubar {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-accent);
+  font-size: 0.875rem;
+}
+
+.menubar__menu {
+  position: relative;
+}
+
+.menubar__title {
+  padding: 0.25rem 0.7rem;
+  border: none;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.menubar__title:hover,
+.menubar__title[aria-expanded='true'] {
+  background: var(--color-same-block);
+}
+
+.menubar__title:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+/* 開いた一覧。**画面の重なりでツールバーより上に置く。** */
+.menubar__panel {
+  position: absolute;
+  z-index: 20;
+  top: 100%;
+  left: 0;
+  min-width: 15rem;
+  padding: 0.25rem 0;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-bg);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 18%);
+}
+
+/* 区切り線。前の群との境目に引く。 */
+.menubar__group {
+  border-top: 1px solid var(--color-border);
+  margin-top: 0.25rem;
+  padding-top: 0.25rem;
+}
+
+.menubar__item {
+  display: flex;
+  gap: 1.5rem;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.3rem 0.9rem;
+  border: none;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.menubar__item:disabled {
+  color: var(--color-fg-muted);
+  cursor: default;
+}
+
+.menubar__item:hover:not(:disabled),
+.menubar__item:focus {
+  background: var(--color-bg-accent);
+}
+
+.menubar__item:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+/* 鍵の綴り。**押す名前より控えめにする。** */
+.menubar__key {
+  color: var(--color-fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ヘルプの窓（T-37）。焦点と Esc は <dialog> に任せる。 */
+.help-dialog {
+  max-width: 32rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-bg);
+  color: var(--color-fg);
+}
+
+.help-dialog::backdrop {
+  background: rgb(0 0 0 / 35%);
+}
+
+.help-dialog h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
+.help-dialog h3 {
+  margin: 0.75rem 0 0.25rem;
+  font-size: 0.875rem;
+}
+
+.help-dialog__keys {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.help-dialog__keys th {
+  padding: 0.15rem 0.5rem 0.15rem 0;
+  font-weight: normal;
+  text-align: left;
+}
+
+.help-dialog__keys td {
+  padding: 0.15rem 0;
+  color: var(--color-fg-muted);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.help-dialog__note {
+  margin: 0.75rem 0 0;
+  color: var(--color-fg-muted);
+  font-size: 0.8125rem;
+}
+
+.help-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1rem;
 }
 
 /* ツールバー（仕様書 §6.4）。作図モードの切り替えは T-30 が足す。 */

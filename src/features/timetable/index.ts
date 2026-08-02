@@ -1,4 +1,12 @@
 export {
+  copySelection,
+  cutSelection,
+  pasteClipboard,
+  type ClipboardMessage,
+  type ClipboardStore,
+} from './clipboard';
+
+export {
   DIRECTION_LABEL,
   EMPTY_COLUMNS,
   NOT_SERVED,
