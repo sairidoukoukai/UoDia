@@ -1,5 +1,7 @@
 export { DiagramCanvas, type DiagramCanvasProps } from './DiagramCanvas';
 
+export { DiagramScrollbars, type DiagramScrollbarsProps } from './DiagramScrollbars';
+
 export { cursorAt, type DiagramCursor } from './cursor';
 
 export { STOP_LINE_TOLERANCE, creationTargetAt, type CreationTarget } from './creation';
@@ -40,12 +42,15 @@ export {
 export {
   DEFAULT_DIAGRAM_VIEW,
   axisBoundsOf,
+  axisBoundsOfStops,
   clampScroll,
+  scrollRanges,
   sameView,
   viewAfterDrag,
   viewAfterWheel,
   viewportForCanvas,
   type AxisBounds,
+  type ScrollRanges,
   type WheelInput,
 } from './interaction';
 

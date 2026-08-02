@@ -614,6 +614,14 @@ body {
   grid-area: body;
   display: flex;
   min-height: 0;
+  /*
+   * **窓より広がらせない**（#143）。格子の升目は既定で `min-width: auto`、
+   * すなわち中身が縮められる最小の幅までしか縮まない。時刻表は「表そのものの
+   * 幅」を最小と主張するため、便が増えるほど升目が広がり、**窓全体に横の送りが
+   * 付いてしまう**（時刻表の中で送ってほしい）。ダイヤグラムも巻き添えで、
+   * canvas が窓の何倍もの幅で描かれていた。
+   */
+  min-width: 0;
 }
 
 /* サイドパネル（T-33）。幅は決め打ちにし、中身が伸びたら縦に送る。 */
@@ -1379,27 +1387,63 @@ body {
  * 高さは持たない。**入れ物（上の枠）の高さいっぱいに広がる**（T-32）。決め打ちに
  * すると、境界を動かしても canvas の大きさが変わらない。
  */
+/*
+ * ダイヤグラムの器。canvas の右と下に送りのつまみを置く（#143）。
+ *
+ * **居場所は名前で与える**（#135 と同じ理由）。つまみは動かせるときにしか出ない
+ * ため、並び順で書くと、片方が消えたときにもう片方がずれる。
+ */
 .diagram {
   /* メニューを重ねる基準にする（`.trip-menu` は絶対位置）。 */
   position: relative;
-  display: flex;
+  display: grid;
   flex: 1 1 auto;
-  flex-direction: column;
+  grid-template-areas:
+    'canvas axis'
+    'time .';
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-width: 0;
   min-height: 0;
 }
 
+/*
+ * 送りのつまみ（#143）。**動かせるときにだけ現れる**（`DiagramScrollbars`）。
+ *
+ * 縦のつまみは書字方向を縦にして立てる。`direction` は既定（`ltr`）のままに
+ * する——**上が小さいほう**（豊中側）でなければ、縦軸の並びと上下が逆になり、
+ * 下へ送りたいのにつまみを上へ動かすことになる。
+ */
+.diagram__scroll {
+  margin: 0;
+  accent-color: var(--color-focus);
+}
+
+.diagram__scroll--time {
+  grid-area: time;
+  width: 100%;
+}
+
+.diagram__scroll--axis {
+  grid-area: axis;
+  writing-mode: vertical-lr;
+  height: 100%;
+}
+
 .diagram__canvas {
+  grid-area: canvas;
   /*
    * **block にする。** 既定の inline では行の下に余白が付き、canvas の
    * CSS 上の高さと入れ物の高さが食い違う（描画が 1 行ぶん縦にずれる）。
    */
   display: block;
   /*
-   * 残りをすべて取る。canvas は既定の大きさ（300×150）を持つため、
-   * `min-height: 0` を添えないと縮む側に回れない。
+   * 入れ物いっぱいに広がる。canvas は既定の大きさ（300×150）を持つため、
+   * `min-width` / `min-height` を 0 に落とさないと縮む側に回れない。
    */
-  flex: 1 1 auto;
   width: 100%;
+  height: 100%;
+  min-width: 0;
   min-height: 0;
   /* 焦点の枠を出す。キーボードで操作できることが見て分かる（§9.4）。 */
   outline-offset: -2px;

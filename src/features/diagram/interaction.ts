@@ -53,10 +53,55 @@ const NO_AXIS: AxisBounds = { min: 0, max: 0 };
 
 /** 場面から縦軸の端を求める。停留所が無ければ動かせる範囲も無い。 */
 export function axisBoundsOf(scene: DiagramScene): AxisBounds {
-  const positions = scene.stops.map((stop) => stop.axisPosition);
-  if (positions.length === 0) return NO_AXIS;
+  return axisBoundsOfStops(scene.stops);
+}
 
+/**
+ * 停留所の並びから縦軸の端を求める。
+ *
+ * 場面を組まずに済む道を開けておく。送りのつまみ（`DiagramScrollbars`）は
+ * **色を知らない**ため、場面（`selectDiagramScene`）を通したくない。
+ */
+export function axisBoundsOfStops(stops: readonly { readonly axisPosition: number }[]): AxisBounds {
+  if (stops.length === 0) return NO_AXIS;
+
+  const positions = stops.map((stop) => stop.axisPosition);
   return { min: Math.min(...positions), max: Math.max(...positions) };
+}
+
+/** 送りの動かせる範囲。 */
+export interface ScrollRanges {
+  /** 時間（秒）。 */
+  readonly time: AxisBounds;
+  /** 縦軸（軸の単位）。 */
+  readonly axis: AxisBounds;
+}
+
+/**
+ * 送りの動かせる範囲（仕様書 §6.2.3）。
+ *
+ * **収める先と、つまみの端は同じでなければならない。** 別々に決めると、つまみを
+ * 端まで動かしても届かない場所や、届いた先で弾き返される場所ができる。
+ * `clampScroll` もこの関数を通る。
+ *
+ * `max` が `min` と同じなら、その向きには動かせる先が無い（全体が見えている）。
+ */
+export function scrollRanges(
+  view: DiagramView,
+  viewport: Viewport,
+  bounds: AxisBounds,
+): ScrollRanges {
+  const visibleSeconds =
+    ((viewport.width - viewport.originX) / view.pxPerMinute) * SECONDS_PER_MINUTE;
+  const visibleAxis = (viewport.height - viewport.originY) / view.pxPerAxisUnit;
+
+  return {
+    time: {
+      min: DIAGRAM_START_TIME,
+      max: Math.max(DIAGRAM_START_TIME, DIAGRAM_END_TIME - visibleSeconds),
+    },
+    axis: { min: bounds.min, max: Math.max(bounds.min, bounds.max - visibleAxis) },
+  };
 }
 
 /** ホイールの入力。**DOM のイベントそのものは受け取らない。** */
@@ -196,18 +241,12 @@ export function clampScroll(
   viewport: Viewport,
   bounds: AxisBounds,
 ): DiagramView {
-  const visibleSeconds =
-    ((viewport.width - viewport.originX) / view.pxPerMinute) * SECONDS_PER_MINUTE;
-  const visibleAxis = (viewport.height - viewport.originY) / view.pxPerAxisUnit;
+  const ranges = scrollRanges(view, viewport, bounds);
 
   return {
     ...view,
-    scrollTime: clamp(
-      view.scrollTime,
-      DIAGRAM_START_TIME,
-      Math.max(DIAGRAM_START_TIME, DIAGRAM_END_TIME - visibleSeconds),
-    ),
-    scrollAxis: clamp(view.scrollAxis, bounds.min, Math.max(bounds.min, bounds.max - visibleAxis)),
+    scrollTime: clamp(view.scrollTime, ranges.time.min, ranges.time.max),
+    scrollAxis: clamp(view.scrollAxis, ranges.axis.min, ranges.axis.max),
   };
 }
 

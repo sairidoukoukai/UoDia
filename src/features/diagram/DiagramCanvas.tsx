@@ -6,10 +6,11 @@
  * 再描画が仮想 DOM の差分計算を引き連れてくる。
  */
 
-import { useEffect, useRef, useState, type ReactElement } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactElement } from 'react';
 import { resolveTheme, usePrefersDark } from '@/features/settings';
 import { useAppStore } from '@/store';
 import { attachDiagram } from './canvasHost';
+import { DiagramScrollbars } from './DiagramScrollbars';
 import { cursorAt, type DiagramCursor } from './cursor';
 import { viewportForCanvas } from './interaction';
 import { attachSelectionReveal } from './revealControls';
@@ -60,6 +61,36 @@ export function DiagramCanvas(props: DiagramCanvasProps): ReactElement {
   // あり、呼び先を直接見ると、親が描き直すたびに canvas を繋ぎ直すことになる。
   /** 右クリックで出すメニューの場所。出していなければ `null`（T-31）。 */
   const [menu, setMenu] = useState<MenuPosition | null>(null);
+
+  /**
+   * canvas の大きさ（CSS px）。送りのつまみが範囲を求めるのに要る。
+   *
+   * **React に持たせるのはこれだけである。** 描くことそのものは React の外で
+   * 行う（`canvasHost.ts`）。大きさは窓を変えたときにしか動かない。
+   */
+  const [size, setSize] = useState({ width: 0, height: 0 });
+
+  useLayoutEffect(() => {
+    const canvas = canvasRef.current;
+    if (canvas === null) return;
+
+    const read = (): void => {
+      setSize((current) =>
+        current.width === canvas.clientWidth && current.height === canvas.clientHeight
+          ? current
+          : { width: canvas.clientWidth, height: canvas.clientHeight },
+      );
+    };
+    read();
+
+    // jsdom には ResizeObserver が無い。無ければ初回の 1 度だけで済ませる。
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(read);
+    observer.observe(canvas);
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
 
   const onCursorRef = useRef(props.onCursor);
   useEffect(() => {
@@ -138,6 +169,12 @@ export function DiagramCanvas(props: DiagramCanvasProps): ReactElement {
         焦点を移す（`viewportControls.ts`）。
       */}
       <canvas ref={canvasRef} className="diagram__canvas" aria-label="ダイヤグラム" tabIndex={0} />
+
+      {/*
+        送りのつまみ（#143）。**掴んで引きずる・ホイールで送るはそのまま残す**
+        ——つまみは、動かせることを見える形にするために足したものである。
+      */}
+      <DiagramScrollbars width={size.width} height={size.height} />
 
       {menu !== null && (
         <TripContextMenu

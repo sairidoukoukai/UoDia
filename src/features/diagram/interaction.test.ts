@@ -11,7 +11,9 @@ import { DIAGRAM_ZOOM_LIMITS, type DiagramView } from '@/domain/model';
 import { fromHM } from '@/domain/time';
 import {
   axisBoundsOf,
+  axisBoundsOfStops,
   clampScroll,
+  scrollRanges,
   DEFAULT_DIAGRAM_VIEW,
   sameView,
   viewAfterDrag,
@@ -243,6 +245,45 @@ describe('送りの範囲', () => {
     } as unknown as DiagramScene;
 
     expect(axisBoundsOf(scene)).toEqual({ min: 0, max: 40 });
+  });
+});
+
+/**
+ * 送りの範囲（#143）。
+ *
+ * **収める先と、つまみの端は同じでなければならない。** 別々に決めると、つまみを
+ * 端まで動かしても届かない場所や、届いた先で弾き返される場所ができる。
+ */
+describe('送りの範囲', () => {
+  it('**収めた値は範囲の中に入る**（`clampScroll` と同じ範囲を返す）', () => {
+    const ranges = scrollRanges(view, viewport, bounds);
+    const far = clampScroll({ ...view, scrollTime: 999999, scrollAxis: 999 }, viewport, bounds);
+
+    expect(far.scrollTime).toBe(ranges.time.max);
+    expect(far.scrollAxis).toBe(ranges.axis.max);
+  });
+
+  it('手前の端は表示範囲の始まりと縦軸の先頭', () => {
+    const ranges = scrollRanges(view, viewport, bounds);
+
+    expect(ranges.time.min).toBe(fromHM(7, 0));
+    expect(ranges.axis.min).toBe(0);
+  });
+
+  it('**全体が見えているなら動かせる先が無い**（端と端が重なる）', () => {
+    // 縦に十分広ければ、縦軸（0〜40）は丸ごと入る。
+    const tall = viewportOf(view, 1000, 40 * view.pxPerAxisUnit + 200);
+    const ranges = scrollRanges(view, tall, bounds);
+
+    expect(ranges.axis.max).toBe(ranges.axis.min);
+  });
+
+  it('停留所の並びからも端を取れる（場面を組まずに済む）', () => {
+    expect(axisBoundsOfStops([{ axisPosition: 20 }, { axisPosition: 0 }])).toEqual({
+      min: 0,
+      max: 20,
+    });
+    expect(axisBoundsOfStops([])).toEqual({ min: 0, max: 0 });
   });
 });
 
