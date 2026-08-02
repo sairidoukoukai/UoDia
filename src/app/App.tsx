@@ -40,7 +40,7 @@ import {
   type HelpTopic,
   type MenuExtra,
 } from '@/features/shell';
-import { SettingsDialog } from '@/features/settings';
+import { SettingsDialog, attachUnlock } from '@/features/settings';
 import { SidePanel } from '@/features/sidebar';
 import { Timetable, copySelection, cutSelection, pasteClipboard } from '@/features/timetable';
 import { ValidationPanel } from '@/features/validation';
@@ -231,6 +231,10 @@ export function App(): ReactElement {
 
   // ショートカット（仕様書 §8.1）。メニューと同じ表を読む（T-37）。
   useEffect(() => attachShortcuts({ actions }), [actions]);
+
+  // 隠し設定の有効化（§6.5.4、T-36）。**操作の表には載せない**——隠してある
+  // ものをメニューにも鍵の一覧にも出しては、隠したことにならない。
+  useEffect(() => attachUnlock({ store: useAppStore }), []);
 
   /**
    * 最近使ったファイル。**数が動くため表には持てない**（`MenuExtra`）。

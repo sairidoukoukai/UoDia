@@ -316,6 +316,70 @@ body {
   padding: 0 1rem 1rem;
 }
 
+/* 停車パターンの編集（隠し設定。§6.5.4、T-36）。 */
+.settings__patterns {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+}
+
+.settings__pattern-list {
+  max-height: 22rem;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  list-style: none;
+}
+
+.settings__pattern-list button {
+  display: block;
+  width: 100%;
+  padding: 0.25rem 0.5rem;
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 0.8125rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.settings__pattern-list button[aria-pressed='true'] {
+  background: var(--color-selected);
+}
+
+.settings__pattern-id {
+  font-weight: bold;
+}
+
+.settings__stops {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.settings__stops th[scope='row'] {
+  font-weight: normal;
+  text-align: left;
+}
+
+.settings__stops td {
+  text-align: right;
+}
+
+.settings__stops button {
+  padding: 0 0.4rem;
+}
+
+.settings__issues {
+  margin: 0.5rem 0 0;
+  padding-left: 1.2rem;
+  font-size: 0.8125rem;
+}
+
 /* ヘルプの窓（T-37）。焦点と Esc は <dialog> に任せる。 */
 .help-dialog {
   max-width: 32rem;

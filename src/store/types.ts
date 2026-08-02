@@ -167,6 +167,14 @@ export interface AppSettings {
    * <kbd>Ctrl</kbd>+<kbd>0</kbd>（拡大率を既定に戻す）が戻す先である。
    */
   readonly defaultDiagramView: DiagramView;
+  /**
+   * 停車パターンの編集を開いてよいか（仕様書 §6.5.4、T-36）。
+   *
+   * **起動のたびに閉じる。** 隠してあるのは危ないからではなく、**普段の作図で
+   * 触る場所ではない**からである。覚えさせて開いたままにすると、隠した意味が
+   * 薄れる。
+   */
+  readonly patternsUnlocked: boolean;
 }
 
 export interface AppState extends DocumentState {
