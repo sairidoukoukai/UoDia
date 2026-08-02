@@ -7,6 +7,9 @@
  *
  * ここに残るのは、**升目の上に自然な置き場所が無いもの**だけである。本来の
  * 置き場所はメニューであり（T-37）、それができるまでの仮住まいとする。
+ *
+ * 並べ替えと、直前の操作の知らせは方向タブと同じ行へ移した（`Timetable`）。
+ * **行を 1 本増やすたびに、表に使える高さがそのぶん減る。**
  */
 
 import type { ReactElement } from 'react';
@@ -16,50 +19,38 @@ export interface TimetableToolbarProps {
   readonly selectedCount: number;
   /** 写し先に選べるダイヤ（編集中のものを除く）。 */
   readonly otherServices: readonly Service[];
-  readonly onSort: () => void;
   readonly onCopyTo: (serviceId: string) => void;
-  /** 直前の操作について伝えること。無ければ `null`。 */
-  readonly message: string | null;
 }
 
-export function TimetableToolbar(props: TimetableToolbarProps): ReactElement {
-  const { selectedCount, otherServices, message } = props;
-  const none = selectedCount === 0;
+export function TimetableToolbar(props: TimetableToolbarProps): ReactElement | null {
+  const { selectedCount, otherServices } = props;
+
+  // 写し先が無いときは行ごと出さない。**押せない操作のために高さを使わない**
+  // ——ダイヤが 1 つしか無いあいだ、この行は何も伝えない。
+  if (otherServices.length === 0) return null;
 
   return (
     <div className="timetable__toolbar" role="toolbar" aria-label="ダイヤの操作">
-      <button type="button" onClick={props.onSort}>
-        始発時刻順に並べ替え
-      </button>
-
-      {/* 写し先が無いときは出さない。押せない操作を並べても場所を取るだけである。 */}
-      {otherServices.length > 0 && (
-        <label>
-          別のダイヤへ複製{' '}
-          <select
-            value=""
-            disabled={none}
-            aria-label="複製先のダイヤ"
-            onChange={(event) => {
-              props.onCopyTo(event.target.value);
-            }}
-          >
-            <option value="" disabled>
-              選ぶ
+      <label>
+        別のダイヤへ複製{' '}
+        <select
+          value=""
+          disabled={selectedCount === 0}
+          aria-label="複製先のダイヤ"
+          onChange={(event) => {
+            props.onCopyTo(event.target.value);
+          }}
+        >
+          <option value="" disabled>
+            選ぶ
+          </option>
+          {otherServices.map((service) => (
+            <option key={service.serviceId} value={service.serviceId}>
+              {service.serviceName}
             </option>
-            {otherServices.map((service) => (
-              <option key={service.serviceId} value={service.serviceId}>
-                {service.serviceName}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
-
-      <span className="timetable__toolbar-status" role="status">
-        {message ??
-          (none ? '升目に時刻を打つと便ができます' : `${String(selectedCount)} 便を選択中`)}
-      </span>
+          ))}
+        </select>
+      </label>
     </div>
   );
 }

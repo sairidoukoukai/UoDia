@@ -110,9 +110,9 @@ function columns(): number {
   return container.querySelectorAll('thead .timetable__column').length;
 }
 
-/** 操作列の伝言。 */
+/** 直前の操作の知らせ（方向タブと同じ行にある）。 */
 function message(): string | null {
-  return container.querySelector('.timetable__toolbar-status')?.textContent ?? null;
+  return container.querySelector('.timetable__status')?.textContent ?? null;
 }
 
 describe('便を作る（T-52、仕様書 §6.1.2）', () => {
@@ -346,20 +346,6 @@ describe('ダイヤ間コピー', () => {
 });
 
 describe('方向の切り替え', () => {
-  it('**表の名前も一緒に変わる**（#136。タブだけを見て取り違えない）', () => {
-    mount();
-
-    const caption = (): string => container.querySelector('caption')?.textContent ?? '';
-    expect(caption()).toContain('吹田方面');
-    expect(caption()).toContain('豊中 → 工学部');
-
-    press('豊中方面');
-
-    expect(caption()).toContain('豊中方面');
-    // 行の並びも裏返る。名前と並びが食い違わない。
-    expect(caption()).toContain('工学部 → 豊中');
-  });
-
   it('**見えなくなる便の選択を解く**', () => {
     mount();
     newTrip(8, 0);

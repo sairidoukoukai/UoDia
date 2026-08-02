@@ -327,31 +327,46 @@ export function Timetable(): ReactElement {
 
   return (
     <section className="timetable-pane">
-      <div className="timetable__tabs" role="tablist" aria-label="方向">
-        {DIRECTIONS.map((id) => (
-          <button
-            key={id}
-            type="button"
-            role="tab"
-            aria-selected={id === direction}
-            className={
-              id === direction ? 'timetable__tab timetable__tab--active' : 'timetable__tab'
-            }
-            onClick={() => {
-              handleDirection(id);
-            }}
-          >
-            {DIRECTION_LABEL[id]}
-          </button>
-        ))}
+      {/*
+        方向タブと、升目の上に置き場所の無い操作を**同じ行に載せる**。行を 1 本
+        増やすたびに、表に使える高さがそのぶん減る。
+      */}
+      <div className="timetable__bar">
+        <div className="timetable__tabs" role="tablist" aria-label="方向">
+          {DIRECTIONS.map((id) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={id === direction}
+              className={
+                id === direction ? 'timetable__tab timetable__tab--active' : 'timetable__tab'
+              }
+              onClick={() => {
+                handleDirection(id);
+              }}
+            >
+              {DIRECTION_LABEL[id]}
+            </button>
+          ))}
+        </div>
+
+        {/* 直前の操作について伝えること。**場所は空けたままにしておく**——
+            知らせが出た瞬間に列がずれると、読む前に目が離れる。 */}
+        <span className="timetable__status" role="status">
+          {message ??
+            (selectedTripIds.length > 0 ? `${String(selectedTripIds.length)} 便を選択中` : '')}
+        </span>
+
+        <button type="button" onClick={handleSort}>
+          始発時刻順に並べ替え
+        </button>
       </div>
 
       <TimetableToolbar
         selectedCount={selectedTripIds.length}
         otherServices={services.filter((service) => service.serviceId !== activeServiceId)}
-        onSort={handleSort}
         onCopyTo={handleCopyTo}
-        message={message}
       />
 
       {timetable === null ? (
@@ -359,7 +374,6 @@ export function Timetable(): ReactElement {
       ) : (
         <TimetableGrid
           timetable={timetable}
-          direction={direction}
           onCommit={handleCommit}
           selectedTripIds={selectedTripIds}
           onSelectTrip={handleSelectTrip}
