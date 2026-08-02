@@ -974,12 +974,38 @@ body {
  * 弱く、目を表へ落とした瞬間に手がかりが消える——表そのものにも方向を書く
  * （`.timetable__caption`）。
  */
-.timetable__tabs {
+/*
+ * 方向タブ・知らせ・並べ替えを 1 行に載せる。
+ *
+ * **行を 1 本増やすたびに、表に使える高さがそのぶん減る。** 時刻表は縦に
+ * 詰まっているほど多くの停留所が一度に見える。
+ */
+.timetable__bar {
   display: flex;
-  gap: 0.25rem;
+  align-items: flex-end;
+  gap: 0.5rem;
   /* 選んでいるタブが、この線を跨いで表と繋がって見えるようにする。 */
   border-bottom: 1px solid var(--color-border);
   margin-bottom: 0.5rem;
+}
+
+.timetable__tabs {
+  display: flex;
+  gap: 0.25rem;
+}
+
+/* 知らせは右へ寄せ、押しボタンの手前に置く。**場所は空でも空けておく**——
+   出た瞬間に押しボタンが動くと、押そうとしていた手が外れる。 */
+.timetable__status {
+  flex: 1 1 auto;
+  padding-bottom: 0.25rem;
+  color: var(--color-fg-muted);
+  font-size: 0.8125rem;
+  text-align: right;
+}
+
+.timetable__bar > button {
+  margin-bottom: 0.25rem;
 }
 
 .timetable__tab {
@@ -1021,29 +1047,6 @@ body {
   white-space: nowrap;
 }
 
-/*
- * 表そのものに方向を書く（#136）。
- *
- * **目を落とした先に手がかりを置く。** タブは表の外にあり、升目を追っている
- * ときには視野から外れる。起点と終点も添える——行の並び（上から下へ）が
- * どちらへ進むのかは、そこに書いてあれば読み違えようがない。
- */
-.timetable__caption {
-  padding: 0.25rem 0.5rem;
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-bg-accent);
-  color: var(--color-fg);
-  font-size: 0.8125rem;
-  font-weight: 700;
-  text-align: left;
-}
-
-.timetable__caption-route {
-  margin-left: 0.5rem;
-  color: var(--color-fg-muted);
-  font-weight: normal;
-}
-
 .timetable th,
 .timetable td {
   padding: 0.15rem 0.25rem;
@@ -1069,8 +1072,14 @@ body {
  * かなわない（§9.4）。`height: 0` で縦には場所を取らない。
  */
 .timetable th:not([scope='row'])::before,
-.timetable td:not(.timetable__link-cell)::before {
+.timetable td::before {
   content: '88:88';
+  /*
+   * **太いほうで型を取る。** アンカーの升目は太字で出る（§6.1.2）ため、細字の
+   * 型では足りず、その列だけが広がってしまう。前運用・後運用の升目にも敷く
+   * ——同じ列にあり、そこに出るのも時刻である。
+   */
+  font-weight: 600;
   display: block;
   height: 0;
   overflow: hidden;
