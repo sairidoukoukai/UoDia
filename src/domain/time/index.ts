@@ -1,8 +1,10 @@
 export {
   fromHM,
+  GRAIN_MINUTES,
   GRAIN_SECONDS,
   MAX_HOUR,
   MAX_SECONDS,
+  roundMinutesToGrain,
   roundToGrain,
   seconds,
   SECONDS_PER_HOUR,

@@ -3,6 +3,7 @@ import {
   fromHM,
   GRAIN_SECONDS,
   MAX_SECONDS,
+  roundMinutesToGrain,
   roundToGrain,
   seconds,
   toHM,
@@ -76,6 +77,36 @@ describe('roundToGrain', () => {
 
   it('丸めた結果が上限を超える値を拒否する', () => {
     expect(() => roundToGrain(MAX_SECONDS + 3600)).toThrow(RangeError);
+  });
+});
+
+/**
+ * 丸め方は 1 つである（#134、仕様書 §6.1.2）。
+ *
+ * **打つときと掴んで動かすときで丸め方が違えば、同じ 8:32 が場所によって
+ * 8:30 にも 8:35 にもなる。** 決める場所を 1 つにしておけば、経路ごとに
+ * 食い違いようがない。
+ */
+describe('roundMinutesToGrain', () => {
+  it('近いほうへ寄せる', () => {
+    expect(roundMinutesToGrain(0)).toBe(0);
+    expect(roundMinutesToGrain(2)).toBe(0);
+    expect(roundMinutesToGrain(2.5)).toBe(5); // 半分は切り上げ
+    expect(roundMinutesToGrain(3)).toBe(5);
+    expect(roundMinutesToGrain(7)).toBe(5);
+  });
+
+  it('**負の差にも使える**（スジを左へ引きずったときの移動量）', () => {
+    expect(roundMinutesToGrain(-2)).toBe(-0);
+    expect(roundMinutesToGrain(-3)).toBe(-5);
+    expect(roundMinutesToGrain(-7)).toBe(-5);
+    expect(roundMinutesToGrain(-8)).toBe(-10);
+  });
+
+  it('**秒で丸めても分で丸めても同じ答えになる**（丸め方が 1 つであること）', () => {
+    for (let minutes = 0; minutes <= 120; minutes += 1) {
+      expect(roundToGrain(minutes * 60)).toBe(roundMinutesToGrain(minutes) * 60);
+    }
   });
 });
 

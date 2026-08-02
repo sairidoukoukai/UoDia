@@ -28,11 +28,8 @@
 import { withSuggestedBlockId } from '@/domain/block';
 import type { DirectionId, Trip } from '@/domain/model';
 import type { NetworkIndex } from '@/domain/network';
-import { GRAIN_SECONDS, SECONDS_PER_MINUTE, compareTime, type Seconds } from '@/domain/time';
+import { GRAIN_MINUTES, compareTime, type Seconds } from '@/domain/time';
 import { changePattern, originTime, setTimeAt, shiftTrip } from '@/domain/trip';
-
-/** 時刻を動かせる最小の単位（分）。5 分格子（仕様書 §2.1）。 */
-export const GRAIN_MINUTES = GRAIN_SECONDS / SECONDS_PER_MINUTE;
 
 /** 便を作る操作の結果。 */
 export interface TripInsertion {

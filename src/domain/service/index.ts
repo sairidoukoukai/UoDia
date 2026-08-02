@@ -1,5 +1,4 @@
 export {
-  GRAIN_MINUTES,
   addTripAt,
   changeTripsPattern,
   createTrip,

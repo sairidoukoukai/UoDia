@@ -33,7 +33,8 @@
  */
 
 import type { DiagramView, Trip } from '@/domain/model';
-import { GRAIN_MINUTES, createTrip, patternForStop, shiftTrips } from '@/domain/service';
+import { createTrip, patternForStop, shiftTrips } from '@/domain/service';
+import { roundMinutesToGrain } from '@/domain/time';
 import {
   selectActiveDirection,
   selectActiveService,
@@ -294,7 +295,7 @@ export function attachTripControls(options: TripControlOptions): () => void {
     point: ScreenPoint,
     viewport: Viewport,
   ): void => {
-    const minutes = snap((point.x - move.origin.x) / viewport.pxPerMinute);
+    const minutes = roundMinutesToGrain((point.x - move.origin.x) / viewport.pxPerMinute);
     let applied = move.applied;
 
     if (minutes !== applied && applyShift(move, minutes - applied)) {
@@ -457,9 +458,4 @@ export function attachTripControls(options: TripControlOptions): () => void {
     target.removeEventListener('pointerup', onPointerUp as EventListener);
     target.removeEventListener('pointercancel', cancel);
   };
-}
-
-/** 5 分の格子に吸い付ける（仕様書 §6.3.2）。 */
-function snap(minutes: number): number {
-  return Math.round(minutes / GRAIN_MINUTES) * GRAIN_MINUTES;
 }
