@@ -88,13 +88,14 @@ describe('状態の形', () => {
 
   it('表示設定は project.view にあり、ui には無い（二重管理を避ける）', () => {
     // ui に置くのは保存しないものだけである——選択・写した便・囲んでいる最中の枠、
-    // それに最大化（T-32）。拡大率や送りの位置（`view.diagram`）、分割比率
-    // （`view.splitRatio`）は保存されるため、ここには無い。
+    // 最大化（T-32）、持っている道具（T-30）。拡大率や送りの位置
+    // （`view.diagram`）、分割比率（`view.splitRatio`）は保存されるため、ここには無い。
     expect(Object.keys(state().ui).sort()).toEqual([
       'clipboard',
       'maximized',
       'selectedTripIds',
       'selectionRect',
+      'tool',
       'tripShift',
     ]);
     expect(state().project?.view.activeDirection).toBe(0);

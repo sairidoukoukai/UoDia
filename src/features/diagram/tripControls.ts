@@ -33,15 +33,18 @@
  */
 
 import type { DiagramView, Trip } from '@/domain/model';
-import { GRAIN_MINUTES, shiftTrips } from '@/domain/service';
+import { GRAIN_MINUTES, createTrip, patternForStop, shiftTrips } from '@/domain/service';
 import {
+  selectActiveDirection,
   selectActiveService,
   selectNetwork,
   type AppState,
+  type DiagramTool,
   type ExecuteResult,
   type SelectionRect,
   type TripShift,
 } from '@/store';
+import { creationTargetAt } from './creation';
 import type { ScreenPoint } from './drawTrips';
 import { viewportForCanvas } from './interaction';
 import { selectDiagramScene, type SceneTheme } from './scene';
@@ -60,6 +63,7 @@ export interface TripControlStore {
       mergeKey?: string,
     ) => ExecuteResult;
     readonly undo: () => boolean;
+    readonly setTool: (tool: DiagramTool) => void;
   };
 }
 
@@ -129,6 +133,14 @@ export function attachTripControls(options: TripControlOptions): () => void {
     if (view === null) return;
 
     const origin = pointOf(event);
+
+    // 作図モードでは、押した場所に便ができる（仕様書 §6.3.3）。**身振りは
+    // 始めない**——引きずっても線は伸びず、終点はパターンが決める。
+    if (store.getState().ui.tool === 'draw') {
+      createAt(origin, viewportForCanvas(view, canvas));
+      return;
+    }
+
     const hit = hitTrip(
       selectDiagramScene(store.getState(), theme),
       viewportForCanvas(view, canvas),
@@ -137,23 +149,61 @@ export function attachTripControls(options: TripControlOptions): () => void {
     gesture = { kind: 'press', origin, hit: hit?.sourceTripId ?? null };
   };
 
-  /** 掴めるスジの上では指の形を変える（仕様書 §6.3.1）。 */
+  /**
+   * 便を 1 つ作る（仕様書 §6.3.3）。作った便はそのまま選ばれる。
+   *
+   * **時刻表の升目に打ったときと同じ関数を通す**（`createTrip`）。運用番号の
+   * 提案も便 ID の採番も、入口が違うだけで規則は 1 つである。
+   */
+  const createAt = (point: ScreenPoint, viewport: Viewport): void => {
+    const state = store.getState();
+    const network = selectNetwork(state);
+    const service = selectActiveService(state);
+    if (network === null || service === null) return;
+
+    const target = creationTargetAt(selectDiagramScene(state, theme), viewport, point.x, point.y);
+    if (target === null) return;
+
+    // 経路は**押した停留所と、時刻表で開いている方向**から決まる。同じ停留所を
+    // 両方向の便が通るため、方向を決める手立てが要る（§6.1.2 と同じ規則）。
+    const patternId = patternForStop(network, selectActiveDirection(state), target.stopId);
+    if (patternId === null) return;
+
+    const all = state.project?.services.flatMap((item) => item.trips) ?? [];
+    const result = createTrip(service.trips, patternId, target.stopId, target.time, network, all);
+    // 表せる範囲を外れる位置には作れない。押しても何も起きない。
+    if (result === null) return;
+
+    state.editProject('スジの作成', (project) => {
+      const target2 = project.services.find((item) => item.serviceId === service.serviceId);
+      if (target2 !== undefined) target2.trips = result.trips as Trip[];
+    });
+    state.selectTrips(result.added.map((trip) => trip.tripId));
+  };
+
+  /** 押せば何が起きるかを指の形で示す（仕様書 §6.3.1、§9.4）。 */
   const onHover = (event: PointerEvent): void => {
     if (gesture !== null) return;
 
     // 掴んで動かしている最中は、送りの側が形を決めている。取り合わない。
     const current = canvas.style.cursor;
-    if (current !== '' && current !== 'pointer') return;
+    if (current !== '' && current !== 'pointer' && current !== 'crosshair') return;
 
     const view = viewOf();
     if (view === null) return;
 
-    const over =
-      hitTrip(
-        selectDiagramScene(store.getState(), theme),
-        viewportForCanvas(view, canvas),
-        pointOf(event),
-      ) !== null;
+    const state = store.getState();
+    const viewport = viewportForCanvas(view, canvas);
+    const point = pointOf(event);
+
+    if (state.ui.tool === 'draw') {
+      // 作れる場所（停留所線の近く）でだけ十字にする。外は押しても何も起きない。
+      const target = creationTargetAt(selectDiagramScene(state, theme), viewport, point.x, point.y);
+      canvas.style.cursor = target === null ? '' : 'crosshair';
+      return;
+    }
+
+    const over = hitTrip(selectDiagramScene(state, theme), viewport, point) !== null;
     canvas.style.cursor = over ? 'pointer' : '';
   };
 
@@ -312,9 +362,21 @@ export function attachTripControls(options: TripControlOptions): () => void {
   };
 
   const onKeyDown = (event: KeyboardEvent): void => {
-    if (event.key !== 'Escape' || gesture === null) return;
-    event.preventDefault();
-    cancel();
+    if (event.key !== 'Escape') return;
+
+    if (gesture !== null) {
+      event.preventDefault();
+      cancel();
+      return;
+    }
+
+    // 何も掴んでいないときの Esc は、作図をやめて選択へ戻る（§6.3.3）。
+    // **押し続けるつもりの無い道具から抜ける手立て**を、手元に残しておく。
+    if (store.getState().ui.tool === 'draw') {
+      event.preventDefault();
+      store.getState().setTool('select');
+      canvas.style.cursor = '';
+    }
   };
 
   canvas.addEventListener('pointerdown', onPointerDown);

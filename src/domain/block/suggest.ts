@@ -105,3 +105,29 @@ function blockIdAt(index: number): string {
   } while (rest >= 0);
   return name;
 }
+
+/**
+ * 便に運用番号を提案して返す（仕様書 §6.1.5、T-23）。
+ *
+ * 提案するのは、**その便に初めて時刻が入り、運用番号がまだ空欄のとき**だけで
+ * ある。仕様書の言う「新規便の作成時」がここに当たる。便を追加した時点では
+ * 時刻が無く（`anchor: null`）、始発時刻を要する提案アルゴリズムを走らせようが
+ * ないためである。
+ *
+ * 時刻を打ち直すたびに提案し直さないのは、利用者が消した運用番号を勝手に
+ * 書き戻さないためである。提案値は普通の編集と同じように上書きでき、自動で
+ * 付いたことは画面上で区別しない（§6.1.5）。
+ *
+ * @param before 書き換える前の便。新しく作った便では `undefined`
+ */
+export function withSuggestedBlockId(
+  trip: Trip,
+  before: Trip | undefined,
+  trips: readonly Trip[],
+  network: NetworkIndex,
+): Trip {
+  if (before?.anchor != null || trip.blockId !== '') return trip;
+
+  const blockId = suggestBlockId(trip, trips, network);
+  return blockId === '' ? trip : { ...trip, blockId };
+}

@@ -14,7 +14,7 @@ import type { Trip } from '@/domain/model';
 import { loadNetworkDef, type NetworkIndex } from '@/domain/network';
 import { fromHM } from '@/domain/time';
 import { validateService } from '@/domain/validation';
-import { nextBlockId, suggestBlockId } from './suggest';
+import { nextBlockId, suggestBlockId, withSuggestedBlockId } from './suggest';
 
 const routeJsonPath = fileURLToPath(new URL('../../../data/route.json', import.meta.url));
 const loaded = loadNetworkDef(readFileSync(routeJsonPath, 'utf8'));
@@ -245,5 +245,29 @@ describe('受入条件: 提案が V-01・V-02 に違反しない', () => {
 
     expect(trips.map((trip) => trip.blockId)).toEqual(['A', 'A', 'A']);
     expect(connectionIssues(trips)).toEqual([]);
+  });
+});
+
+describe('提案を載せた便（withSuggestedBlockId）', () => {
+  it('新しい便には提案が付く', () => {
+    const trip = makeTrip('t1', 'S1', [8, 0]);
+    expect(withSuggestedBlockId(trip, undefined, [], network).blockId).not.toBe('');
+  });
+
+  it('**既に運用番号があるなら触らない**（利用者が書いたものを上書きしない）', () => {
+    const trip = makeTrip('t1', 'S1', [8, 0], 'X');
+    expect(withSuggestedBlockId(trip, undefined, [], network)).toEqual(trip);
+  });
+
+  it('**時刻を打ち直しただけなら提案しない**（消した番号を書き戻さない）', () => {
+    const before = makeTrip('t1', 'S1', [8, 0]);
+    const after = makeTrip('t1', 'S1', [9, 0]);
+
+    expect(withSuggestedBlockId(after, before, [], network)).toEqual(after);
+  });
+
+  it('提案できない便はそのまま（時刻を解決できない）', () => {
+    const broken = makeTrip('t1', 'S1', null);
+    expect(withSuggestedBlockId(broken, undefined, [], network)).toEqual(broken);
   });
 });

@@ -64,6 +64,17 @@ export interface TripShift {
  */
 export type MaximizedPane = 'diagram' | 'timetable' | null;
 
+/**
+ * ダイヤグラムの左ボタンが何をするか（仕様書 §6.3.3、T-30）。
+ *
+ * - `select` — 選ぶ・囲む・引きずる（§6.3.1、§6.3.2）
+ * - `draw` — 停留所線を押して便を作る（§6.3.3）
+ *
+ * **保存しない。** 道具を選んだ状態でファイルを閉じ、開き直した先で線を引く
+ * つもりの無いクリックが便になっては困る。
+ */
+export type DiagramTool = 'select' | 'draw';
+
 /** 保存しない状態。 */
 export interface UiState {
   /** 選択中の便。時刻表とダイヤグラムで共有する（仕様書 §6.3.1）。 */
@@ -85,6 +96,8 @@ export interface UiState {
    * 始まると、壊れたように見える。
    */
   readonly maximized: MaximizedPane;
+  /** ダイヤグラムの左ボタンの役目（仕様書 §6.3.3、T-30）。 */
+  readonly tool: DiagramTool;
   /**
    * 写した便（仕様書 §6.1.4、§8.1、T-53）。貼り付けるまで持つ。
    *

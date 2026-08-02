@@ -415,3 +415,85 @@ describe('プロジェクトを開いていないとき', () => {
     }).not.toThrow();
   });
 });
+
+describe('作図モード（T-30、仕様書 §6.3.3）', () => {
+  /** 豊中学舎（軸 0）の線の上。7:00 が左端・1 分 3px なので x=324 が 8:00。 */
+  const ON_STOP_LINE = { clientX: 324, clientY: 24 };
+  /** どの停留所線からも遠い点。 */
+  const BETWEEN_LINES = { clientX: 324, clientY: 120 };
+
+  const trips = (): readonly Trip[] => store.getState().project?.services[0]?.trips ?? [];
+
+  beforeEach(() => {
+    setTrips([]);
+    store.getState().setTool('draw');
+  });
+
+  it('**押した場所に便ができ、そのまま選ばれる**（受入条件）', () => {
+    pointer('pointerdown', { button: 0, ...ON_STOP_LINE });
+
+    expect(trips()).toHaveLength(1);
+    expect(trips()[0]?.anchor).toEqual({ stopId: '1_0', time: fromHM(8, 0) });
+    expect(selected()).toEqual(trips().map((trip) => trip.tripId));
+  });
+
+  it('運用番号も提案される（時刻表で作ったときと同じ）', () => {
+    pointer('pointerdown', { button: 0, ...ON_STOP_LINE });
+
+    expect(trips()[0]?.blockId).not.toBe('');
+  });
+
+  it('**引きずっても線は伸びない**（終点はパターンが決める）', () => {
+    pointer('pointerdown', { button: 0, ...ON_STOP_LINE });
+    pointer('pointermove', { clientX: 600, clientY: 300 }, window);
+    pointer('pointerup', { clientX: 600, clientY: 300 }, window);
+
+    expect(trips()).toHaveLength(1);
+    // 掴んで動かしたことにはならない（枠も数字も出ていない）。
+    expect(store.getState().ui.selectionRect).toBeNull();
+    expect(store.getState().ui.tripShift).toBeNull();
+  });
+
+  it('停留所線から離れていれば何も起きない', () => {
+    pointer('pointerdown', { button: 0, ...BETWEEN_LINES });
+
+    expect(trips()).toHaveLength(0);
+  });
+
+  it('**1 回の取り消しで消える**（1 回の操作である）', () => {
+    pointer('pointerdown', { button: 0, ...ON_STOP_LINE });
+    store.getState().undo();
+
+    expect(trips()).toHaveLength(0);
+  });
+
+  it('選択モードでは便を作らない', () => {
+    store.getState().setTool('select');
+    pointer('pointerdown', { button: 0, ...ON_STOP_LINE });
+    pointer('pointerup', ON_STOP_LINE, window);
+
+    expect(trips()).toHaveLength(0);
+  });
+
+  it('Esc で選択モードへ戻る（押し続ける道具から抜けられる）', () => {
+    canvas.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+
+    expect(store.getState().ui.tool).toBe('select');
+  });
+
+  it('**送りが受け取った押し下げでは作らない**（スペース + 左ボタン）', () => {
+    // 画面と同じ順に繋ぎ直す。押し下げは登録した順に届く。
+    detach();
+    const detachViewport = attachViewportControls({ canvas, store, theme });
+    const detachSelection = attachTripControls({ canvas, store, theme });
+    detach = () => {
+      detachSelection();
+      detachViewport();
+    };
+
+    canvas.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', cancelable: true }));
+    pointer('pointerdown', { button: 0, ...ON_STOP_LINE });
+
+    expect(trips()).toHaveLength(0);
+  });
+});

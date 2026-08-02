@@ -14,14 +14,14 @@
  */
 
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
-import { suggestBlockId } from '@/domain/block';
+import { withSuggestedBlockId } from '@/domain/block';
 import type { DirectionId, Trip } from '@/domain/model';
 import type { NetworkIndex } from '@/domain/network';
 import { diffMinutes } from '@/domain/time';
 import { originTime } from '@/domain/trip';
 import {
-  addTripAt,
   changeTripsPattern,
+  createTrip,
   copyTripsToService,
   pasteTrips,
   patternForStop,
@@ -171,21 +171,13 @@ export function Timetable(): ReactElement {
       const result =
         patternId === null
           ? null
-          : addTripAt(serviceTrips, patternId, outcome.stopId, outcome.time, network, allTrips());
+          : createTrip(serviceTrips, patternId, outcome.stopId, outcome.time, network, allTrips());
       if (result === null) {
         setMessage(CANNOT.create);
         return { ok: false, reason: 'unrepresentable' };
       }
 
-      replaceTrips(
-        activeServiceId,
-        '便の入力',
-        result.trips.map((trip) =>
-          result.added.includes(trip)
-            ? withSuggestedBlockId(trip, undefined, serviceTrips, network)
-            : trip,
-        ),
-      );
+      replaceTrips(activeServiceId, '便の入力', result.trips);
       setMessage(null);
       return { ok: true, rounded: outcome.rounded };
     }
@@ -435,28 +427,4 @@ function shiftMinutes(before: Trip, after: Trip, network: NetworkIndex): number 
   const to = originTime(after, network);
   // 時刻が入っていなかった便は「動いた」とは言えない。ほかの便は動かさない。
   return from === null || to === null ? 0 : diffMinutes(to, from);
-}
-
-/**
- * 便に運用番号を提案する（仕様書 §6.1.5、T-23）。
- *
- * 提案するのは、**その便に初めて時刻が入り、運用番号がまだ空欄のとき**だけで
- * ある。仕様書の言う「新規便の作成時」がここに当たる。便を追加した時点では
- * 時刻が無く（`anchor: null`）、始発時刻を要する提案アルゴリズムを走らせようが
- * ないためである。
- *
- * 時刻を打ち直すたびに提案し直さないのは、利用者が消した運用番号を勝手に
- * 書き戻さないためである。提案値は普通の編集と同じように上書きでき、自動で
- * 付いたことは画面上で区別しない（§6.1.5）。
- */
-function withSuggestedBlockId(
-  trip: Trip,
-  before: Trip | undefined,
-  trips: readonly Trip[],
-  network: NetworkIndex,
-): Trip {
-  if (before?.anchor != null || trip.blockId !== '') return trip;
-
-  const blockId = suggestBlockId(trip, trips, network);
-  return blockId === '' ? trip : { ...trip, blockId };
 }
