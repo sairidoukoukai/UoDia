@@ -18,6 +18,8 @@ const ROUTE_FILE: &str = "route.json";
 const BACKUP_FILE: &str = "backup.uodia";
 /// 最近使ったファイルの一覧。
 const RECENT_FILE: &str = "recent.json";
+/// 設定（T-39）。プロジェクトとは別に置く。
+const SETTINGS_FILE: &str = "settings.json";
 
 /// アプリの設定ディレクトリ。
 fn config_dir(app: &AppHandle) -> Result<PathBuf, String> {
@@ -37,6 +39,10 @@ pub fn backup_path(app: &AppHandle) -> Result<PathBuf, String> {
 
 pub fn recent_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(config_dir(app)?.join(RECENT_FILE))
+}
+
+pub fn settings_path(app: &AppHandle) -> Result<PathBuf, String> {
+    Ok(config_dir(app)?.join(SETTINGS_FILE))
 }
 
 /// 同梱リソースの `route.json`。

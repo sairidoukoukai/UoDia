@@ -14,6 +14,9 @@ export default defineConfig({
     // `// @vitest-environment jsdom` を書く）。既定を node にすることで
     // ドメイン層のテストを高速に保つ。
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    // jsdom に無いものを補う（`matchMedia` など）。node 環境でも読み込むが、
+    // 既にあるものには触れない。
+    setupFiles: ['./vitest.setup.ts'],
     // T-01 時点ではテスト対象がまだ無い。最初の実テストは T-03 で追加する。
     passWithNoTests: true,
     coverage: {

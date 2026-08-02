@@ -24,6 +24,7 @@ import {
   selectNetwork,
   selectTrips,
   useAppStore,
+  type ThemeMode,
 } from '@/store';
 import {
   affectedTripCount,
@@ -339,8 +340,15 @@ function BehaviorTab(): ReactElement {
   );
 }
 
+const THEME_LABEL: Record<ThemeMode, string> = {
+  system: 'システムに従う',
+  light: 'ライト',
+  dark: 'ダーク',
+};
+
 function DisplayTab(): ReactElement {
   const view = useAppStore((state) => state.settings.defaultDiagramView);
+  const theme = useAppStore((state) => state.settings.theme);
   const setSettings = useAppStore((state) => state.setSettings);
 
   const update = (patch: { pxPerMinute?: number; pxPerAxisUnit?: number }): void => {
@@ -349,6 +357,28 @@ function DisplayTab(): ReactElement {
 
   return (
     <section className="settings__panel">
+      {/*
+        テーマ（§6.5.3、§9.4）。**ダイヤグラムの配色も一緒に変わる**——canvas は
+        この CSS から色を読んでいる（`DiagramCanvas`）。
+      */}
+      <fieldset className="settings__theme">
+        <legend>テーマ</legend>
+        {(['system', 'light', 'dark'] as const).map((mode) => (
+          <label key={mode} className="settings__radio">
+            <input
+              type="radio"
+              name="theme"
+              value={mode}
+              checked={theme === mode}
+              onChange={() => {
+                setSettings({ theme: mode });
+              }}
+            />
+            {THEME_LABEL[mode]}
+          </label>
+        ))}
+      </fieldset>
+
       <p className="settings__note">
         <kbd>Ctrl</kbd>+<kbd>0</kbd>（拡大率を既定に戻す）が戻す先です。
       </p>

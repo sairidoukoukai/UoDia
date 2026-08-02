@@ -7,6 +7,7 @@
  */
 
 import { useEffect, useRef, useState, type ReactElement } from 'react';
+import { resolveTheme, usePrefersDark } from '@/features/settings';
 import { useAppStore } from '@/store';
 import { attachDiagram } from './canvasHost';
 import { cursorAt, type DiagramCursor } from './cursor';
@@ -46,6 +47,15 @@ export interface DiagramCanvasProps {
 export function DiagramCanvas(props: DiagramCanvasProps): ReactElement {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  /**
+   * 実際に使っている配色（T-39）。
+   *
+   * **変わったら繋ぎ直す。** 色は繋ぐときに 1 度だけ読むため（下記）、テーマを
+   * 切り替えても、繋ぎ直さないかぎり canvas だけが前の配色のまま残る。
+   */
+  const themeMode = useAppStore((state) => state.settings.theme);
+  const resolved = resolveTheme(themeMode, usePrefersDark());
+
   // 繋ぎ直さずに差し替えられるようにする。繋ぎ（下の `useEffect`）は 1 度きりで
   // あり、呼び先を直接見ると、親が描き直すたびに canvas を繋ぎ直すことになる。
   /** 右クリックで出すメニューの場所。出していなければ `null`（T-31）。 */
@@ -62,7 +72,7 @@ export function DiagramCanvas(props: DiagramCanvasProps): ReactElement {
 
     // **色は繋ぐときに 1 度だけ読む。** `attachDiagram` がその参照を毎フレーム
     // 使い回すため、場面の組み立てが無駄に走らない（`selectDiagramScene`）。
-    // テーマの切り替えに追随させるのは T-39 の仕事である。
+    // テーマが変われば、この繋ぎごとやり直す（`resolved` が変わる）。
     const theme = readTheme(canvas);
     const detachDiagram = attachDiagram({ canvas, store: useAppStore, theme });
     // **送りを先に繋ぐ。** 押し下げは登録した順に届く。送りの側が先に受け取って
@@ -117,7 +127,8 @@ export function DiagramCanvas(props: DiagramCanvasProps): ReactElement {
       detachViewport();
       detachDiagram();
     };
-  }, []);
+    // 配色が変わったら繋ぎ直す（色を読み直すため）。
+  }, [resolved]);
 
   return (
     <div className="diagram">

@@ -91,6 +91,16 @@ export interface PlatformAdapter {
    */
   saveNetworkDef(content: string): Promise<void>;
 
+  /**
+   * 設定を読む。まだ保存していなければ `null`（仕様書 §6.5、T-39）。
+   *
+   * **プロジェクトとは別に置く。** 設定は「この道具の使い方」であり、開いた
+   * ファイルによって変わるものではない。
+   */
+  readSettings(): Promise<string | null>;
+  /** 設定を書く。 */
+  writeSettings(content: string): Promise<void>;
+
   /** 自動バックアップを書く（仕様書 §6.8）。 */
   writeBackup(content: string): Promise<void>;
   /** 自動バックアップを読む。無ければ `null`。 */

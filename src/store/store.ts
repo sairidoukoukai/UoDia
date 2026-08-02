@@ -33,7 +33,7 @@ import {
 } from '@/domain/model';
 import { validateNetwork, type NetworkIssue } from '@/domain/network';
 import type { FileHandle } from '@/platform';
-import { DEFAULT_BACKUP_INTERVAL_MS, clampBackupInterval } from './settings';
+import { DEFAULT_BACKUP_INTERVAL_MS, DEFAULT_THEME, clampBackupInterval } from './settings';
 import {
   createHistory,
   pushHistory,
@@ -253,6 +253,7 @@ const INITIAL_STATE: AppState = {
   history: createHistory(),
   file: { handle: null, savedProject: null },
   settings: {
+    theme: DEFAULT_THEME,
     backupIntervalMs: DEFAULT_BACKUP_INTERVAL_MS,
     defaultDiagramView: diagramViewSchema.parse({}),
     patternsUnlocked: false,

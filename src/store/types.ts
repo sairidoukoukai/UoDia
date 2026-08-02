@@ -28,6 +28,7 @@
 import type { DiagramView, NetworkDef, Project, Trip } from '@/domain/model';
 import type { FileHandle } from '@/platform';
 import type { History } from './history';
+import type { ThemeMode } from './settings';
 
 /**
  * 矩形選択で囲んでいる範囲（仕様書 §6.3.1、T-28）。
@@ -159,6 +160,8 @@ export interface FileState {
  * いまは起動のたびに既定へ戻る。設定の保存先はテーマと一緒に決める（T-39）。
  */
 export interface AppSettings {
+  /** テーマ（仕様書 §6.5.3、§9.4）。`system` は OS の設定に従う。 */
+  readonly theme: ThemeMode;
   /** 自動バックアップの間隔（ミリ秒。仕様書 §6.8）。 */
   readonly backupIntervalMs: number;
   /**
