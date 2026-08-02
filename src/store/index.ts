@@ -1,4 +1,10 @@
 export {
+  BACKUP_INTERVAL_LIMITS,
+  DEFAULT_BACKUP_INTERVAL_MS,
+  clampBackupInterval,
+} from './settings';
+
+export {
   createAppStore,
   useAppStore,
   type AppActions,

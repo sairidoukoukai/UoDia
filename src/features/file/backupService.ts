@@ -21,11 +21,14 @@
 import { parseBackup, loadProjectData, serializeBackup } from '@/domain/io';
 import type { Project } from '@/domain/model';
 import type { PlatformAdapter } from '@/platform';
-import { selectIsDirty, selectNetwork, type AppState, type AppStoreHook } from '@/store';
+import {
+  DEFAULT_BACKUP_INTERVAL_MS,
+  selectIsDirty,
+  selectNetwork,
+  type AppState,
+  type AppStoreHook,
+} from '@/store';
 import type { BackupDialogs } from './prompts';
-
-/** 自動バックアップの間隔（仕様書 §6.5.2）。 */
-export const DEFAULT_BACKUP_INTERVAL_MS = 5 * 60 * 1000;
 
 /** 復元できる編集内容。 */
 export interface RecoverableBackup {

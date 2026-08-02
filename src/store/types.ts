@@ -25,7 +25,7 @@
  * （`selectNetwork`）。
  */
 
-import type { NetworkDef, Project, Trip } from '@/domain/model';
+import type { DiagramView, NetworkDef, Project, Trip } from '@/domain/model';
 import type { FileHandle } from '@/platform';
 import type { History } from './history';
 
@@ -147,11 +147,41 @@ export interface FileState {
   readonly savedProject: Project | null;
 }
 
+/**
+ * アプリの設定（仕様書 §6.5.2、§6.5.3、T-35）。
+ *
+ * **プロジェクトには入れない。** 履歴段数もバックアップ間隔も「この道具の
+ * 使い方」であり、開いたファイルによって変わるものではない。`view`（§5.10）が
+ * 文書の見え方を持つのと対になる。
+ *
+ * **履歴にも載せない。** 設定を変えることは便の編集ではない。
+ *
+ * いまは起動のたびに既定へ戻る。設定の保存先はテーマと一緒に決める（T-39）。
+ */
+export interface AppSettings {
+  /** 自動バックアップの間隔（ミリ秒。仕様書 §6.8）。 */
+  readonly backupIntervalMs: number;
+  /**
+   * ダイヤグラムの既定の拡大率（仕様書 §6.5.3）。
+   *
+   * <kbd>Ctrl</kbd>+<kbd>0</kbd>（拡大率を既定に戻す）が戻す先である。
+   */
+  readonly defaultDiagramView: DiagramView;
+}
+
 export interface AppState extends DocumentState {
   readonly ui: UiState;
   readonly history: History;
   readonly file: FileState;
+  readonly settings: AppSettings;
 }
 
 /** 状態が持つ項目。派生値を足していないことをテストで固定するために使う。 */
-export const APP_STATE_KEYS = ['networkDef', 'project', 'ui', 'history', 'file'] as const;
+export const APP_STATE_KEYS = [
+  'networkDef',
+  'project',
+  'ui',
+  'history',
+  'file',
+  'settings',
+] as const;

@@ -19,7 +19,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
-import { DEFAULT_DIAGRAM_VIEW, DiagramCanvas, type DiagramCursor } from '@/features/diagram';
+import { DiagramCanvas, type DiagramCursor } from '@/features/diagram';
 import { loadNetworkDef } from '@/domain/network';
 import {
   FileDialogHost,
@@ -40,6 +40,7 @@ import {
   type HelpTopic,
   type MenuExtra,
 } from '@/features/shell';
+import { SettingsDialog } from '@/features/settings';
 import { SidePanel } from '@/features/sidebar';
 import { Timetable, copySelection, cutSelection, pasteClipboard } from '@/features/timetable';
 import { ValidationPanel } from '@/features/validation';
@@ -57,6 +58,7 @@ export function App(): ReactElement {
   const [recent, setRecent] = useState<readonly RecentFile[]>([]);
   const [cursor, setCursor] = useState<DiagramCursor | null>(null);
   const [help, setHelp] = useState<HelpTopic | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   /** 直前の操作が伝えたいこと（写した便の数など）。次の操作で置き換わる。 */
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -65,7 +67,13 @@ export function App(): ReactElement {
     () => createFileService({ platform, store: useAppStore, dialogs }),
     [platform, dialogs],
   );
-  const backups = useMemo(() => createBackupService({ platform, store: useAppStore }), [platform]);
+  // バックアップの間隔は設定で変えられる（§6.5.2）。**間隔が変われば繋ぎ直す**
+  // ——走っている時計はその間隔を焼き付けているため、作り直すほかない。
+  const backupIntervalMs = useAppStore((state) => state.settings.backupIntervalMs);
+  const backups = useMemo(
+    () => createBackupService({ platform, store: useAppStore, intervalMs: backupIntervalMs }),
+    [platform, backupIntervalMs],
+  );
 
   const canUndo = useAppStore(selectCanUndo);
   const canRedo = useAppStore(selectCanRedo);
@@ -202,10 +210,15 @@ export function App(): ReactElement {
       'view.maximizeDiagram': maximize('diagram'),
       'view.maximizeTimetable': maximize('timetable'),
       'view.resetZoom': (): void => {
-        useAppStore.getState().setDiagramView(DEFAULT_DIAGRAM_VIEW);
+        // 戻す先は設定が持つ（§6.5.3）。定数に戻すと、設定した拡大率が
+        // Ctrl+0 のたびに捨てられる。
+        const state = useAppStore.getState();
+        state.setDiagramView(state.settings.defaultDiagramView);
       },
 
-      'settings.open': null,
+      'settings.open': (): void => {
+        setSettingsOpen(true);
+      },
 
       'help.shortcuts': (): void => {
         setHelp('shortcuts');
@@ -319,6 +332,14 @@ export function App(): ReactElement {
         topic={help}
         onClose={() => {
           setHelp(null);
+        }}
+      />
+      <SettingsDialog
+        open={settingsOpen}
+        platform={platform}
+        onNotice={setNotice}
+        onClose={() => {
+          setSettingsOpen(false);
         }}
       />
     </div>

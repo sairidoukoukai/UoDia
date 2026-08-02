@@ -1,4 +1,4 @@
-export { serializeProject } from './serialize';
+export { serializeNetworkDef, serializeProject } from './serialize';
 
 export { createProject, touchProject, type CreateProjectOptions } from './create';
 

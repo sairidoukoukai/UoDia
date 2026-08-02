@@ -182,6 +182,140 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* 設定ダイアログ（仕様書 §6.5、T-35）。焦点と Esc は <dialog> に任せる。 */
+.settings {
+  width: min(44rem, 92vw);
+  max-height: 86vh;
+  padding: 0;
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-bg);
+  color: var(--color-fg);
+}
+
+.settings::backdrop {
+  background: rgb(0 0 0 / 35%);
+}
+
+.settings__tabs {
+  position: sticky;
+  z-index: 1;
+  top: 0;
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.5rem 0.75rem 0;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-accent);
+}
+
+.settings__tab {
+  padding: 0.3rem 0.9rem;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 4px 4px 0 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.settings__tab--active {
+  border-color: var(--color-border);
+  background: var(--color-bg);
+  font-weight: bold;
+}
+
+.settings__panel {
+  padding: 0.75rem 1rem;
+}
+
+.settings__segments {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.settings__segments th[scope='col'] {
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+}
+
+.settings__segments th[scope='row'] {
+  padding: 0.15rem 0.5rem 0.15rem 0;
+  font-weight: normal;
+  text-align: left;
+}
+
+.settings__segments td {
+  padding: 0.15rem 0;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* 回送の区間。営業の区間と見分ける（縦軸には出ない。#118）。 */
+.settings__row--deadhead th[scope='row'] {
+  color: var(--color-fg-muted);
+}
+
+.settings__minutes {
+  width: 4.5rem;
+  font: inherit;
+  text-align: right;
+}
+
+.settings__minutes--invalid {
+  background: var(--color-invalid);
+}
+
+.settings__field {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+  font-size: 0.875rem;
+}
+
+.settings__field input {
+  width: 6rem;
+  font: inherit;
+  text-align: right;
+}
+
+.settings__note {
+  color: var(--color-fg-muted);
+  font-size: 0.8125rem;
+}
+
+.settings__error {
+  color: var(--color-error);
+  font-size: 0.875rem;
+}
+
+.settings__affected,
+.settings__message {
+  font-size: 0.875rem;
+}
+
+.settings__confirm {
+  font-size: 0.875rem;
+  font-weight: bold;
+}
+
+.settings__panel-actions,
+.settings__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.settings__actions {
+  justify-content: flex-end;
+  padding: 0 1rem 1rem;
+}
+
 /* ヘルプの窓（T-37）。焦点と Esc は <dialog> に任せる。 */
 .help-dialog {
   max-width: 32rem;
