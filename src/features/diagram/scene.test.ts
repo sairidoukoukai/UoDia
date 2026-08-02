@@ -114,6 +114,52 @@ describe('縦軸の停留所', () => {
   });
 });
 
+/**
+ * 線種の上書き（#133、仕様書 §6.5.3）。
+ *
+ * **当てるのは描く直前だけである。** `route.json` は書き換わらない。
+ */
+describe('停留所の線種', () => {
+  function gridStyleOf(stopId: string): string | undefined {
+    return selectDiagramScene(state(), theme).stops.find((stop) => stop.stopId === stopId)
+      ?.gridStyle;
+  }
+
+  it('上書きが無ければ route.json の値で描く', () => {
+    expect(gridStyleOf('1_0')).toBe('bold');
+    expect(gridStyleOf('3_0')).toBe('normal');
+  });
+
+  it('**上書きした停留所だけが変わる**', () => {
+    store.getState().setSettings({ stopGridStyles: { '1_0': 'dashed' } });
+
+    expect(gridStyleOf('1_0')).toBe('dashed');
+    // 上書きしていない停留所は路線図のまま。
+    expect(gridStyleOf('3_0')).toBe('normal');
+  });
+
+  it('**route.json は書き換わらない**（路線の事実と見やすさは別物である）', () => {
+    store.getState().setSettings({ stopGridStyles: { '1_0': 'dashed' } });
+
+    expect(network.def.stops.find((stop) => stop.stopId === '1_0')?.gridStyle).toBe('bold');
+    expect(state().networkDef?.stops.find((stop) => stop.stopId === '1_0')?.gridStyle).toBe('bold');
+  });
+
+  it('**知らない停留所 ID が残っていても落ちない**（route.json の改訂で消えうる）', () => {
+    store.getState().setSettings({ stopGridStyles: { もう無い停留所: 'dashed' } });
+
+    expect(gridStyleOf('1_0')).toBe('bold');
+    expect(selectDiagramScene(state(), theme).stops).toHaveLength(5);
+  });
+
+  it('**設定が変わらなければ組み直さない**（記憶化が効いている）', () => {
+    const before = selectDiagramScene(state(), theme).stops;
+    store.getState().setSettings({ backupIntervalMs: 120000 });
+
+    expect(selectDiagramScene(state(), theme).stops).toBe(before);
+  });
+});
+
 describe('スジ', () => {
   it('**折れ点は経路の順に並び、時刻を持つ**', () => {
     setTrips([makeTrip('t1', 'S1', [8, 0])]);

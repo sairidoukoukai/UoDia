@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { diagramViewSchema } from '@/domain/model';
+import { diagramViewSchema, gridStyleSchema, type GridStyle } from '@/domain/model';
 
 /**
  * 設定の既定値と範囲（仕様書 §6.5.2、§6.5.3、T-35）。
@@ -52,8 +52,19 @@ export const persistedSettingsSchema = z.object({
   theme: themeModeSchema.default(DEFAULT_THEME),
   backupIntervalMs: z.number().default(DEFAULT_BACKUP_INTERVAL_MS),
   defaultDiagramView: diagramViewSchema.default({}),
+  /**
+   * 停留所の線種の上書き（§6.5.3、#133）。
+   *
+   * **知らない停留所 ID が残っていても構わない。** `route.json` の改訂で
+   * 停留所が消えることはあり、そのたびに設定が読めなくなるのでは代償が
+   * 大きい。当てるときに引き当たらないだけである。
+   */
+  stopGridStyles: z.record(z.string(), gridStyleSchema).default({}),
 });
 export type PersistedSettings = z.infer<typeof persistedSettingsSchema>;
+
+/** 上書きが 1 つも無い状態。**同じ参照を返す**——記憶化の鍵になる。 */
+export const NO_GRID_STYLE_OVERRIDES: Readonly<Record<string, GridStyle>> = Object.freeze({});
 
 /**
  * 保存されている設定を読む。**読めなければ既定に倒す。**
@@ -78,9 +89,16 @@ export function serializeSettings(settings: PersistedSettings): string {
     {
       backupIntervalMs: settings.backupIntervalMs,
       defaultDiagramView: settings.defaultDiagramView,
+      // 停留所の並びも固定する。上書きを足した順で書くと、同じ内容から違う
+      // バイト列が出て、**中身が変わっていないのに書き込みが走る**。
+      stopGridStyles: sortedByKey(settings.stopGridStyles),
       theme: settings.theme,
     },
     null,
     2,
   )}\n`;
+}
+
+function sortedByKey(styles: Readonly<Record<string, GridStyle>>): Record<string, GridStyle> {
+  return Object.fromEntries(Object.entries(styles).sort(([a], [b]) => a.localeCompare(b)));
 }

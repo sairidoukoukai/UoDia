@@ -25,7 +25,7 @@
  * （`selectNetwork`）。
  */
 
-import type { DiagramView, NetworkDef, Project, Trip } from '@/domain/model';
+import type { DiagramView, GridStyle, NetworkDef, Project, Trip } from '@/domain/model';
 import type { FileHandle } from '@/platform';
 import type { History } from './history';
 import type { ThemeMode } from './settings';
@@ -170,6 +170,18 @@ export interface AppSettings {
    * <kbd>Ctrl</kbd>+<kbd>0</kbd>（拡大率を既定に戻す）が戻す先である。
    */
   readonly defaultDiagramView: DiagramView;
+  /**
+   * 停留所の線種の上書き（仕様書 §6.5.3、#133）。
+   *
+   * **路線の事実と、その人の見やすさは別物である。** どの停留所が幹線か
+   * （`route.json` の `gridStyle`）は書き換えてよい事実ではない。一方で
+   * 「この線が細くて見失う」はその人の目の話であり、直す先は `route.json`
+   * ではない。よって上書きの表を別に持つ。
+   *
+   * **入っていない停留所は `route.json` の値をそのまま使う。** 全停留所ぶんを
+   * 持つと、`route.json` 側で線種を直したときに古い値で上書きし続ける。
+   */
+  readonly stopGridStyles: Readonly<Record<string, GridStyle>>;
   /**
    * 停車パターンの編集を開いてよいか（仕様書 §6.5.4、T-36）。
    *

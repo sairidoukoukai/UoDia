@@ -15,6 +15,15 @@ export {
 export { loadSettings, persistedOf, watchSettings, type SettingsStorageOptions } from './storage';
 
 export {
+  GRID_STYLES,
+  GRID_STYLE_LABEL,
+  clearedGridStyles,
+  overrideCount,
+  withGridStyleOverride,
+  type GridStyleOverrides,
+} from './gridStyles';
+
+export {
   affectedTripCount as affectedByPatterns,
   changedPatternIds,
   duplicatedPattern,

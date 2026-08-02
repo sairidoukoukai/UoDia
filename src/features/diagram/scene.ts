@@ -148,13 +148,21 @@ const NO_TRIPS: readonly SceneTrip[] = [];
 const NO_IDS: readonly string[] = [];
 const NO_DIRECTIONS: readonly DirectionId[] = [];
 
-const stopsOf = memoizeByIdentity((stops: readonly Stop[]): readonly SceneStop[] =>
-  stops.map((stop) => ({
-    stopId: stop.stopId,
-    shortName: stop.shortName,
-    axisPosition: stop.axisPosition,
-    gridStyle: stop.gridStyle,
-  })),
+/**
+ * 縦軸に並ぶ停留所。**線種だけは利用者の上書きが勝つ**（§6.5.3、#133）。
+ *
+ * 上書きは疎な表であり、入っていない停留所は `route.json` の値をそのまま使う。
+ * ここで当てるのは、**`route.json` を書き換えないため**である——どの停留所が
+ * 幹線かは路線の事実であり、その人の見やすさとは別物である。
+ */
+const stopsOf = memoizeByIdentity(
+  (stops: readonly Stop[], overrides: Readonly<Record<string, GridStyle>>): readonly SceneStop[] =>
+    stops.map((stop) => ({
+      stopId: stop.stopId,
+      shortName: stop.shortName,
+      axisPosition: stop.axisPosition,
+      gridStyle: overrides[stop.stopId] ?? stop.gridStyle,
+    })),
 );
 
 const visibleIdsOf = memoizeByIdentity(
@@ -302,7 +310,8 @@ const sceneOf = memoizeByIdentity(
  */
 export function selectDiagramScene(state: AppState, theme: SceneTheme): DiagramScene {
   const network = selectNetwork(state);
-  const stops = network === null ? NO_STOPS : stopsOf(selectVisibleStops(state));
+  const stops =
+    network === null ? NO_STOPS : stopsOf(selectVisibleStops(state), state.settings.stopGridStyles);
   const view = state.project?.view;
 
   // **拡大率とスクロール位置は見ない。** 同じ `view` の中にあるが、変わっても

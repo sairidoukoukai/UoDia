@@ -424,6 +424,41 @@ body {
   margin-right: 1rem;
 }
 
+/*
+ * 停留所の線種の上書き（§6.5.3、#133）。
+ *
+ * テーマと同じ囲みにする。**どちらも「この人の目に合わせる」設定**であり、
+ * 既定の拡大率（文書の見え方）とは別の話である。
+ */
+.settings__grid-styles {
+  margin: 0.75rem 0 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  font-size: 0.875rem;
+}
+
+.settings__stops {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.settings__stops th[scope='col'] {
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+}
+
+.settings__stops th[scope='row'] {
+  padding: 0.15rem 0.5rem 0.15rem 0;
+  font-weight: normal;
+  text-align: left;
+}
+
+.settings__stops td {
+  padding: 0.15rem 0;
+  text-align: right;
+}
+
 /* 停車パターンの編集（隠し設定。§6.5.4、T-36）。 */
 .settings__patterns {
   display: grid;

@@ -3,6 +3,7 @@ export {
   DEFAULT_BACKUP_INTERVAL_MS,
   DEFAULT_THEME,
   clampBackupInterval,
+  NO_GRID_STYLE_OVERRIDES,
   parseSettings,
   persistedSettingsSchema,
   serializeSettings,
