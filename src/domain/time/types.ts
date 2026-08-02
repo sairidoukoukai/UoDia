@@ -26,6 +26,9 @@ export const GRAIN_SECONDS = 300;
 export const SECONDS_PER_MINUTE = 60;
 export const SECONDS_PER_HOUR = 3600;
 
+/** 時刻の刻み（分）。 */
+export const GRAIN_MINUTES = GRAIN_SECONDS / SECONDS_PER_MINUTE;
+
 /**
  * 許容する最大の「時」。
  *
@@ -64,6 +67,20 @@ export function seconds(value: number): Seconds {
 }
 
 /**
+ * 5 分の格子に合わせる。**丸め方はこれ 1 つである**（#134、仕様書 §6.1.2）。
+ *
+ * 近いほうへ寄せる（四捨五入）。切り上げ・切り捨てを選べるようにはしない——
+ * 打つときと掴んで動かすときで丸め方が違えば、同じ 8:32 が場所によって 8:30 に
+ * も 8:35 にもなる。**丸め方が 1 つなら、経路ごとに食い違いようがない。**
+ *
+ * 分を受け取るのは、時刻ではなく**差**（移動量）を丸める道があるためである
+ * （スジの引きずり。§6.3.2）。差は負にもなる。
+ */
+export function roundMinutesToGrain(minutes: number): number {
+  return Math.round(minutes / GRAIN_MINUTES) * GRAIN_MINUTES;
+}
+
+/**
  * 任意の秒数を 5 分単位に四捨五入して {@link Seconds} にする。
  *
  * 仕様書 §6.1.2 の「入力値は 5 分単位に四捨五入する」に対応する。
@@ -77,7 +94,7 @@ export function roundToGrain(value: number): Seconds {
   if (value < 0) {
     throw new RangeError(`時刻は負であってはなりません: ${String(value)}`);
   }
-  const rounded = Math.round(value / GRAIN_SECONDS) * GRAIN_SECONDS;
+  const rounded = roundMinutesToGrain(value / SECONDS_PER_MINUTE) * SECONDS_PER_MINUTE;
   if (rounded > MAX_SECONDS) {
     throw new RangeError(`時刻が上限（${String(MAX_SECONDS)} 秒）を超えています: ${String(value)}`);
   }
