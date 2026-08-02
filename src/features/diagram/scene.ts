@@ -51,14 +51,24 @@ export interface SceneStop {
   /** 縦軸の位置（仕様書 §6.2.1）。 */
   readonly axisPosition: number;
   readonly gridStyle: GridStyle;
-  /** 千里営業所。縦軸の外側の専用レーンに置く（§6.2.1）。 */
-  readonly isDepot: boolean;
 }
 
 /** スジの折れ点。 */
 export interface ScenePoint {
   readonly stopId: string;
   readonly time: Seconds;
+  /**
+   * 縦軸に無い点（営業所）。**ヒゲの先として描く**（#118、仕様書 §6.2.2）。
+   *
+   * 営業所には縦軸上の置き場所が無い（3 拠点のいずれからも 20 分にある）。
+   * 位置を決めて線を引くと、その傾きが速さを表しているように読めてしまう。
+   * 縦にどれだけ伸ばすかは**画面の量（px）で決める**——軸の単位で決めると、
+   * 縦に拡げるたびにヒゲが伸び、横断が戻ってくる。
+   *
+   * 横（時刻）は正直に置く。出庫 7:40 の便ならヒゲの端は 7:40 の位置にあり、
+   * 目盛から読める。
+   */
+  readonly offAxis?: true;
 }
 
 /** 1 本のスジ。 */
@@ -104,8 +114,6 @@ export interface SceneTheme {
   readonly gridFaint: string;
   /** 目盛と停留所名の文字。 */
   readonly label: string;
-  /** 千里営業所の専用レーンの地色（仕様書 §6.2.1）。 */
-  readonly lane: string;
 }
 
 /**
@@ -145,12 +153,22 @@ const stopsOf = memoizeByIdentity((stops: readonly Stop[]): readonly SceneStop[]
     shortName: stop.shortName,
     axisPosition: stop.axisPosition,
     gridStyle: stop.gridStyle,
-    isDepot: stop.isDepot,
   })),
 );
 
 const visibleIdsOf = memoizeByIdentity(
   (stops: readonly SceneStop[]): ReadonlySet<string> => new Set(stops.map((stop) => stop.stopId)),
+);
+
+/**
+ * 営業所の停留所 ID。
+ *
+ * 縦軸には並ばない（#118）が、折れ点からは落とさない。落とすと回送スジが 1 点に
+ * なり、**出入庫を付け忘れていることが絵から消える。**
+ */
+const depotIdsOf = memoizeByIdentity(
+  (network: NetworkIndex): ReadonlySet<string> =>
+    new Set(network.def.stops.filter((stop) => stop.isDepot).map((stop) => stop.stopId)),
 );
 
 /** パターンの線種。路線図が変わらないかぎり組み直さない。 */
@@ -182,6 +200,7 @@ const tripsOf = memoizeByIdentity(
     numbers: ReadonlyMap<string, string>,
   ): readonly SceneTrip[] => {
     const dashes = dashesOf(network);
+    const depots = depotIdsOf(network);
     // **色は隠されている便も含めて割り当てる。** 表示を切り替えるたびに残った
     // 運用の色が入れ替わっては、色で運用を追えない。
     //
@@ -205,8 +224,13 @@ const tripsOf = memoizeByIdentity(
       const points: ScenePoint[] = [];
       for (const [stopId] of pattern.offsets) {
         const time = times.get(stopId);
-        if (time === undefined || !visible.has(stopId)) continue;
-        points.push({ stopId, time });
+        if (time === undefined) continue;
+        if (visible.has(stopId)) {
+          points.push({ stopId, time });
+        } else if (depots.has(stopId)) {
+          // 営業所は縦軸に無い。**時刻は持たせたまま**ヒゲの先として残す（#118）。
+          points.push({ stopId, time, offAxis: true });
+        }
       }
       // 折れ点が無い便は線にならない。時刻が未入力か、表せる範囲を外れている。
       if (points.length === 0) continue;

@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { fromHM, type Seconds } from '@/domain/time';
-import { drawTrips, isTripVisible, tripPolyline } from './drawTrips';
+import { STUB_LENGTH, drawTrips, isTripVisible, tripPolyline } from './drawTrips';
 import { Recorder } from './recorder.test-utils';
 import type { DiagramScene, SceneStop, SceneTrip } from './scene';
 import { AXIS_LABEL_WIDTH, axisToY, timeToX, viewportOf, type Viewport } from './viewport';
@@ -18,22 +18,19 @@ const theme = {
   grid: '#e4e4e4',
   gridFaint: '#f0f0f0',
   label: '#666666',
-  lane: '#f4f4f4',
 };
 
 /** route.json と同じ並び。 */
 const stops: readonly SceneStop[] = [
-  { stopId: '1_0', shortName: '豊中', axisPosition: 0, gridStyle: 'bold', isDepot: false },
-  { stopId: '2_0', shortName: '箕面', axisPosition: 20, gridStyle: 'bold', isDepot: false },
+  { stopId: '1_0', shortName: '豊中', axisPosition: 0, gridStyle: 'bold' },
+  { stopId: '2_0', shortName: '箕面', axisPosition: 20, gridStyle: 'bold' },
   {
     stopId: '3_0',
     shortName: 'コンベ前',
     axisPosition: 33,
     gridStyle: 'normal',
-    isDepot: false,
   },
-  { stopId: '4_0', shortName: '工学部', axisPosition: 40, gridStyle: 'bold', isDepot: false },
-  { stopId: '9_0', shortName: '車庫', axisPosition: 52, gridStyle: 'dashed', isDepot: true },
+  { stopId: '4_0', shortName: '工学部', axisPosition: 40, gridStyle: 'bold' },
 ];
 
 /** 吹田方面の直行便。箕面学舎（20）を経由しない。 */
@@ -89,7 +86,8 @@ function pullOut(overrides: Partial<SceneTrip> = {}): SceneTrip {
       isDeadhead: true,
       tripNumber: '',
       points: [
-        { stopId: '9_0', time: fromHM(7, 40) },
+        // 営業所は縦軸に無い（#118）。ヒゲの先として描く。
+        { stopId: '9_0', time: fromHM(7, 40), offAxis: true },
         { stopId: '1_0', time: fromHM(8, 0) },
       ],
     }),
@@ -167,13 +165,46 @@ describe('折れ線', () => {
 });
 
 describe('回送スジ', () => {
-  it('**破線で描き、営業所レーンに繋がる**（§6.2.2）', () => {
+  it('**破線で描き、営業便の端から「ヒゲ」として伸びる**（#118、§6.2.2）', () => {
     const segments = draw([pullOut()]).segments;
 
     expect(segments[0]?.dash).toEqual([5, 4]);
-    // 千里営業所（52）から豊中学舎（0）へ。
-    expect(segments[0]?.y1).toBe(axisToY(52, viewport));
+    // 豊中学舎（軸 0）の少し下から、豊中学舎へ。**停留所線を横切らない。**
     expect(segments[0]?.y2).toBe(axisToY(0, viewport));
+    expect(segments[0]?.y1).toBe(axisToY(0, viewport) + STUB_LENGTH);
+  });
+
+  it('**横は正直に描く**（出庫の時刻が目盛から読める）', () => {
+    const segments = draw([pullOut()]).segments;
+
+    // 7:40 出庫 → 8:00 豊中学舎着。縦は記号だが、横は時間そのものである。
+    expect(segments[0]?.x1).toBe(timeToX(fromHM(7, 40), viewport));
+    expect(segments[0]?.x2).toBe(timeToX(fromHM(8, 0), viewport));
+  });
+
+  it('**縦に拡げてもヒゲの長さは変わらない**（受入条件）', () => {
+    // 軸の単位で決めていると、拡げるたびにヒゲが伸びて横断が戻ってくる。
+    for (const pxPerAxisUnit of [2, 8, 40]) {
+      const segment = draw([pullOut()], [], { pxPerAxisUnit }).segments[0];
+      const at = { ...viewport, pxPerAxisUnit };
+      expect(segment?.y1).toBe(axisToY(0, at) + STUB_LENGTH);
+    }
+  });
+
+  it('**停留所線を横切らない**（一番近い線までの隔たりより短い）', () => {
+    // 既定の拡大率で隣の停留所線（箕面、軸 20）は 120px 先にある。
+    expect(STUB_LENGTH).toBeLessThan(axisToY(20, viewport) - axisToY(0, viewport));
+  });
+
+  it('縦軸に乗る点が 1 つも無ければ線にならない（伸ばす元が無い）', () => {
+    const orphan = pullOut({
+      points: [
+        { stopId: '9_0', time: fromHM(7, 40), offAxis: true },
+        { stopId: '9_0', time: fromHM(7, 50), offAxis: true },
+      ],
+    });
+
+    expect(draw([orphan]).segments).toEqual([]);
   });
 
   it('番号は付けない（回送は便番号を持たない）', () => {

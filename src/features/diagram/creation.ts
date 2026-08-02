@@ -68,11 +68,9 @@ function nearestStopLine(
   let best: string | null = null;
   let bestDistance = tolerance;
 
+  // 営業所は縦軸に並んでいない（#118）。車庫発の便は出区として作られるもので
+  // あり（§6.1.7）、営業便の始発にはならない——**引ける線が営業停留所しか無い**。
   for (const stop of scene.stops) {
-    // **営業所レーンには引かせない。** 車庫発の便は出区として作られるもので
-    // あり（§6.1.7）、営業便の始発にはならない。
-    if (stop.isDepot) continue;
-
     const distance = Math.abs(axisToY(stop.axisPosition, viewport) - y);
     if (distance > bestDistance) continue;
     bestDistance = distance;

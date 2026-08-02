@@ -27,7 +27,6 @@ const theme: SceneTheme = {
   grid: '#e4e4e4',
   gridFaint: '#f0f0f0',
   label: '#666666',
-  lane: '#f4f4f4',
 };
 
 let store: ReturnType<typeof createAppStore>;
@@ -182,7 +181,7 @@ describe('既定に戻す', () => {
     expect(event.defaultPrevented).toBe(true);
     expect(view()).toEqual({
       pxPerMinute: 3,
-      pxPerAxisUnit: 6,
+      pxPerAxisUnit: 8,
       scrollTime: fromHM(7, 0),
       scrollAxis: 0,
     });

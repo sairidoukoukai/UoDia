@@ -27,7 +27,6 @@ const theme: SceneTheme = {
   grid: '#e4e4e4',
   gridFaint: '#f0f0f0',
   label: '#666666',
-  lane: '#f4f4f4',
 };
 
 let store: ReturnType<typeof createAppStore>;
@@ -99,7 +98,6 @@ describe('縦軸の停留所', () => {
       'コンベ前',
       '人科前',
       '工学部',
-      '車庫',
     ]);
   });
 
@@ -108,11 +106,11 @@ describe('縦軸の停留所', () => {
     expect(stops.map((stop) => stop.stopId)).not.toContain('6_0');
   });
 
-  it('**千里営業所は縦軸に出る**（外側の専用レーン。§6.2.1）', () => {
-    const depot = selectDiagramScene(state(), theme).stops.find((stop) => stop.isDepot);
-    expect(depot?.stopId).toBe('9_0');
-    // 軸位置が営業停留所より外にある。
-    expect(depot?.axisPosition).toBeGreaterThan(40);
+  it('**千里営業所は縦軸に出ない**（#118、仕様書 §6.2.1）', () => {
+    // 営業所は 3 拠点のいずれからも 20 分にあり、縦軸のどこに置いても等距離を
+    // 表せない。意味の無い位置へ線を引くと、その傾きにも意味が無くなる。
+    const { stops } = selectDiagramScene(state(), theme);
+    expect(stops.map((stop) => stop.stopId)).not.toContain('9_0');
   });
 });
 
@@ -150,7 +148,9 @@ describe('スジ', () => {
     const deadhead = trips.find((trip) => trip.isDeadhead);
     expect(deadhead?.patternId).toBe('DT-out');
     // 車庫（9_0）から豊中学舎（1_0）へ。7:40 → 8:00。
-    expect(deadhead?.points[0]).toEqual({ stopId: '9_0', time: fromHM(7, 40) });
+    // **車庫側の点は縦軸に無い**（#118）。落とさずに `offAxis` を立てて残す——
+    // 落とすと線が 1 点になり、出区を付け忘れていることが絵から消える。
+    expect(deadhead?.points[0]).toEqual({ stopId: '9_0', time: fromHM(7, 40), offAxis: true });
     expect(deadhead?.points.at(-1)).toEqual({ stopId: '1_0', time: fromHM(8, 0) });
   });
 

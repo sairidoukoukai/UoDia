@@ -17,6 +17,7 @@ import {
   tripsInRect,
   HIT_TOLERANCE,
 } from './selection';
+import { STUB_LENGTH } from './drawTrips';
 import { axisToY, timeToX, viewportOf, type Viewport } from './viewport';
 
 const theme = {
@@ -25,13 +26,13 @@ const theme = {
   grid: '#e4e4e4',
   gridFaint: '#f0f0f0',
   label: '#666666',
-  lane: '#f4f4f4',
 };
 
+// 営業所（9_0）は縦軸に並ばない（#118）。回送は営業便の端から伸びるヒゲになる。
 const stops: readonly SceneStop[] = [
-  { stopId: '1_0', shortName: '豊中', axisPosition: 0, gridStyle: 'bold', isDepot: false },
-  { stopId: '4_0', shortName: '工学部', axisPosition: 40, gridStyle: 'bold', isDepot: false },
-  { stopId: '9_0', shortName: '車庫', axisPosition: 52, gridStyle: 'dashed', isDepot: true },
+  { stopId: '1_0', shortName: '豊中', axisPosition: 0, gridStyle: 'bold' },
+  { stopId: '2_0', shortName: '箕面', axisPosition: 20, gridStyle: 'bold' },
+  { stopId: '4_0', shortName: '工学部', axisPosition: 40, gridStyle: 'bold' },
 ];
 
 function trip(
@@ -134,16 +135,19 @@ describe('スジを掴む', () => {
     expect(hitTrip(scene, viewport, alongInbound)?.tripId).toBe('b');
   });
 
-  it('**掴んだのが回送でも、選ぶのは元の便である**', () => {
-    const deadhead = trip(
-      't1#out',
-      [
-        ['9_0', fromHM(7, 40)],
-        ['1_0', fromHM(8, 0)],
+  it('**ヒゲを掴んでも、選ぶのは元の便である**（#118、受入条件）', () => {
+    const deadhead: SceneTrip = {
+      ...trip('t1#out', [['1_0', fromHM(8, 0)]], { sourceTripId: 't1', isDeadhead: true }),
+      points: [
+        { stopId: '9_0', time: fromHM(7, 40), offAxis: true },
+        { stopId: '1_0', time: fromHM(8, 0) },
       ],
-      { sourceTripId: 't1', isDeadhead: true },
-    );
-    const middle = { x: timeToX(fromHM(7, 50), viewport), y: axisToY(26, viewport) };
+    };
+    // ヒゲは豊中学舎（軸 0）の少し下から入ってくる。その中ほどを掴む。
+    const middle = {
+      x: timeToX(fromHM(7, 50), viewport),
+      y: axisToY(0, viewport) + STUB_LENGTH / 2,
+    };
 
     expect(hitTrip(sceneOf([deadhead]), viewport, middle)?.sourceTripId).toBe('t1');
   });
@@ -210,8 +214,8 @@ describe('矩形で囲む', () => {
   it('1 本の便を二重に数えない（複数の区間が掛かっても 1 つ）', () => {
     const long = trip('d', [
       ['1_0', fromHM(8, 0)],
-      ['4_0', fromHM(8, 15)],
-      ['9_0', fromHM(8, 30)],
+      ['2_0', fromHM(8, 15)],
+      ['4_0', fromHM(8, 30)],
     ]);
     const ids = tripsInRect(sceneOf([long]), viewport, rect(fromHM(7, 0), fromHM(9, 0), -10, 60));
 
@@ -280,8 +284,8 @@ describe('性能（受入条件: 400 線分を 1ms 以内）', () => {
     const many = Array.from({ length: 100 }, (_, index) =>
       trip(`t${String(index)}`, [
         ['1_0', (fromHM(7, 0) + index * 300) as Seconds],
-        ['4_0', (fromHM(7, 30) + index * 300) as Seconds],
-        ['9_0', (fromHM(7, 45) + index * 300) as Seconds],
+        ['2_0', (fromHM(7, 30) + index * 300) as Seconds],
+        ['4_0', (fromHM(7, 45) + index * 300) as Seconds],
       ]),
     );
     const scene = sceneOf(many);

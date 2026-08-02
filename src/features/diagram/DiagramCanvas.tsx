@@ -29,7 +29,6 @@ function readTheme(element: Element): SceneTheme {
     grid: read('--color-grid', '#e4e4e4'),
     gridFaint: read('--color-grid-faint', '#f0f0f0'),
     label: read('--color-fg-muted', '#666666'),
-    lane: read('--color-bg-accent', '#f4f4f4'),
   };
 }
 

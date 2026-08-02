@@ -17,11 +17,10 @@ const THEME: SceneTheme = {
   grid: '#ccc',
   gridFaint: '#eee',
   label: '#333',
-  lane: '#f4f4f4',
 };
 
 function stop(stopId: string, shortName: string, axisPosition: number): SceneStop {
-  return { stopId, shortName, axisPosition, gridStyle: 'normal', isDepot: false };
+  return { stopId, shortName, axisPosition, gridStyle: 'normal' };
 }
 
 const SCENE: DiagramScene = {

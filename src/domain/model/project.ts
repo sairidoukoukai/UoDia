@@ -105,8 +105,14 @@ export type ColorMode = z.infer<typeof colorModeSchema>;
 export const diagramViewSchema = z.object({
   /** 横軸の拡大率（1 分あたりの px）。 */
   pxPerMinute: z.number().positive().default(3),
-  /** 縦軸の拡大率（`axisPosition` 1 単位あたりの px）。 */
-  pxPerAxisUnit: z.number().positive().default(6),
+  /**
+   * 縦軸の拡大率（`axisPosition` 1 単位あたりの px）。
+   *
+   * 営業所を縦軸から外したぶん（#118）、既定を 6 から 8 に上げた。縦軸の範囲が
+   * 0〜52 から 0〜40 に縮んだため、そのままでは**同じ画面に同じ絵が小さく載る**。
+   * 8 にすると描かれる高さが 320px となり、それまでの 312px とほぼ変わらない。
+   */
+  pxPerAxisUnit: z.number().positive().default(8),
   /**
    * 表示左端の時刻（秒）。
    *

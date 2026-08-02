@@ -29,7 +29,6 @@ const theme: SceneTheme = {
   grid: '#e4e4e4',
   gridFaint: '#f0f0f0',
   label: '#666666',
-  lane: '#f4f4f4',
 };
 
 let store: ReturnType<typeof createAppStore>;
@@ -72,11 +71,11 @@ const selected = (): readonly string[] => store.getState().ui.selectedTripIds;
 /**
  * S1 の便（8:00 発）のスジ上の点。
  *
- * 豊中（軸 0）8:00 = (236, 24) から コンベ前（軸 33）8:25 = (311, 222) へ下る
- * 線の中ほど。**縦軸ラベルの幅（`AXIS_LABEL_WIDTH`）がそのまま左端である**ため、
- * 幅を詰めた分（144 → 56、#116）だけ左へ寄っている。
+ * 豊中（軸 0）8:00 = (236, 24) から コンベ前（軸 33）8:25 = (311, 288) へ下る
+ * 線の中ほど。**縦軸ラベルの幅（`AXIS_LABEL_WIDTH`）がそのまま左端**であり、
+ * 縦は軸 1 単位 8px（#118 で 6 から改めた既定）で決まる。
  */
-const ON_LINE = { clientX: 273, clientY: 123 };
+const ON_LINE = { clientX: 273, clientY: 155 };
 /** どのスジからも遠い点。 */
 const OFF_LINE = { clientX: 800, clientY: 380 };
 

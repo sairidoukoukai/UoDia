@@ -234,11 +234,17 @@ export function selectView(state: AppState): Project['view'] | null {
   return state.project?.view ?? null;
 }
 
-/** 表示する停留所。`hiddenInEditor` を除き、縦軸の順に並べる（仕様書 §6.2.1）。 */
+/**
+ * 縦軸に並べる停留所。`hiddenInEditor` を除き、縦軸の順に並べる（仕様書 §6.2.1）。
+ *
+ * **営業所は並べない**（#118）。営業所は 3 拠点のいずれからも 20 分にあり、縦軸の
+ * どこに置いても等距離を表せない。意味の無い位置に線を引くと、そこへ向かう回送の
+ * 傾きにも意味が無くなる。出入庫は営業便の端から伸ばす「ヒゲ」で示す（§6.2.2）。
+ */
 const visibleStopsOf = memoizeByIdentity((network: NetworkIndex | null) => {
   if (network === null) return [];
   return network.def.stops
-    .filter((stop) => !stop.hiddenInEditor)
+    .filter((stop) => !stop.hiddenInEditor && !stop.isDepot)
     .sort((a, b) => a.axisPosition - b.axisPosition);
 });
 

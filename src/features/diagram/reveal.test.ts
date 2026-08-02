@@ -20,13 +20,12 @@ const THEME: SceneTheme = {
   grid: '#ccc',
   gridFaint: '#eee',
   label: '#333',
-  lane: '#f4f4f4',
 };
 
 const BOUNDS: AxisBounds = { min: 0, max: 52 };
 
 function stop(stopId: string, axisPosition: number): SceneStop {
-  return { stopId, shortName: stopId, axisPosition, gridStyle: 'normal', isDepot: false };
+  return { stopId, shortName: stopId, axisPosition, gridStyle: 'normal' };
 }
 
 const STOPS: readonly SceneStop[] = [stop('a', 0), stop('b', 20), stop('c', 40), stop('depot', 52)];

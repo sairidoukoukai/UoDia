@@ -20,16 +20,15 @@ export { drawDiagram } from './drawDiagram';
 export {
   MIN_STOP_LABEL_GAP,
   MIN_TIME_LABEL_GAP,
-  depotLane,
   drawGrid,
   timeLabelStepMinutes,
   timeLines,
-  type DepotLane,
   type TimeLine,
   type TimeLineKind,
 } from './drawGrid';
 
 export {
+  STUB_LENGTH,
   drawTrips,
   isTripVisible,
   tripPolyline,

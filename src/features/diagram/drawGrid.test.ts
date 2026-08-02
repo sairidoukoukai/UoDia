@@ -16,7 +16,6 @@ import {
   MIN_STOP_LABEL_GAP,
   MIN_TIME_LABEL_GAP,
   STOP_LABEL_FONT,
-  depotLane,
   drawGrid,
   timeLabelStepMinutes,
   timeLines,
@@ -31,29 +30,25 @@ const theme: SceneTheme = {
   grid: '#e4e4e4',
   gridFaint: '#f0f0f0',
   label: '#666666',
-  lane: '#f4f4f4',
 };
 
 /** route.json と同じ並び（軸位置の順。`hiddenInEditor` は既に落ちている）。 */
 const stops: readonly SceneStop[] = [
-  { stopId: '1_0', shortName: '豊中', axisPosition: 0, gridStyle: 'bold', isDepot: false },
-  { stopId: '2_0', shortName: '箕面', axisPosition: 20, gridStyle: 'bold', isDepot: false },
+  { stopId: '1_0', shortName: '豊中', axisPosition: 0, gridStyle: 'bold' },
+  { stopId: '2_0', shortName: '箕面', axisPosition: 20, gridStyle: 'bold' },
   {
     stopId: '3_0',
     shortName: 'コンベ前',
     axisPosition: 33,
     gridStyle: 'normal',
-    isDepot: false,
   },
   {
     stopId: '5_0',
     shortName: '人科前',
     axisPosition: 37,
     gridStyle: 'normal',
-    isDepot: false,
   },
-  { stopId: '4_0', shortName: '工学部', axisPosition: 40, gridStyle: 'bold', isDepot: false },
-  { stopId: '9_0', shortName: '車庫', axisPosition: 52, gridStyle: 'dashed', isDepot: true },
+  { stopId: '4_0', shortName: '工学部', axisPosition: 40, gridStyle: 'bold' },
 ];
 
 const scene: DiagramScene = {
@@ -63,6 +58,18 @@ const scene: DiagramScene = {
   selectionRect: null,
   tripShift: null,
   theme,
+};
+
+/**
+ * 破線の停留所線を持つ場面。
+ *
+ * route.json で `dashed` なのは微研（`hiddenInEditor`）と営業所（#118 で縦軸から
+ * 外れた）だけであり、どちらも縦軸には並ばない。**線種の決まりはデータに残る**
+ * ため、それが効くことはここで確かめる。
+ */
+const dashedScene: DiagramScene = {
+  ...scene,
+  stops: [...stops, { stopId: 'x_0', shortName: '仮', axisPosition: 45, gridStyle: 'dashed' }],
 };
 
 /** 既定の表示設定（7:00 から、1 分 3px、軸 1 単位 6px）。 */
@@ -195,8 +202,8 @@ describe('時刻線', () => {
 describe('停留所線', () => {
   it('見えている停留所の数だけ横の線が引かれる', () => {
     const horizontal = draw().segments.filter(isHorizontal);
-    // 停留所 6 本 + 営業所レーンの境界線 1 本。
-    expect(horizontal).toHaveLength(7);
+    // 停留所 5 本。営業所レーンの境界線は無くなった（#118）。
+    expect(horizontal).toHaveLength(5);
   });
 
   it('軸位置の示す高さに引かれる', () => {
@@ -219,11 +226,15 @@ describe('停留所線', () => {
     expect(at(0)?.dash).toEqual([]);
     expect(at(33)?.lineWidth).toBe(1);
     expect(at(33)?.dash).toEqual([]);
-    expect(at(52)?.dash).toEqual([4, 4]);
+
+    const dashed = draw({}, dashedScene)
+      .segments.filter(isHorizontal)
+      .find((segment) => Math.abs(segment.y1 - axisToY(45, viewport)) <= 0.5);
+    expect(dashed?.dash).toEqual([4, 4]);
   });
 
   it('**描画領域の外に出た停留所線は描かない**（カリング）', () => {
-    // 軸 1 単位 20px なら千里営業所（52）は y = 1064。高さ 420 に入らない。
+    // 軸 1 単位 20px なら工学部前（40）は y = 824。高さ 420 に入らない。
     const horizontal = draw({ pxPerAxisUnit: 20 }).segments.filter(isHorizontal);
     for (const segment of horizontal) {
       expect(segment.y1).toBeLessThanOrEqual(viewport.height);
@@ -231,48 +242,11 @@ describe('停留所線', () => {
   });
 });
 
-describe('千里営業所の専用レーン（仕様書 §6.2.1）', () => {
-  it('**縦軸の外側に地色の帯を敷く**', () => {
-    const [band] = draw().rects;
-
-    // 工学部前（40）と千里営業所（52）の中間 46 → y = 24 + 276。
-    expect(band?.y).toBe(axisToY(46, viewport));
-    expect(band?.height).toBe(viewport.height - axisToY(46, viewport));
-    expect(band?.fillStyle).toBe(theme.lane);
-  });
-
-  it('境界線が帯の上端に引かれる', () => {
-    const boundary = draw()
-      .segments.filter(isHorizontal)
-      .find((segment) => Math.abs(segment.y1 - axisToY(46, viewport)) <= 0.5);
-
-    expect(boundary?.strokeStyle).toBe(theme.axis);
-  });
-
-  it('**営業所が縦軸の上にあれば帯は上に付く**（上端でも下端でもよい）', () => {
-    const above: DiagramScene = {
-      ...scene,
-      stops: [{ ...stops[5]!, axisPosition: -10 }, ...stops.slice(0, 5)],
-    };
-    const lane = depotLane(above, viewport);
-
-    // 豊中学舎（0）と営業所（−10）の中間 −5。上端（originY）から境界まで。
-    expect(lane?.top).toBe(viewport.originY);
-    expect(lane?.bottom).toBe(axisToY(-5, viewport));
-  });
-
-  it('営業所が無ければレーンは無い', () => {
-    const withoutDepot: DiagramScene = { ...scene, stops: stops.slice(0, 5) };
-    expect(depotLane(withoutDepot, viewport)).toBeNull();
-  });
-
-  it('営業停留所が無ければレーンは無い（隔てるものが決まらない）', () => {
-    const onlyDepot: DiagramScene = { ...scene, stops: [stops[5]!] };
-    expect(depotLane(onlyDepot, viewport)).toBeNull();
-  });
-
-  it('帯が描画領域から外れたら塗らない', () => {
-    expect(draw({ pxPerAxisUnit: 20 }).rects).toEqual([]);
+describe('千里営業所（#118、仕様書 §6.2.1）', () => {
+  it('**帯も境界線も引かない**（営業所レーンを廃した）', () => {
+    // 営業所は縦軸に並ばず、回送は営業便の端から伸びるヒゲになった。隔てるものが
+    // 無くなったため、地色の帯も境界線も要らない。
+    expect(draw().rects).toEqual([]);
   });
 });
 
