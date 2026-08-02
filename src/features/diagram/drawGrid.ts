@@ -24,7 +24,7 @@ import {
   seconds,
   type Seconds,
 } from '@/domain/time';
-import type { DiagramScene, SceneTheme } from './scene';
+import type { DiagramScene, SceneStop, SceneTheme } from './scene';
 import {
   axisToY,
   DIAGRAM_END_TIME,
@@ -240,6 +240,11 @@ function drawTimeLabels(ctx: DrawContext, theme: SceneTheme, viewport: Viewport)
  *
  * 縮めた画面では**近すぎる名前を落とす**。重ねて出すと、両方とも読めなくなる。
  * 線は残るため、拡大すれば名前が戻る。
+ *
+ * **同じ軸位置の停留所は上下に振り分ける**（#117）。コンベ前と人科前は工学部前
+ * からどちらも 5 分であり、同じ高さに置いてある。落とすとどの拡大率でも片方が
+ * 出ないままになる——重ならない置き方があるのに消すのは、ここでの間引きの理由
+ * （読めなくなるから）に当たらない。
  */
 function drawStopLabels(ctx: DrawContext, scene: DiagramScene, viewport: Viewport): void {
   ctx.fillStyle = scene.theme.label;
@@ -248,19 +253,38 @@ function drawStopLabels(ctx: DrawContext, scene: DiagramScene, viewport: Viewpor
   ctx.textBaseline = 'middle';
 
   let lastY = Number.NEGATIVE_INFINITY;
-  for (const stop of scene.stops) {
-    const y = axisToY(stop.axisPosition, viewport);
-    if (y < viewport.originY || y > viewport.height) continue;
-    if (y - lastY < MIN_STOP_LABEL_GAP) continue;
+  for (const group of stopLabelGroups(scene.stops)) {
+    const center = axisToY(group.axisPosition, viewport);
+    // 群の名前は線を挟んで上下に並ぶ。先頭が一番上に来る。
+    const top = center - ((group.names.length - 1) * MIN_STOP_LABEL_GAP) / 2;
+    if (top - lastY < MIN_STOP_LABEL_GAP) continue;
 
-    ctx.fillText(
-      stop.shortName,
-      viewport.originX - LABEL_PADDING,
-      y,
-      viewport.originX - LABEL_PADDING,
-    );
-    lastY = y;
+    for (const [index, name] of group.names.entries()) {
+      const y = top + index * MIN_STOP_LABEL_GAP;
+      if (y < viewport.originY || y > viewport.height) continue;
+
+      ctx.fillText(name, viewport.originX - LABEL_PADDING, y, viewport.originX - LABEL_PADDING);
+      lastY = y;
+    }
   }
+}
+
+/** 同じ軸位置の停留所をまとめる。**縦軸の順に並んでいることを前提にする。** */
+function stopLabelGroups(
+  stops: readonly SceneStop[],
+): readonly { readonly axisPosition: number; readonly names: readonly string[] }[] {
+  const groups: { axisPosition: number; names: string[] }[] = [];
+
+  for (const stop of stops) {
+    const last = groups.at(-1);
+    if (last?.axisPosition === stop.axisPosition) {
+      last.names.push(stop.shortName);
+      continue;
+    }
+    groups.push({ axisPosition: stop.axisPosition, names: [stop.shortName] });
+  }
+
+  return groups;
 }
 
 function applyStyle(ctx: DrawContext, theme: SceneTheme, style: LineStyle): void {

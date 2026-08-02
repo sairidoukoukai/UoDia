@@ -175,11 +175,30 @@ export function attachTripControls(options: TripControlOptions): () => void {
 
     // 経路は**押した停留所と、時刻表で開いている方向**から決まる。同じ停留所を
     // 両方向の便が通るため、方向を決める手立てが要る（§6.1.2 と同じ規則）。
-    const patternId = patternForStop(network, selectActiveDirection(state), target.stopId);
-    if (patternId === null) return;
+    //
+    // 1 本の線が 2 つの停留所を指すことがある（#117。コンベ前と人科前は同じ
+    // 軸位置にある）。**開いている方向が通るほうを採る**——吹田方面ならコンベ前、
+    // 豊中方面なら人科前であり、押した人にはどちらも「その線」である。
+    const direction = selectActiveDirection(state);
+    let chosen: { readonly stopId: string; readonly patternId: string } | null = null;
+    for (const stopId of target.stopIds) {
+      const patternId = patternForStop(network, direction, stopId);
+      if (patternId !== null) {
+        chosen = { stopId, patternId };
+        break;
+      }
+    }
+    if (chosen === null) return;
 
     const all = state.project?.services.flatMap((item) => item.trips) ?? [];
-    const result = createTrip(service.trips, patternId, target.stopId, target.time, network, all);
+    const result = createTrip(
+      service.trips,
+      chosen.patternId,
+      chosen.stopId,
+      target.time,
+      network,
+      all,
+    );
     // 表せる範囲を外れる位置には作れない。押しても何も起きない。
     if (result === null) return;
 

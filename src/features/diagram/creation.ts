@@ -27,7 +27,14 @@ export const STOP_LINE_TOLERANCE = 12;
 
 /** 押した場所が指している、新しい便の 1 点。 */
 export interface CreationTarget {
-  readonly stopId: string;
+  /**
+   * その線が指している停留所。**同じ高さに複数あり得る**（#117）。
+   *
+   * コンベ前と人科前はどちらも工学部前から 5 分であり、同じ軸位置に置いてある。
+   * **1 本の線が 2 つの停留所を指す。** どちらの便を作るのかは方向が決めるため
+   * （§6.1.2）、ここでは縦軸の順に並べて渡すだけにする。
+   */
+  readonly stopIds: readonly string[];
   /** 5 分に丸めた時刻（§2.1）。 */
   readonly time: Seconds;
 }
@@ -47,25 +54,30 @@ export function creationTargetAt(
   // 縦軸ラベルと時刻目盛の帯には線を引けない。
   if (x < viewport.originX || y < viewport.originY) return null;
 
-  const stop = nearestStopLine(scene, viewport, y, tolerance);
-  if (stop === null) return null;
+  const stopIds = stopsOnNearestLine(scene, viewport, y, tolerance);
+  if (stopIds.length === 0) return null;
 
   const time = xToTime(x, viewport);
   // 表せる範囲（0:00〜47:55）を外れていれば作れない。`roundToGrain` は
   // 範囲外で例外を投げるため、ここで確かめてから丸める。
   if (time < 0 || time > MAX_SECONDS) return null;
 
-  return { stopId: stop, time: roundToGrain(time) };
+  return { stopIds, time: roundToGrain(time) };
 }
 
-/** 押した高さに一番近い停留所線。許容範囲を超えていれば `null`。 */
-function nearestStopLine(
+/**
+ * 押した高さに一番近い停留所線が指す停留所。許容範囲を超えていれば空。
+ *
+ * **同じ軸位置の停留所はまとめて返す**（#117）。線は 1 本しか無く、そこにいくつの
+ * 停留所が乗っているかは押した人には見えない。
+ */
+function stopsOnNearestLine(
   scene: DiagramScene,
   viewport: Viewport,
   y: number,
   tolerance: number,
-): string | null {
-  let best: string | null = null;
+): readonly string[] {
+  let bestAxis: number | null = null;
   let bestDistance = tolerance;
 
   // 営業所は縦軸に並んでいない（#118）。車庫発の便は出区として作られるもので
@@ -74,8 +86,9 @@ function nearestStopLine(
     const distance = Math.abs(axisToY(stop.axisPosition, viewport) - y);
     if (distance > bestDistance) continue;
     bestDistance = distance;
-    best = stop.stopId;
+    bestAxis = stop.axisPosition;
   }
 
-  return best;
+  if (bestAxis === null) return [];
+  return scene.stops.filter((stop) => stop.axisPosition === bestAxis).map((stop) => stop.stopId);
 }
