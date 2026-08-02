@@ -23,9 +23,17 @@ import {
   MIN_HISTORY_LIMIT,
   selectNetwork,
   selectTrips,
+  selectVisibleStops,
   useAppStore,
   type ThemeMode,
 } from '@/store';
+import {
+  clearedGridStyles,
+  GRID_STYLES,
+  GRID_STYLE_LABEL,
+  overrideCount,
+  withGridStyleOverride,
+} from './gridStyles';
 import {
   affectedTripCount,
   changedEdits,
@@ -412,6 +420,87 @@ function DisplayTab(): ReactElement {
         />
         <span className="settings__note">px</span>
       </label>
+
+      <StopGridStyles />
     </section>
+  );
+}
+
+/**
+ * 停留所の線種（§6.5.3、#133）。
+ *
+ * **`route.json` の値は消さない。** 選び直せるように「路線図のまま」を残し、
+ * その横に元の線種を出す。上書きしているつもりが無いのに違う線で描かれる、
+ * という状態を作らないためである。
+ */
+function StopGridStyles(): ReactElement {
+  const stops = useAppStore(selectVisibleStops);
+  const overrides = useAppStore((state) => state.settings.stopGridStyles);
+  const setSettings = useAppStore((state) => state.setSettings);
+
+  const choose = (stopId: string, value: string): void => {
+    // 選ばれた文字が線種かどうかを**照らして**決める。素の文字を線種として
+    // 通すと、`<option>` を書き換えたときに型の上では気づけない。
+    const style = GRID_STYLES.find((entry) => entry === value) ?? null;
+    setSettings({ stopGridStyles: withGridStyleOverride(overrides, stopId, style) });
+  };
+
+  const count = overrideCount(overrides);
+
+  return (
+    <fieldset className="settings__grid-styles">
+      <legend>停留所の線種</legend>
+      <p className="settings__note">
+        ダイヤグラムの横線の引き方です。<strong>選んでいない停留所は路線図のまま</strong>
+        で、route.json は書き換わりません。
+      </p>
+
+      <table className="settings__stops">
+        <thead>
+          <tr>
+            <th scope="col">停留所</th>
+            <th scope="col">線種</th>
+          </tr>
+        </thead>
+        <tbody>
+          {stops.map((stop) => (
+            <tr key={stop.stopId}>
+              <th scope="row">{stop.shortName}</th>
+              <td>
+                <select
+                  aria-label={`${stop.shortName} の線種`}
+                  value={overrides[stop.stopId] ?? ''}
+                  onChange={(event) => {
+                    choose(stop.stopId, event.target.value);
+                  }}
+                >
+                  <option value="">路線図のまま（{GRID_STYLE_LABEL[stop.gridStyle]}）</option>
+                  {GRID_STYLES.map((style) => (
+                    <option key={style} value={style}>
+                      {GRID_STYLE_LABEL[style]}
+                    </option>
+                  ))}
+                </select>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <div className="settings__panel-actions">
+        <span className="settings__note">
+          {count === 0 ? '上書きはありません' : `${String(count)} 停留所を上書きしています`}
+        </span>
+        <button
+          type="button"
+          disabled={count === 0}
+          onClick={() => {
+            setSettings({ stopGridStyles: clearedGridStyles(overrides) });
+          }}
+        >
+          路線図のままに戻す
+        </button>
+      </div>
+    </fieldset>
   );
 }

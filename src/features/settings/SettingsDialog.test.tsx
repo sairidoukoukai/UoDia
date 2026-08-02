@@ -55,7 +55,7 @@ function makeTrip(tripId: string, patternId: string, hours: number): Trip {
 function mount(writable = true): void {
   // **毎回同じところから始める。** ストアは 1 つしかなく、前の検証で変えた設定が
   // 残ると、順番によって結果が変わる。
-  useAppStore.getState().setSettings({ theme: 'system' });
+  useAppStore.getState().setSettings({ theme: 'system', stopGridStyles: {} });
   useAppStore.getState().setNetworkDef(network.def);
   useAppStore
     .getState()
@@ -87,6 +87,24 @@ function minutesField(label: string): HTMLInputElement {
   );
   if (found === null) throw new Error(`「${label}」の欄がありません`);
   return found;
+}
+
+/** 停留所の線種の選択欄。 */
+function gridStyleField(shortName: string): HTMLSelectElement {
+  const found = container.querySelector<HTMLSelectElement>(`[aria-label="${shortName} の線種"]`);
+  if (found === null) throw new Error(`「${shortName}」の線種の欄がありません`);
+  return found;
+}
+
+/** React の管理下にある選択欄を選び直す。 */
+function choose(field: HTMLSelectElement, value: string): void {
+  act(() => {
+    const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set?.bind(
+      field,
+    );
+    setter?.(value);
+    field.dispatchEvent(new Event('change', { bubbles: true }));
+  });
 }
 
 /** React の管理下にある入力欄へ打つ。 */
@@ -297,6 +315,76 @@ describe('表示タブ（§6.5.3）', () => {
     type(field, '6');
 
     expect(useAppStore.getState().settings.defaultDiagramView.pxPerMinute).toBe(6);
+  });
+
+  /** 停留所の線種（#133）。 */
+  describe('停留所の線種', () => {
+    const overrides = (): Readonly<Record<string, string>> =>
+      useAppStore.getState().settings.stopGridStyles;
+
+    function openDisplayTab(): void {
+      mount();
+      act(() => {
+        button('表示').click();
+      });
+    }
+
+    it('**縦軸に出る停留所だけを並べる**（出ない停留所の線種を選んでも効かない）', () => {
+      openDisplayTab();
+
+      expect(() => gridStyleField('豊中')).not.toThrow();
+      // 微生物研究所前（`hiddenInEditor`）と千里営業所は縦軸に出ない。
+      expect(() => gridStyleField('微研')).toThrow();
+    });
+
+    it('**route.json の値を選択肢に出す**（何を上書きするのかが分かる）', () => {
+      openDisplayTab();
+
+      // 豊中は route.json では太線。
+      expect(gridStyleField('豊中').options[0]?.textContent).toBe('路線図のまま（太線）');
+    });
+
+    it('選ぶと上書きが入る', () => {
+      openDisplayTab();
+      choose(gridStyleField('豊中'), 'dashed');
+
+      expect(overrides()).toEqual({ '1_0': 'dashed' });
+    });
+
+    it('**「路線図のまま」を選ぶと上書きが外れる**（選び直せる）', () => {
+      openDisplayTab();
+      choose(gridStyleField('豊中'), 'dashed');
+      choose(gridStyleField('豊中'), '');
+
+      expect(overrides()).toEqual({});
+    });
+
+    it('全部やめられる', () => {
+      openDisplayTab();
+      choose(gridStyleField('豊中'), 'dashed');
+      choose(gridStyleField('箕面'), 'normal');
+      act(() => {
+        button('路線図のままに戻す').click();
+      });
+
+      expect(overrides()).toEqual({});
+    });
+
+    it('**上書きが無ければ戻す押しボタンは押せない**（押しても何も起きない操作を出さない）', () => {
+      openDisplayTab();
+
+      expect(button('路線図のままに戻す').disabled).toBe(true);
+      choose(gridStyleField('豊中'), 'dashed');
+      expect(button('路線図のままに戻す').disabled).toBe(false);
+    });
+
+    it('いくつ上書きしているかを言う', () => {
+      openDisplayTab();
+      expect(text()).toContain('上書きはありません');
+
+      choose(gridStyleField('豊中'), 'dashed');
+      expect(text()).toContain('1 停留所を上書きしています');
+    });
   });
 });
 
