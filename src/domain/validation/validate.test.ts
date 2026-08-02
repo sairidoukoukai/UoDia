@@ -103,8 +103,10 @@ describe('V-01: 同一運用内の停留所不一致', () => {
     const trips = [trip('S1', 8, 0, '1'), trip('S1', 9, 0, '1')];
     const found = validateService(trips, network).find((i) => i.id === 'V-01');
 
-    expect(found?.message).toContain('工学部前');
-    expect(found?.message).toContain('豊中学舎');
+    // **画面に出ているのと同じ略称で言う**（#116）。指摘を読んだ人が探すのは
+    // 縦軸と行見出しであり、そこには略称が並んでいる。
+    expect(found?.message).toContain('工学部');
+    expect(found?.message).toContain('豊中');
     expect(found?.message).not.toMatch(/\d+_\d+/);
   });
 });
@@ -217,7 +219,7 @@ describe('V-06: 便間隔が極端', () => {
       (i) => i.id === 'V-06',
     );
 
-    expect(found?.message).toContain('豊中学舎');
+    expect(found?.message).toContain('豊中');
     expect(found?.message).not.toMatch(/\d+_\d+/);
   });
 });

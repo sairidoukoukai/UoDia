@@ -20,12 +20,12 @@ const THEME: SceneTheme = {
   lane: '#f4f4f4',
 };
 
-function stop(stopId: string, stopName: string, axisPosition: number): SceneStop {
-  return { stopId, stopName, axisPosition, gridStyle: 'normal', isDepot: false };
+function stop(stopId: string, shortName: string, axisPosition: number): SceneStop {
+  return { stopId, shortName, axisPosition, gridStyle: 'normal', isDepot: false };
 }
 
 const SCENE: DiagramScene = {
-  stops: [stop('toyonaka', '豊中学舎', 0), stop('minoh', '箕面学舎', 40)],
+  stops: [stop('toyonaka', '豊中', 0), stop('minoh', '箕面', 40)],
   trips: [],
   selectedTripIds: new Set(),
   selectionRect: null,
@@ -47,12 +47,14 @@ const VIEWPORT: Viewport = {
 
 describe('カーソルが指しているもの', () => {
   it('横の位置が時刻、縦の位置が停留所になる', () => {
-    // 左端から 90px = 30 分後 = 7:30。上端は軸 0（豊中学舎）。
+    // 左端から 90px = 30 分後 = 7:30。上端は軸 0（豊中）。
     const cursor = cursorAt(SCENE, VIEWPORT, AXIS_LABEL_WIDTH + 90, TIME_LABEL_HEIGHT);
 
     expect(cursor?.time).toBe(fromHM(7, 30));
     expect(cursor?.stopId).toBe('toyonaka');
-    expect(cursor?.stopName).toBe('豊中学舎');
+    // **縦軸に出ているのと同じ略称を返す**（#116）。ステータスバーと縦軸で
+    // 違う名前が出ると、同じ停留所だと確かめる手間が要る。
+    expect(cursor?.shortName).toBe('豊中');
   });
 
   it('**5 分に丸める**（打てない時刻を出さない）', () => {
@@ -64,11 +66,11 @@ describe('カーソルが指しているもの', () => {
   });
 
   it('一番近い停留所を指す', () => {
-    // 軸 40（箕面学舎）は上端から 240px。その少し上でも箕面学舎が近い。
+    // 軸 40（箕面）は上端から 240px。その少し上でも箕面が近い。
     const near = cursorAt(SCENE, VIEWPORT, AXIS_LABEL_WIDTH + 90, TIME_LABEL_HEIGHT + 230);
     expect(near?.stopId).toBe('minoh');
 
-    // 中ほど（軸 20 = 120px）より上なら豊中学舎。
+    // 中ほど（軸 20 = 120px）より上なら豊中。
     const upper = cursorAt(SCENE, VIEWPORT, AXIS_LABEL_WIDTH + 90, TIME_LABEL_HEIGHT + 100);
     expect(upper?.stopId).toBe('toyonaka');
   });

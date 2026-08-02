@@ -105,10 +105,11 @@ describe('ステータスバー', () => {
   });
 
   it('カーソルの位置を時刻と停留所で出す', () => {
-    mount({ time: fromHM(7, 30), stopId: 'toyonaka', stopName: '豊中学舎' });
+    mount({ time: fromHM(7, 30), stopId: 'toyonaka', shortName: '豊中' });
 
     expect(text()).toContain('7:30');
-    expect(text()).toContain('豊中学舎');
+    // 縦軸に出ているのと同じ略称で言う（#116）。
+    expect(text()).toContain('豊中');
   });
 
   it('ダイヤグラムの外を指しているときは空欄にする', () => {

@@ -35,7 +35,7 @@ export function StatusBar(props: StatusBarProps): ReactElement {
         便数と運用数が揺れて読めない。
       */}
       <span className="status-bar__item status-bar__item--cursor">
-        {cursor === null ? '—' : `${formatTime(cursor.time)} ／ ${cursor.stopName}`}
+        {cursor === null ? '—' : `${formatTime(cursor.time)} ／ ${cursor.shortName}`}
       </span>
       <span className="status-bar__item">{trips.length} 便</span>
       <span className="status-bar__item">{blocks?.blocks.length ?? 0} 運用</span>

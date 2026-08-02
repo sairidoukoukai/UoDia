@@ -19,7 +19,8 @@ export interface DiagramCursor {
   readonly time: Seconds;
   /** 一番近い停留所。 */
   readonly stopId: string;
-  readonly stopName: string;
+  /** 縦軸に出しているのと同じ略称（`Stop.shortName`、#116）。 */
+  readonly shortName: string;
 }
 
 /**
@@ -43,7 +44,7 @@ export function cursorAt(
   const stop = nearestStop(scene, viewport, y);
   if (stop === null) return null;
 
-  return { time: roundToGrain(time), stopId: stop.stopId, stopName: stop.stopName };
+  return { time: roundToGrain(time), stopId: stop.stopId, shortName: stop.shortName };
 }
 
 /** 画面上の縦位置に一番近い停留所。停留所が無ければ `null`。 */
@@ -51,15 +52,15 @@ function nearestStop(
   scene: DiagramScene,
   viewport: Viewport,
   y: number,
-): { readonly stopId: string; readonly stopName: string } | null {
-  let best: { readonly stopId: string; readonly stopName: string } | null = null;
+): { readonly stopId: string; readonly shortName: string } | null {
+  let best: { readonly stopId: string; readonly shortName: string } | null = null;
   let bestDistance = Number.POSITIVE_INFINITY;
 
   for (const stop of scene.stops) {
     const distance = Math.abs(axisToY(stop.axisPosition, viewport) - y);
     if (distance >= bestDistance) continue;
     bestDistance = distance;
-    best = { stopId: stop.stopId, stopName: stop.stopName };
+    best = { stopId: stop.stopId, shortName: stop.shortName };
   }
 
   return best;

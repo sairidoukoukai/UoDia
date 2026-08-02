@@ -233,12 +233,12 @@ function type(text: string): void {
 /** 吹田方面の行: 豊中・箕面・コンベ・工学部・車庫。 */
 const ROW = { toyonaka: 0, minoh: 1, engineering: 3 } as const;
 
-/** 行の見出し（停留所名）から、その行の升目の文字列を並べて返す。 */
-function rowOf(stopName: string): (string | null)[] {
+/** 行の見出し（停留所の略称）から、その行の升目の文字列を並べて返す。 */
+function rowOf(shortName: string): (string | null)[] {
   const heading = [...container.querySelectorAll('tbody th')].find(
-    (th) => th.textContent === stopName,
+    (th) => th.textContent === shortName,
   );
-  if (heading === undefined) throw new Error(`${stopName} の行がありません`);
+  if (heading === undefined) throw new Error(`${shortName} の行がありません`);
   return [...(heading.parentElement?.querySelectorAll('td') ?? [])].map((td) => td.textContent);
 }
 
@@ -311,9 +311,9 @@ describe('見出し', () => {
 });
 
 describe('升目（受入条件）', () => {
-  it('**直行便の箕面学舎は `−`、箕面経由便は時刻**', () => {
+  it('**直行便の箕面は `−`、箕面経由便は時刻**', () => {
     render([makeTrip('S1', 8, 0), makeTrip('S3', 8, 30)]);
-    expect(rowOf('箕面学舎')).toEqual(['−', '8:50']);
+    expect(rowOf('箕面')).toEqual(['−', '8:50']);
   });
 
   it('**アンカーの升目が目印で分かる**', () => {
@@ -328,25 +328,22 @@ describe('升目（受入条件）', () => {
     // 箕面学舎は S2 では始発（乗車のみ）、M2 では終着（降車のみ）。
     // どちらも時刻だけを出す——列を見れば始発か終着かは分かる。
     render([makeTrip('S2', 8, 0), makeTrip('M2', 8, 0)]);
-    expect(rowOf('箕面学舎')).toEqual(['8:00', '8:20']);
+    expect(rowOf('箕面')).toEqual(['8:00', '8:20']);
   });
 
   it('時刻が未入力なら空欄にする（`−` とは違う）', () => {
     render([makeTrip('S1', 8, 0, { anchor: null })]);
-    expect(rowOf('豊中学舎')).toEqual(['']);
-    expect(rowOf('箕面学舎')).toEqual(['−']);
+    expect(rowOf('豊中')).toEqual(['']);
+    expect(rowOf('箕面')).toEqual(['−']);
   });
 });
 
 describe('並び', () => {
   it('行は縦軸の順。**営業所の行は無い**（T-50）', () => {
     render([makeTrip('S1', 8, 0)]);
-    expect(stopHeadings()).toEqual([
-      '豊中学舎',
-      '箕面学舎',
-      'コンベンションセンター前',
-      '工学部前',
-    ]);
+    // **略称で出す**（#116）。正式名を出すと左の固定列がそのぶん太り、時刻の
+    // 列を押しのける。
+    expect(stopHeadings()).toEqual(['豊中', '箕面', 'コンベ前', '工学部']);
   });
 
   it('停留所名の列は横スクロールしても残す', () => {
@@ -365,7 +362,7 @@ describe('便が無いとき', () => {
     expect(container.querySelector('table')).not.toBeNull();
     expect(columnHeaders()).toEqual(['便番号', '', '', '']);
     // どの升目にも打てる。`−`（経由しない）は出さない。
-    expect(rowOf('豊中学舎')).toEqual(['', '', '']);
+    expect(rowOf('豊中')).toEqual(['', '', '']);
   });
 });
 
@@ -378,7 +375,7 @@ describe('多数の便', () => {
 
     // 列見出し（便番号）は 100 本。左端の行見出しは scope="row" であり含まない。
     expect(container.querySelectorAll('thead tr:first-child th[scope="col"]')).toHaveLength(100);
-    expect(rowOf('豊中学舎')).toHaveLength(100);
+    expect(rowOf('豊中')).toHaveLength(100);
   });
 });
 
@@ -738,7 +735,7 @@ describe('空の列（T-52、仕様書 §6.1.1）', () => {
 
     expect(columnHeaders()).toEqual(['便番号', 'E1', '', '']);
     // 直行便は箕面学舎を経由しないが、空の列は `−` を出さない。
-    expect(rowOf('箕面学舎')).toEqual(['−', '', '']);
+    expect(rowOf('箕面')).toEqual(['−', '', '']);
   });
 
   it('**空の列は便ではない**（選べず、パターンも運用も無い）', () => {
