@@ -72,10 +72,11 @@ const selected = (): readonly string[] => store.getState().ui.selectedTripIds;
 /**
  * S1 の便（8:00 発）のスジ上の点。
  *
- * 豊中学舎（軸 0）8:00 = (324, 24) から コンベンションセンター前（軸 33）
- * 8:25 = (399, 222) へ下る線の中ほど。
+ * 豊中（軸 0）8:00 = (236, 24) から コンベ前（軸 33）8:25 = (311, 222) へ下る
+ * 線の中ほど。**縦軸ラベルの幅（`AXIS_LABEL_WIDTH`）がそのまま左端である**ため、
+ * 幅を詰めた分（144 → 56、#116）だけ左へ寄っている。
  */
-const ON_LINE = { clientX: 361, clientY: 123 };
+const ON_LINE = { clientX: 273, clientY: 123 };
 /** どのスジからも遠い点。 */
 const OFF_LINE = { clientX: 800, clientY: 380 };
 
@@ -141,23 +142,23 @@ describe('クリックで選ぶ', () => {
 
 describe('矩形で囲む', () => {
   it('**囲んだ範囲のスジが選ばれる**', () => {
-    pointer('pointerdown', { button: 0, clientX: 300, clientY: 10 });
-    pointer('pointermove', { clientX: 450, clientY: 300 }, window);
-    pointer('pointerup', { clientX: 450, clientY: 300 }, window);
+    pointer('pointerdown', { button: 0, clientX: 200, clientY: 10 });
+    pointer('pointermove', { clientX: 350, clientY: 300 }, window);
+    pointer('pointerup', { clientX: 350, clientY: 300 }, window);
 
     expect(selected()).toEqual(['t1']);
   });
 
   it('引きずっているあいだは枠が出る', () => {
-    pointer('pointerdown', { button: 0, clientX: 300, clientY: 10 });
-    pointer('pointermove', { clientX: 450, clientY: 300 }, window);
+    pointer('pointerdown', { button: 0, clientX: 200, clientY: 10 });
+    pointer('pointermove', { clientX: 350, clientY: 300 }, window);
 
     const rect = store.getState().ui.selectionRect;
     expect(rect).not.toBeNull();
     expect(rect?.fromAxis).toBeLessThan(rect?.toAxis ?? 0);
 
     // 離せば消える。
-    pointer('pointerup', { clientX: 450, clientY: 300 }, window);
+    pointer('pointerup', { clientX: 350, clientY: 300 }, window);
     expect(store.getState().ui.selectionRect).toBeNull();
   });
 
@@ -166,16 +167,16 @@ describe('矩形で囲む', () => {
     pointer('pointerup', ON_LINE, window);
 
     // 9:00 発の豊中方面（t2）を囲む。
-    pointer('pointerdown', { button: 0, ctrlKey: true, clientX: 500, clientY: 10 });
-    pointer('pointermove', { ctrlKey: true, clientX: 700, clientY: 300 }, window);
-    pointer('pointerup', { ctrlKey: true, clientX: 700, clientY: 300 }, window);
+    pointer('pointerdown', { button: 0, ctrlKey: true, clientX: 400, clientY: 10 });
+    pointer('pointermove', { ctrlKey: true, clientX: 600, clientY: 300 }, window);
+    pointer('pointerup', { ctrlKey: true, clientX: 600, clientY: 300 }, window);
 
     expect([...selected()].sort()).toEqual(['t1', 't2']);
   });
 
   it('**焦点を失ったら枠を畳む**（枠だけが残らない）', () => {
-    pointer('pointerdown', { button: 0, clientX: 300, clientY: 10 });
-    pointer('pointermove', { clientX: 450, clientY: 300 }, window);
+    pointer('pointerdown', { button: 0, clientX: 200, clientY: 10 });
+    pointer('pointermove', { clientX: 350, clientY: 300 }, window);
     canvas.dispatchEvent(new FocusEvent('blur'));
 
     expect(store.getState().ui.selectionRect).toBeNull();
@@ -417,8 +418,8 @@ describe('プロジェクトを開いていないとき', () => {
 });
 
 describe('作図モード（T-30、仕様書 §6.3.3）', () => {
-  /** 豊中学舎（軸 0）の線の上。7:00 が左端・1 分 3px なので x=324 が 8:00。 */
-  const ON_STOP_LINE = { clientX: 324, clientY: 24 };
+  /** 豊中（軸 0）の線の上。7:00 が左端・1 分 3px なので x=236 が 8:00。 */
+  const ON_STOP_LINE = { clientX: 236, clientY: 24 };
   /** どの停留所線からも遠い点。 */
   const BETWEEN_LINES = { clientX: 324, clientY: 120 };
 

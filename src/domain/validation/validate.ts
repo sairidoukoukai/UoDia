@@ -65,9 +65,13 @@ export function validateService(
  * **指摘は名前で言う。** 読んで直すためのものであり、`4_0` と書かれてもどこの
  * 話か分からない。名前が引けない ID（壊れた参照）はそのまま出す——伏せると、
  * 何が壊れているのかを確かめる手立てが消える。
+ *
+ * 出すのは**画面に出ているのと同じ略称**である（#116）。指摘を読んだ人が探すのは
+ * ダイヤグラムの縦軸と時刻表の行であり、そこに「コンベ前」と書いてあるのに
+ * 「コンベンションセンター前」と言われても、同じ停留所だと確かめる手間が要る。
  */
-function stopNameOf(stopId: string, network: NetworkIndex): string {
-  return network.findStop(stopId)?.stopName ?? stopId;
+function stopLabelOf(stopId: string, network: NetworkIndex): string {
+  return network.findStop(stopId)?.shortName ?? stopId;
 }
 
 /**
@@ -131,7 +135,7 @@ function checkBlockConnection(block: Block, network: NetworkIndex): ValidationIs
       issues.push(
         issue(
           'V-01',
-          `前の便は ${stopNameOf(previous.terminalStopId, network)} 着ですが、この便は ${stopNameOf(current.originStopId, network)} 発です`,
+          `前の便は ${stopLabelOf(previous.terminalStopId, network)} 着ですが、この便は ${stopLabelOf(current.originStopId, network)} 発です`,
           { blockId: block.blockId, tripId: current.trip.tripId },
         ),
       );
@@ -267,7 +271,7 @@ function checkHeadway(
         issues.push(
           issue(
             'V-06',
-            `${stopNameOf(stopId, network)} で前の便との間隔が ${String(gap)} 分しかありません`,
+            `${stopLabelOf(stopId, network)} で前の便との間隔が ${String(gap)} 分しかありません`,
             {
               tripId: current.tripId,
             },
@@ -277,7 +281,7 @@ function checkHeadway(
         issues.push(
           issue(
             'V-06',
-            `${stopNameOf(stopId, network)} で前の便との間隔が ${String(gap)} 分空いています`,
+            `${stopLabelOf(stopId, network)} で前の便との間隔が ${String(gap)} 分空いています`,
             {
               tripId: current.tripId,
             },

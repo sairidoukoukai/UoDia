@@ -26,7 +26,7 @@ const THEME: SceneTheme = {
 const BOUNDS: AxisBounds = { min: 0, max: 52 };
 
 function stop(stopId: string, axisPosition: number): SceneStop {
-  return { stopId, stopName: stopId, axisPosition, gridStyle: 'normal', isDepot: false };
+  return { stopId, shortName: stopId, axisPosition, gridStyle: 'normal', isDepot: false };
 }
 
 const STOPS: readonly SceneStop[] = [stop('a', 0), stop('b', 20), stop('c', 40), stop('depot', 52)];
@@ -62,7 +62,7 @@ function sceneOf(trips: readonly SceneTrip[], selected: readonly string[]): Diag
 }
 
 const VIEW: DiagramView = DEFAULT_DIAGRAM_VIEW;
-/** 既定の視野（7:00 から、1 分 3px）で 1000×420 の画面。右端はおよそ 11:45。 */
+/** 既定の視野（7:00 から、1 分 3px）で 1000×420 の画面。右端はおよそ 12:15。 */
 const VIEWPORT: Viewport = viewportOf(VIEW, 1000, 420);
 
 describe('見えているなら動かさない', () => {
@@ -91,15 +91,15 @@ describe('見えているなら動かさない', () => {
 
 describe('見えていないなら寄せる', () => {
   it('右の外にある便まで送る。**少し手前から見せる**', () => {
-    // 画面は 7:00〜11:45。12:00 の便は右の外にある。
-    const scene = sceneOf([trip('t1', 12)], ['t1']);
+    // 画面は 7:00〜12:15。13:00 の便は右の外にある。
+    const scene = sceneOf([trip('t1', 13)], ['t1']);
     const next = viewToReveal(scene, VIEWPORT, VIEW, BOUNDS);
 
-    expect(next?.scrollTime).toBe(fromHM(12, 0) - REVEAL_LEAD_MINUTES * 60);
+    expect(next?.scrollTime).toBe(fromHM(13, 0) - REVEAL_LEAD_MINUTES * 60);
   });
 
   it('拡大率は変えない（見え方まで勝手に変えない）', () => {
-    const scene = sceneOf([trip('t1', 12)], ['t1']);
+    const scene = sceneOf([trip('t1', 13)], ['t1']);
     const next = viewToReveal(scene, VIEWPORT, VIEW, BOUNDS);
 
     expect(next?.pxPerMinute).toBe(VIEW.pxPerMinute);
@@ -110,10 +110,10 @@ describe('見えていないなら寄せる', () => {
     // 縦に拡げて（1 単位 20px）軸 5〜24 だけが見えている状態にする。便が通る
     // 軸 0〜20 のうち一部は見えているため、縦は動かす理由が無い。
     const scrolled: DiagramView = { ...VIEW, pxPerAxisUnit: 20, scrollAxis: 5 };
-    const scene = sceneOf([trip('t1', 12)], ['t1']);
+    const scene = sceneOf([trip('t1', 13)], ['t1']);
     const next = viewToReveal(scene, viewportOf(scrolled, 1000, 420), scrolled, BOUNDS);
 
-    expect(next?.scrollTime).toBeLessThan(fromHM(12, 0));
+    expect(next?.scrollTime).toBeLessThan(fromHM(13, 0));
     expect(next?.scrollAxis).toBe(5);
   });
 
@@ -143,7 +143,7 @@ describe('見えていないなら寄せる', () => {
 
   it('回送スジも一緒に見せる（選択は保存されている便を指す）', () => {
     const deadhead: SceneTrip = {
-      ...trip('t1#out', 12),
+      ...trip('t1#out', 13),
       sourceTripId: 't1',
       isDeadhead: true,
     };
@@ -155,7 +155,7 @@ describe('見えていないなら寄せる', () => {
 
 describe('循環しない', () => {
   it('**一度寄せたら、もう動かない**（受入条件）', () => {
-    const scene = sceneOf([trip('t1', 12)], ['t1']);
+    const scene = sceneOf([trip('t1', 13)], ['t1']);
     const next = viewToReveal(scene, VIEWPORT, VIEW, BOUNDS);
     if (next === null) throw new Error('寄せられていません');
 

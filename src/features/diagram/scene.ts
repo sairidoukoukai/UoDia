@@ -40,7 +40,14 @@ import { assignPatternDashes, SOLID } from './tripStyle';
 /** 縦軸に並ぶ停留所。 */
 export interface SceneStop {
   readonly stopId: string;
-  readonly stopName: string;
+  /**
+   * 縦軸に出す名前。**正式名ではなく略称である**（`Stop.shortName`、#116）。
+   *
+   * 正式名は GTFS の `stop_name` として持ち続けるが、画面に出すのは略称にする
+   * ——「コンベンションセンター前」を出すために縦軸の欄を 144px 取ると、その
+   * ぶん描画領域が狭くなる。
+   */
+  readonly shortName: string;
   /** 縦軸の位置（仕様書 §6.2.1）。 */
   readonly axisPosition: number;
   readonly gridStyle: GridStyle;
@@ -135,7 +142,7 @@ const NO_DIRECTIONS: readonly DirectionId[] = [];
 const stopsOf = memoizeByIdentity((stops: readonly Stop[]): readonly SceneStop[] =>
   stops.map((stop) => ({
     stopId: stop.stopId,
-    stopName: stop.stopName,
+    shortName: stop.shortName,
     axisPosition: stop.axisPosition,
     gridStyle: stop.gridStyle,
     isDepot: stop.isDepot,

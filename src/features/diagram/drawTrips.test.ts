@@ -23,17 +23,17 @@ const theme = {
 
 /** route.json と同じ並び。 */
 const stops: readonly SceneStop[] = [
-  { stopId: '1_0', stopName: '豊中学舎', axisPosition: 0, gridStyle: 'bold', isDepot: false },
-  { stopId: '2_0', stopName: '箕面学舎', axisPosition: 20, gridStyle: 'bold', isDepot: false },
+  { stopId: '1_0', shortName: '豊中', axisPosition: 0, gridStyle: 'bold', isDepot: false },
+  { stopId: '2_0', shortName: '箕面', axisPosition: 20, gridStyle: 'bold', isDepot: false },
   {
     stopId: '3_0',
-    stopName: 'コンベンションセンター前',
+    shortName: 'コンベ前',
     axisPosition: 33,
     gridStyle: 'normal',
     isDepot: false,
   },
-  { stopId: '4_0', stopName: '工学部前', axisPosition: 40, gridStyle: 'bold', isDepot: false },
-  { stopId: '9_0', stopName: '千里営業所', axisPosition: 52, gridStyle: 'dashed', isDepot: true },
+  { stopId: '4_0', shortName: '工学部', axisPosition: 40, gridStyle: 'bold', isDepot: false },
+  { stopId: '9_0', shortName: '車庫', axisPosition: 52, gridStyle: 'dashed', isDepot: true },
 ];
 
 /** 吹田方面の直行便。箕面学舎（20）を経由しない。 */

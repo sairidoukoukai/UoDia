@@ -26,7 +26,7 @@
     {
       "stopId": "3_0",
       "stopName": "コンベンションセンター前",
-      "shortName": "コンベ",
+      "shortName": "コンベ前",
       "area": "吹田地区",
       "axisPosition": 33,
       "gridStyle": "normal",
@@ -36,7 +36,7 @@
     {
       "stopId": "5_0",
       "stopName": "人間科学部前",
-      "shortName": "人科",
+      "shortName": "人科前",
       "area": "吹田地区",
       "axisPosition": 37,
       "gridStyle": "normal",

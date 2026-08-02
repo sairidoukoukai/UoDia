@@ -6,11 +6,16 @@
  * 要らないことが、表示範囲を `viewport` 以外から取っていない証拠である。
  */
 
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { loadNetworkDef } from '@/domain/network';
 import { formatTime, fromHM, type Seconds } from '@/domain/time';
 import {
+  LABEL_PADDING,
   MIN_STOP_LABEL_GAP,
   MIN_TIME_LABEL_GAP,
+  STOP_LABEL_FONT,
   depotLane,
   drawGrid,
   timeLabelStepMinutes,
@@ -18,7 +23,7 @@ import {
 } from './drawGrid';
 import { Recorder, isHorizontal, isVertical, type RecordedSegment } from './recorder.test-utils';
 import type { DiagramScene, SceneStop, SceneTheme } from './scene';
-import { axisToY, timeToX, viewportOf, xToTime, type Viewport } from './viewport';
+import { AXIS_LABEL_WIDTH, axisToY, timeToX, viewportOf, xToTime, type Viewport } from './viewport';
 
 const theme: SceneTheme = {
   background: '#ffffff',
@@ -31,24 +36,24 @@ const theme: SceneTheme = {
 
 /** route.json と同じ並び（軸位置の順。`hiddenInEditor` は既に落ちている）。 */
 const stops: readonly SceneStop[] = [
-  { stopId: '1_0', stopName: '豊中学舎', axisPosition: 0, gridStyle: 'bold', isDepot: false },
-  { stopId: '2_0', stopName: '箕面学舎', axisPosition: 20, gridStyle: 'bold', isDepot: false },
+  { stopId: '1_0', shortName: '豊中', axisPosition: 0, gridStyle: 'bold', isDepot: false },
+  { stopId: '2_0', shortName: '箕面', axisPosition: 20, gridStyle: 'bold', isDepot: false },
   {
     stopId: '3_0',
-    stopName: 'コンベンションセンター前',
+    shortName: 'コンベ前',
     axisPosition: 33,
     gridStyle: 'normal',
     isDepot: false,
   },
   {
     stopId: '5_0',
-    stopName: '人間科学部前',
+    shortName: '人科前',
     axisPosition: 37,
     gridStyle: 'normal',
     isDepot: false,
   },
-  { stopId: '4_0', stopName: '工学部前', axisPosition: 40, gridStyle: 'bold', isDepot: false },
-  { stopId: '9_0', stopName: '千里営業所', axisPosition: 52, gridStyle: 'dashed', isDepot: true },
+  { stopId: '4_0', shortName: '工学部', axisPosition: 40, gridStyle: 'bold', isDepot: false },
+  { stopId: '9_0', shortName: '車庫', axisPosition: 52, gridStyle: 'dashed', isDepot: true },
 ];
 
 const scene: DiagramScene = {
@@ -143,10 +148,10 @@ describe('表示範囲（7:00〜22:00。仕様書 §6.2.1）', () => {
   });
 
   it('罫線は表示範囲の右端で途切れる', () => {
-    // 20:00 から 1 分 3px なら 22:00 は 144 + 360 = 504px。
+    // 20:00 から 1 分 3px なら 22:00 は 56 + 360 = 416px。
     const horizontal = draw({ startTime: fromHM(20, 0) }).segments.filter(isHorizontal);
     for (const segment of horizontal) {
-      expect(segment.x2).toBe(504);
+      expect(segment.x2).toBe(416);
     }
   });
 });
@@ -315,10 +320,23 @@ describe('時刻目盛', () => {
 });
 
 describe('停留所名', () => {
+  it('**route.json の一番長い略称が縦軸の欄に入る**（#116、仕様書 §6.2.2）', () => {
+    // 幅は名前から決める（T-25）。逆にすると、収まらない名前が `maxWidth` で
+    // 押し潰され、どの線がどの停留所かを読めなくする。
+    const routeJsonPath = fileURLToPath(new URL('../../../data/route.json', import.meta.url));
+    const loaded = loadNetworkDef(readFileSync(routeJsonPath, 'utf8'));
+    if (!loaded.ok) throw new Error('route.json を読み込めません');
+
+    const longest = Math.max(...loaded.network.def.stops.map((stop) => stop.shortName.length));
+    const fontSize = Number.parseInt(STOP_LABEL_FONT, 10);
+
+    expect(AXIS_LABEL_WIDTH).toBeGreaterThanOrEqual(longest * fontSize + LABEL_PADDING);
+  });
+
   it('縦軸の左に右揃えで置く', () => {
     const labels = draw().labels.filter((label) => !label.text.includes(':'));
 
-    expect(labels.map((label) => label.text)).toEqual(stops.map((stop) => stop.stopName));
+    expect(labels.map((label) => label.text)).toEqual(stops.map((stop) => stop.shortName));
     for (const label of labels) {
       expect(label.align).toBe('right');
       expect(label.x).toBeLessThan(viewport.originX);
@@ -326,7 +344,7 @@ describe('停留所名', () => {
   });
 
   it('**欄の幅を超えない**（`maxWidth` で押し込む）', () => {
-    const label = draw().labels.find((item) => item.text === 'コンベンションセンター前');
+    const label = draw().labels.find((item) => item.text === 'コンベ前');
 
     expect(label?.maxWidth).toBeLessThanOrEqual(viewport.originX);
   });
@@ -335,8 +353,8 @@ describe('停留所名', () => {
     const labels = draw({ pxPerAxisUnit: 2 }).labels.filter((label) => !label.text.includes(':'));
     const ys = labels.map((label) => label.y);
 
-    // 人間科学部前（37）はコンベンションセンター前（33）に近すぎる。
-    expect(labels.map((label) => label.text)).not.toContain('人間科学部前');
+    // 人科前（37）はコンベ前（33）に近すぎる。
+    expect(labels.map((label) => label.text)).not.toContain('人科前');
     for (let i = 1; i < ys.length; i += 1) {
       expect(ys[i]! - ys[i - 1]!).toBeGreaterThanOrEqual(MIN_STOP_LABEL_GAP);
     }

@@ -474,7 +474,7 @@ export function TimetableGrid(props: TimetableGridProps): ReactElement {
           {stops.map((stop, row) => (
             <tr key={stop.stopId}>
               <th scope="row" className="timetable__stop">
-                {stop.stopName}
+                {stop.shortName}
               </th>
               {slots.map((column, index) => {
                 const at = { row, column: index };

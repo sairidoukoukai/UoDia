@@ -86,10 +86,10 @@ const STOP_LINE_STYLE: Record<GridStyle, LineStyle> = {
 };
 
 /** ラベルと罫線のあいだの余白。 */
-const LABEL_PADDING = 8;
+export const LABEL_PADDING = 8;
 
 /** 文字の大きさ。テーマに追随させるのは T-39 の仕事である。 */
-const STOP_LABEL_FONT = '12px system-ui, sans-serif';
+export const STOP_LABEL_FONT = '12px system-ui, sans-serif';
 const TIME_LABEL_FONT = '11px system-ui, sans-serif';
 
 /**
@@ -320,7 +320,7 @@ function drawTimeLabels(ctx: DrawContext, theme: SceneTheme, viewport: Viewport)
 }
 
 /**
- * 停留所名を縦軸の左に置く。
+ * 停留所の略称を縦軸の左に置く。
  *
  * 縮めた画面では**近すぎる名前を落とす**。重ねて出すと、両方とも読めなくなる。
  * 線は残るため、拡大すれば名前が戻る。
@@ -338,7 +338,7 @@ function drawStopLabels(ctx: DrawContext, scene: DiagramScene, viewport: Viewpor
     if (y - lastY < MIN_STOP_LABEL_GAP) continue;
 
     ctx.fillText(
-      stop.stopName,
+      stop.shortName,
       viewport.originX - LABEL_PADDING,
       y,
       viewport.originX - LABEL_PADDING,

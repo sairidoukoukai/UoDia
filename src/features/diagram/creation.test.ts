@@ -20,7 +20,7 @@ const THEME: SceneTheme = {
 };
 
 function stop(stopId: string, axisPosition: number, isDepot = false): SceneStop {
-  return { stopId, stopName: stopId, axisPosition, gridStyle: 'normal', isDepot };
+  return { stopId, shortName: stopId, axisPosition, gridStyle: 'normal', isDepot };
 }
 
 const SCENE: DiagramScene = {

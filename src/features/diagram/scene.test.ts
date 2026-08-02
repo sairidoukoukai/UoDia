@@ -86,6 +86,23 @@ describe('縦軸の停留所', () => {
     );
   });
 
+  it('**縦軸に出すのは略称である**（正式名ではない。#116）', () => {
+    const { stops } = selectDiagramScene(state(), theme);
+    const convention = stops.find((stop) => stop.stopId === '3_0');
+
+    // 正式名「コンベンションセンター前」を出すには縦軸の欄を 12 文字ぶん取る
+    // ことになり、そのぶん描く場所が狭くなる。
+    expect(convention?.shortName).toBe('コンベ前');
+    expect(stops.map((stop) => stop.shortName)).toEqual([
+      '豊中',
+      '箕面',
+      'コンベ前',
+      '人科前',
+      '工学部',
+      '車庫',
+    ]);
+  });
+
   it('**微生物研究所前は縦軸に出ない**（`hiddenInEditor`）', () => {
     const { stops } = selectDiagramScene(state(), theme);
     expect(stops.map((stop) => stop.stopId)).not.toContain('6_0');

@@ -126,9 +126,9 @@ describe('横方向のカリング', () => {
 
   it('**端でちょうど切れるものは残す**（1 目盛の余裕を持つ）', () => {
     expect(isTimeVisible(fromHM(6, 55), viewport)).toBe(true);
-    // 右端は 11:45:20。その 5 分後までは描く。
-    expect(isTimeVisible(fromHM(11, 50), viewport)).toBe(true);
-    expect(isTimeVisible(fromHM(11, 55), viewport)).toBe(false);
+    // 右端は 12:14:40。その 5 分後までは描く。
+    expect(isTimeVisible(fromHM(12, 15), viewport)).toBe(true);
+    expect(isTimeVisible(fromHM(12, 20), viewport)).toBe(false);
   });
 });
 

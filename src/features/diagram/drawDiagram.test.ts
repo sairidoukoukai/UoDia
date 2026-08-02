@@ -27,8 +27,8 @@ const theme = {
 
 const scene: DiagramScene = {
   stops: [
-    { stopId: '1_0', stopName: '豊中学舎', axisPosition: 0, gridStyle: 'bold', isDepot: false },
-    { stopId: '4_0', stopName: '工学部前', axisPosition: 40, gridStyle: 'bold', isDepot: false },
+    { stopId: '1_0', shortName: '豊中', axisPosition: 0, gridStyle: 'bold', isDepot: false },
+    { stopId: '4_0', shortName: '工学部', axisPosition: 40, gridStyle: 'bold', isDepot: false },
   ],
   trips: [
     {
