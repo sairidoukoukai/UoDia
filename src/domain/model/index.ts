@@ -14,6 +14,7 @@ export {
   networkDefSchema,
   patternStopSchema,
   segmentSchema,
+  serviceTypeSchema,
   stopPatternSchema,
   stopSchema,
   type GridStyle,
@@ -21,6 +22,7 @@ export {
   type NetworkDef,
   type PatternStop,
   type Segment,
+  type ServiceType,
   type Stop,
   type StopPattern,
 } from './network';

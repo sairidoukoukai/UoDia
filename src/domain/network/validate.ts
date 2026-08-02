@@ -14,7 +14,18 @@ import { adjacentPairs } from '@/domain/util';
 
 /** 検証規則の識別子。仕様書 §5.5.2 の表に対応する。 */
 export type NetworkRule =
-  'R-01' | 'R-02' | 'R-03' | 'R-04' | 'R-05' | 'R-06' | 'R-07' | 'R-08' | 'R-09' | 'R-10' | 'R-11';
+  | 'R-01'
+  | 'R-02'
+  | 'R-03'
+  | 'R-04'
+  | 'R-05'
+  | 'R-06'
+  | 'R-07'
+  | 'R-08'
+  | 'R-09'
+  | 'R-10'
+  | 'R-11'
+  | 'R-12';
 
 /** 問題のある要素への参照。 */
 export type NetworkIssueTarget =
@@ -54,6 +65,7 @@ export function validateNetwork(network: NetworkDef): NetworkIssue[] {
     ...checkDuplicatePatternIds(network),
     ...checkDuplicateStopsInPattern(network),
     ...checkConnectingDeadheads(network),
+    ...checkServiceTypes(network),
   ];
 }
 
@@ -334,4 +346,36 @@ function findDuplicates(values: readonly string[]): string[] {
 /** 問題の一覧を人が読める複数行の文にする。 */
 export function formatNetworkIssues(issues: readonly NetworkIssue[]): string {
   return issues.map((i) => `[${i.rule}] ${i.message}`).join('\n');
+}
+
+/**
+ * R-12: 営業パターンが `serviceType` を持ち、回送は持たないこと（#114）。
+ *
+ * 線種はここから決まる（仕様書 §6.2.2）。**書き忘れれば絵が黙って変わる**
+ * ——各駅の便が通過の線種で描かれても、それが誤りだと画面からは分からない。
+ *
+ * 回送に書かせないのは、当てはまらないものに値を選ばせないためである。客を
+ * 乗せない便に「各駅か通過か」は無い。
+ */
+function checkServiceTypes(network: NetworkDef): NetworkIssue[] {
+  const issues: NetworkIssue[] = [];
+
+  for (const pattern of network.patterns) {
+    if (pattern.isDeadhead && pattern.serviceType !== undefined) {
+      issues.push({
+        rule: 'R-12',
+        message: `回送パターン ${pattern.patternId} に serviceType があります（回送に各駅・通過の別はありません）`,
+        target: { kind: 'pattern', patternId: pattern.patternId },
+      });
+    }
+    if (!pattern.isDeadhead && pattern.serviceType === undefined) {
+      issues.push({
+        rule: 'R-12',
+        message: `パターン ${pattern.patternId} に serviceType がありません（各駅なら local、通過なら express）`,
+        target: { kind: 'pattern', patternId: pattern.patternId },
+      });
+    }
+  }
+
+  return issues;
 }
