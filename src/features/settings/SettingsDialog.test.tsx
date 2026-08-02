@@ -53,6 +53,9 @@ function makeTrip(tripId: string, patternId: string, hours: number): Trip {
 }
 
 function mount(writable = true): void {
+  // **毎回同じところから始める。** ストアは 1 つしかなく、前の検証で変えた設定が
+  // 残ると、順番によって結果が変わる。
+  useAppStore.getState().setSettings({ theme: 'system' });
   useAppStore.getState().setNetworkDef(network.def);
   useAppStore
     .getState()
@@ -258,6 +261,31 @@ describe('動作タブ（§6.5.2）', () => {
 });
 
 describe('表示タブ（§6.5.3）', () => {
+  it('**テーマを選べる**（T-39）', () => {
+    mount();
+    act(() => {
+      button('表示').click();
+    });
+
+    const dark = container.querySelector<HTMLInputElement>('input[type="radio"][value="dark"]');
+    if (dark === null) throw new Error('テーマの選択がありません');
+
+    act(() => {
+      dark.click();
+    });
+    expect(useAppStore.getState().settings.theme).toBe('dark');
+  });
+
+  it('既定は「システムに従う」（起動した瞬間に驚かせない）', () => {
+    mount();
+    act(() => {
+      button('表示').click();
+    });
+
+    const system = container.querySelector<HTMLInputElement>('input[type="radio"][value="system"]');
+    expect(system?.checked).toBe(true);
+  });
+
   it('既定の拡大率を変えられる', () => {
     mount();
     act(() => {

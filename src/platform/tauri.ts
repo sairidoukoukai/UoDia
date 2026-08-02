@@ -112,6 +112,14 @@ export function createTauriPlatform(): PlatformAdapter {
       await invoke('write_route_def', { content });
     },
 
+    readSettings(): Promise<string | null> {
+      return invoke<string | null>('read_settings');
+    },
+
+    async writeSettings(content: string): Promise<void> {
+      await invoke('write_settings', { content });
+    },
+
     async writeBackup(content: string): Promise<void> {
       await invoke('write_backup', { content });
     },

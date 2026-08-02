@@ -40,6 +40,8 @@ export interface MemoryPlatform extends PlatformAdapter {
   networkDef: string;
   savedNetworkDef: string | null;
   backup: string | null;
+  /** 保存されている設定（T-39）。 */
+  settings: string | null;
   /** 次の「開く」で選ばれるファイル名。`null` なら取り消し。 */
   openTarget: string | null;
   /** 次の「名前を付けて保存」で選ばれるファイル名。`null` なら取り消し。 */
@@ -67,6 +69,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions = {}): Memor
     networkDef: options.networkDef ?? '',
     savedNetworkDef: null,
     backup: null,
+    settings: null,
     openTarget: null,
     saveAsTarget: null,
     windowTitle: '',
@@ -115,6 +118,15 @@ export function createMemoryPlatform(options: MemoryPlatformOptions = {}): Memor
       }
       platform.savedNetworkDef = content;
       platform.networkDef = content;
+      return Promise.resolve();
+    },
+
+    readSettings(): Promise<string | null> {
+      return Promise.resolve(platform.settings);
+    },
+
+    writeSettings(content: string): Promise<void> {
+      platform.settings = content;
       return Promise.resolve();
     },
 

@@ -1,6 +1,21 @@
 /*
- * 最小限のベーススタイル。
- * テーマ（ライト／ダーク）の本実装は T-39 で行う（仕様書 §9.4）。
+ * 配色（仕様書 §9.4、T-39）。
+ *
+ * **色は 1 か所にしか置かない。** ダイヤグラムの canvas もここから読む
+ * （`DiagramCanvas.readTheme`）。JS 側にも色を書くと、片方だけ直した配色が
+ * 生まれ、格子とスジで違う灰色が並ぶ。
+ *
+ * 3 つの状態がある。
+ *
+ * | 選択 | 出るもの |
+ * | --- | --- |
+ * | システムに従う（既定） | 属性を付けない。媒体問い合わせが決める |
+ * | 明るい | `[data-theme='light']`。**OS が暗くても明るいまま** |
+ * | 暗い | `[data-theme='dark']` |
+ *
+ * 暗い配色を 2 度書いているのは、この 3 つを CSS だけで表すためである。媒体
+ * 問い合わせの側で `:not([data-theme='light'])` を挟むことで、明るいを選んだ人が
+ * OS の設定に引き戻されない。
  */
 
 :root {
@@ -38,7 +53,9 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  /* 「明るい」を選んだ人は OS の設定に引き戻さない。 */
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
     --color-bg: #1a1a1a;
     --color-fg: #f0f0f0;
     --color-fg-muted: #999999;
@@ -57,8 +74,47 @@
   }
 }
 
+/* 選び直したテーマ。媒体問い合わせより後に置いて、同じ強さでも勝たせる。 */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --color-bg: #1a1a1a;
+  --color-fg: #f0f0f0;
+  --color-fg-muted: #999999;
+  --color-border: #444444;
+  --color-bg-accent: #262626;
+  --color-grid: #333333;
+  --color-grid-faint: #2a2a2a;
+  --color-error: #ff7b6b;
+  --color-warning: #e0a458;
+  --color-anchor: #5a4a12;
+  --color-focus: #7aa8ff;
+  --color-invalid: #6b2a22;
+  --color-selected: #23384f;
+  --color-same-block: rgb(255 255 255 / 10%);
+  --color-rounded: #1f4468;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
 * {
   box-sizing: border-box;
+}
+
+/*
+ * 焦点の枠（仕様書 §9.4、T-39）。
+ *
+ * **どこに焦点があるかを常に見せる。** 部品ごとに書いていくと、書き忘れた 1 つが
+ * 「キーボードで辿ると行方不明になる場所」になる。ここで全体に敷き、部品側は
+ * 位置の調整だけを行う。
+ *
+ * `:focus-visible` を使うのは、押しボタンを**マウスで押しただけ**のときに枠を
+ * 出さないためである（利用者は自分が押した場所を知っている）。
+ */
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 1px;
 }
 
 html,
@@ -314,6 +370,19 @@ body {
 .settings__actions {
   justify-content: flex-end;
   padding: 0 1rem 1rem;
+}
+
+/* テーマの選択（§6.5.3、T-39）。 */
+.settings__theme {
+  margin: 0 0 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  font-size: 0.875rem;
+}
+
+.settings__radio {
+  margin-right: 1rem;
 }
 
 /* 停車パターンの編集（隠し設定。§6.5.4、T-36）。 */

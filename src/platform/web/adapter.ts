@@ -38,6 +38,8 @@ interface WebRef {
 const NETWORK_DEF_KEY = 'networkDef';
 /** 自動バックアップの鍵。 */
 const BACKUP_KEY = 'backup';
+/** 設定の鍵（T-39）。 */
+const SETTINGS_KEY = 'settings';
 /** 最近使ったファイルの鍵。 */
 const RECENT_KEY = 'recentFiles';
 
@@ -144,6 +146,14 @@ export function createWebPlatform(environment: WebEnvironment): PlatformAdapter 
       return Promise.reject(
         new Error('Web 版では route.json を書き戻せません。書き出して差し替えてください'),
       );
+    },
+
+    readSettings(): Promise<string | null> {
+      return store.get<string>(SETTINGS_KEY);
+    },
+
+    async writeSettings(content: string): Promise<void> {
+      await store.set(SETTINGS_KEY, content);
     },
 
     async writeBackup(content: string): Promise<void> {

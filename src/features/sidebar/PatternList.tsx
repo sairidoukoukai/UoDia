@@ -11,7 +11,8 @@
  */
 
 import { useMemo, type ReactElement } from 'react';
-import { assignPatternDashes } from '@/features/diagram';
+import { assignPatternDashes, readableOn } from '@/features/diagram';
+import { useThemeColor } from '@/features/settings';
 import { DIRECTION_LABEL } from '@/features/timetable';
 import { selectNetwork, selectView, useAppStore } from '@/store';
 import { withHidden } from './filters';
@@ -25,6 +26,10 @@ export function PatternList(): ReactElement {
     () => (network === null ? null : assignPatternDashes(network.def.patterns)),
     [network],
   );
+
+  // 色見本もスジと同じ調え方をする（§9.4、T-39）。暗い配色で、一覧だけが
+  // 沈んだ色のままにならないようにする。
+  const background = useThemeColor('--color-bg', '#ffffff');
 
   // **回送のパターンは出さない。** 回送スジは営業便から展開された線であり
   // （§6.1.7）、パターンの絞り込みは保存されている便にしか掛からない——ここに
@@ -65,7 +70,10 @@ export function PatternList(): ReactElement {
                   toggle(pattern.patternId, event.target.checked);
                 }}
               />
-              <Swatch color={pattern.color} dash={dashes?.get(pattern.patternId) ?? []} />
+              <Swatch
+                color={readableOn(pattern.color, background)}
+                dash={dashes?.get(pattern.patternId) ?? []}
+              />
               <span className="panel__id">{pattern.patternId}</span>
               <span className="panel__note">{pattern.patternName}</span>
               <span className="panel__count">{DIRECTION_LABEL[pattern.directionId]}</span>

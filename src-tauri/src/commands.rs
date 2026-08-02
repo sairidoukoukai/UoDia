@@ -69,6 +69,20 @@ pub fn write_route_def(app: AppHandle, content: String) -> Result<(), String> {
     atomic::write_atomic(&paths::route_path(&app)?, &content)
 }
 
+/// 設定を読む（T-39）。まだ保存していなければ `None`。
+///
+/// **読めなくても失敗にしない**のは呼び出し側（TS）の判断であり、ここでは
+/// 素直に返す。壊れた設定で起動できなくなるのは代償が大きい。
+#[tauri::command]
+pub fn read_settings(app: AppHandle) -> Result<Option<String>, String> {
+    atomic::read_optional(&paths::settings_path(&app)?)
+}
+
+#[tauri::command]
+pub fn write_settings(app: AppHandle, content: String) -> Result<(), String> {
+    atomic::write_atomic(&paths::settings_path(&app)?, &content)
+}
+
 #[tauri::command]
 pub fn write_backup(app: AppHandle, content: String) -> Result<(), String> {
     atomic::write_atomic(&paths::backup_path(&app)?, &content)

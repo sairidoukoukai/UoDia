@@ -90,6 +90,8 @@ export {
 
 export { DEADHEAD_DASH, SOLID, assignPatternDashes, dashForServiceType } from './tripStyle';
 
+export { MIN_CONTRAST, contrastRatio, luminance, readableOn } from './color';
+
 export {
   AXIS_LABEL_WIDTH,
   DIAGRAM_END_TIME,

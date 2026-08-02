@@ -35,6 +35,7 @@ import {
   type SelectionRect,
   type TripShift,
 } from '@/store';
+import { readableOn } from './color';
 import { assignPatternDashes, SOLID } from './tripStyle';
 
 /** 縦軸に並ぶ停留所。 */
@@ -198,6 +199,8 @@ const tripsOf = memoizeByIdentity(
     filter: SceneFilter,
     colorMode: ColorMode,
     numbers: ReadonlyMap<string, string>,
+    /** 地色。**色を読めるように調えるために要る**（§9.4、T-39）。 */
+    background: string,
   ): readonly SceneTrip[] => {
     const dashes = dashesOf(network);
     const depots = depotIdsOf(network);
@@ -240,7 +243,9 @@ const tripsOf = memoizeByIdentity(
         tripId: trip.tripId,
         sourceTripId: source,
         patternId: trip.patternId,
-        color: blockColors?.get(trip.blockId) ?? pattern.pattern.color,
+        // **持っている色は 1 つ。** 暗い配色では明るさだけを調えて出す
+        // （`readableOn`）。route.json の値は書き換えない。
+        color: readableOn(blockColors?.get(trip.blockId) ?? pattern.pattern.color, background),
         lineDash: dashes.get(trip.patternId) ?? SOLID,
         directionId: pattern.pattern.directionId,
         isDeadhead: pattern.pattern.isDeadhead,
@@ -320,6 +325,7 @@ export function selectDiagramScene(state: AppState, theme: SceneTheme): DiagramS
           filter,
           view?.colorMode ?? 'pattern',
           selectTripNumbers(state),
+          theme.background,
         ),
     state.ui.selectedTripIds,
     state.ui.selectionRect,

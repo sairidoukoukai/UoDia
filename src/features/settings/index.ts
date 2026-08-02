@@ -4,6 +4,17 @@ export { SettingsDialog, type SettingsDialogProps } from './SettingsDialog';
 export { attachUnlock, isUnlockShortcut, type UnlockOptions } from './unlock';
 
 export {
+  DARK_QUERY,
+  applyTheme,
+  resolveTheme,
+  usePrefersDark,
+  useThemeColor,
+  type ResolvedTheme,
+} from './theme';
+
+export { loadSettings, persistedOf, watchSettings, type SettingsStorageOptions } from './storage';
+
+export {
   affectedTripCount as affectedByPatterns,
   changedPatternIds,
   duplicatedPattern,

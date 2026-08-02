@@ -281,6 +281,18 @@ describe('route.json', () => {
   });
 });
 
+describe('設定（T-39）', () => {
+  it('書いて読める。**プロジェクトとは別に置く**', async () => {
+    const { platform } = makeEnvironment(true);
+
+    expect(await platform.readSettings()).toBeNull();
+    await platform.writeSettings('{"theme":"dark"}');
+    expect(await platform.readSettings()).toBe('{"theme":"dark"}');
+    // バックアップとは別の鍵である（片方を消してももう片方は残る）。
+    expect(await platform.readBackup()).toBeNull();
+  });
+});
+
 describe('バックアップ（仕様書 §6.8）', () => {
   it('書いて読める', async () => {
     const { platform } = makeEnvironment(true);

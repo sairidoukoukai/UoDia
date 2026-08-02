@@ -43,6 +43,8 @@ pub fn run() {
             commands::save_project_file,
             commands::read_route_def,
             commands::write_route_def,
+            commands::read_settings,
+            commands::write_settings,
             commands::write_backup,
             commands::read_backup,
             commands::clear_backup,

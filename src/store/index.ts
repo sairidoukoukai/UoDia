@@ -1,7 +1,14 @@
 export {
   BACKUP_INTERVAL_LIMITS,
   DEFAULT_BACKUP_INTERVAL_MS,
+  DEFAULT_THEME,
   clampBackupInterval,
+  parseSettings,
+  persistedSettingsSchema,
+  serializeSettings,
+  themeModeSchema,
+  type PersistedSettings,
+  type ThemeMode,
 } from './settings';
 
 export {

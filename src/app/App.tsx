@@ -18,7 +18,14 @@
  * 内容をそのまま消してしまう。
  */
 
-import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useState,
+  type ReactElement,
+} from 'react';
 import { DiagramCanvas, type DiagramCursor } from '@/features/diagram';
 import { loadNetworkDef } from '@/domain/network';
 import {
@@ -40,7 +47,13 @@ import {
   type HelpTopic,
   type MenuExtra,
 } from '@/features/shell';
-import { SettingsDialog, attachUnlock } from '@/features/settings';
+import {
+  SettingsDialog,
+  applyTheme,
+  attachUnlock,
+  loadSettings,
+  watchSettings,
+} from '@/features/settings';
 import { SidePanel } from '@/features/sidebar';
 import { Timetable, copySelection, cutSelection, pasteClipboard } from '@/features/timetable';
 import { ValidationPanel } from '@/features/validation';
@@ -235,6 +248,25 @@ export function App(): ReactElement {
   // 隠し設定の有効化（§6.5.4、T-36）。**操作の表には載せない**——隠してある
   // ものをメニューにも鍵の一覧にも出しては、隠したことにならない。
   useEffect(() => attachUnlock({ store: useAppStore }), []);
+
+  // 設定を読み、変わったら書く（§6.5、T-39）。**プロジェクトとは別に置く。**
+  useEffect(() => {
+    void loadSettings({ platform, store: useAppStore });
+    return watchSettings({ platform, store: useAppStore });
+  }, [platform]);
+
+  /*
+    テーマを根の要素に立てる（§9.4）。色そのものは CSS が持つ。
+
+    **`useLayoutEffect` でなければならない。** ダイヤグラムは繋ぎ直すときに
+    CSS から色を読む（`DiagramCanvas`）。通常の効果は**子から先に**走るため、
+    ここを `useEffect` にすると、canvas が色を読む時点ではまだ前のテーマの
+    ままで、格子とスジだけが古い配色で残る。
+  */
+  const theme = useAppStore((state) => state.settings.theme);
+  useLayoutEffect(() => {
+    applyTheme(theme, document.documentElement);
+  }, [theme]);
 
   /**
    * 最近使ったファイル。**数が動くため表には持てない**（`MenuExtra`）。
