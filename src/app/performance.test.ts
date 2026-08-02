@@ -83,7 +83,9 @@ function makeProject(): Project {
       updatedAt: now,
     },
     document: { name: '性能検証', author: '', comment: '' },
-    services: [{ serviceId: 'weekday', serviceName: '授業期間平日ダイヤ', trips: [...makeTrips()] }],
+    services: [
+      { serviceId: 'weekday', serviceName: '授業期間平日ダイヤ', trips: [...makeTrips()] },
+    ],
     view: {
       splitRatio: 0.6,
       activeServiceId: null,
