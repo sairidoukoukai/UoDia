@@ -43,6 +43,7 @@ import {
 } from './history';
 import type {
   AppState,
+  DiagramTool,
   DocumentState,
   MaximizedPane,
   SelectionRect,
@@ -192,6 +193,14 @@ export interface AppActions {
   readonly setMaximizedPane: (pane: MaximizedPane) => void;
 
   /**
+   * ダイヤグラムの道具を選ぶ（仕様書 §6.3.3、T-30）。
+   *
+   * 保存も履歴もしない。**便を作る手立てそのものではなく、次の左ボタンが何を
+   * するかを決めるだけ**である。
+   */
+  readonly setTool: (tool: DiagramTool) => void;
+
+  /**
    * 矩形選択の途中経過を置く（仕様書 §6.3.1、T-28）。
    *
    * 履歴に載せない。囲んでいる最中の枠は編集の結果ではない。
@@ -229,6 +238,7 @@ const INITIAL_STATE: AppState = {
     selectionRect: null,
     tripShift: null,
     maximized: null,
+    tool: 'select',
   },
   history: createHistory(),
   file: { handle: null, savedProject: null },
@@ -242,7 +252,7 @@ const INITIAL_STATE: AppState = {
  * いるかとは関わりが無い。開いた拍子に分割が戻ると、開き直したように見える。
  */
 function clearedUi(ui: UiState): UiState {
-  return { ...INITIAL_STATE.ui, maximized: ui.maximized };
+  return { ...INITIAL_STATE.ui, maximized: ui.maximized, tool: ui.tool };
 }
 
 /** ストアを作る。テストごとに独立したものを使えるよう、生成を関数にしている。 */
@@ -430,6 +440,12 @@ export function createAppStore(): AppStoreHook {
         const { ui } = get();
         if (ui.maximized === maximized) return;
         set({ ui: { ...ui, maximized } });
+      },
+
+      setTool: (tool): void => {
+        const { ui } = get();
+        if (ui.tool === tool) return;
+        set({ ui: { ...ui, tool } });
       },
     };
   });

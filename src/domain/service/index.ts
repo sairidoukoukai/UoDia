@@ -2,6 +2,7 @@ export {
   GRAIN_MINUTES,
   addTripAt,
   changeTripsPattern,
+  createTrip,
   copyTripsToService,
   patternForStop,
   pasteTrips,

@@ -10,6 +10,7 @@ export {
 export {
   APP_STATE_KEYS,
   type AppState,
+  type DiagramTool,
   type DocumentState,
   type FileState,
   type MaximizedPane,

@@ -11,12 +11,15 @@
  */
 
 import type { ReactElement, ReactNode } from 'react';
+import { DIRECTION_LABEL } from '@/features/timetable';
 import {
+  selectActiveDirection,
   selectCanRedo,
   selectCanUndo,
   selectRedoLabel,
   selectUndoLabel,
   useAppStore,
+  type DiagramTool,
 } from '@/store';
 import { togglePane, type Pane } from './layout';
 
@@ -28,6 +31,12 @@ export interface ToolbarProps {
   /** 本来の置き場所ができるまでの仮の操作（App が渡す）。 */
   readonly extra?: ReactNode;
 }
+
+/** ダイヤグラムの道具（仕様書 §6.4 のツールバー）。 */
+const TOOLS: readonly { readonly tool: DiagramTool; readonly label: string }[] = [
+  { tool: 'select', label: '選択' },
+  { tool: 'draw', label: 'スジ作成' },
+];
 
 const PANE_LABEL: Record<Pane, string> = {
   diagram: 'ダイヤグラム',
@@ -44,6 +53,10 @@ export function Toolbar(props: ToolbarProps): ReactElement {
 
   const maximized = useAppStore((state) => state.ui.maximized);
   const setMaximizedPane = useAppStore((state) => state.setMaximizedPane);
+
+  const tool = useAppStore((state) => state.ui.tool);
+  const setTool = useAppStore((state) => state.setTool);
+  const direction = useAppStore(selectActiveDirection);
 
   return (
     <div className="toolbar" role="toolbar" aria-label="ツールバー">
@@ -84,6 +97,32 @@ export function Toolbar(props: ToolbarProps): ReactElement {
         >
           やり直す
         </button>
+      </div>
+
+      {/*
+        作図モード（仕様書 §6.3.3、§6.4）。**今どちらの道具を持っているかを
+        画面に出す。** 出さないと、押しても何も起きない・押した覚えのない便が
+        できる、のどちらかが起きる。
+      */}
+      <div className="toolbar__group" role="radiogroup" aria-label="ダイヤグラムの道具">
+        {TOOLS.map((entry) => (
+          <button
+            key={entry.tool}
+            type="button"
+            role="radio"
+            aria-checked={tool === entry.tool}
+            title={
+              entry.tool === 'draw'
+                ? `停留所線を押すと ${DIRECTION_LABEL[direction]} の便ができます`
+                : undefined
+            }
+            onClick={() => {
+              setTool(entry.tool);
+            }}
+          >
+            {entry.label}
+          </button>
+        ))}
       </div>
 
       <div className="toolbar__group">

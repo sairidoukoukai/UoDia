@@ -65,6 +65,7 @@ beforeEach(() => {
     .getState()
     .setProject(createProject(network, { now: new Date('2026-01-01T00:00:00Z') }));
   useAppStore.getState().setMaximizedPane(null);
+  useAppStore.getState().setTool('select');
   mount();
 });
 
@@ -94,6 +95,21 @@ describe('ツールバー', () => {
     expect(button('元に戻す').disabled).toBe(false);
     // **何が戻るのかを押す前に出す**（仕様書 §6.7）。
     expect(button('元に戻す').title).toBe('文書名の変更 を元に戻す');
+  });
+
+  it('道具を選べる（仕様書 §6.3.3、T-30）', () => {
+    expect(useAppStore.getState().ui.tool).toBe('select');
+    expect(button('選択').getAttribute('aria-checked')).toBe('true');
+
+    press('スジ作成');
+
+    expect(useAppStore.getState().ui.tool).toBe('draw');
+    expect(button('スジ作成').getAttribute('aria-checked')).toBe('true');
+    expect(button('選択').getAttribute('aria-checked')).toBe('false');
+  });
+
+  it('作図で何ができるかを持ち手に出す（どちらの方向の便になるか）', () => {
+    expect(button('スジ作成').title).toContain('吹田方面');
   });
 
   it('最大化を切り替えられる。**押し直せば 2 分割に戻る**', () => {

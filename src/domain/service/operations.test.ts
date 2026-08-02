@@ -22,6 +22,7 @@ import { fromHM } from '@/domain/time';
 import { originTime, timeAt } from '@/domain/trip';
 import {
   addTripAt,
+  createTrip,
   changeTripsPattern,
   copyTripsToService,
   patternForStop,
@@ -159,6 +160,43 @@ describe('便を時刻ごと作る（T-52）', () => {
     const other = [makeTrip('t5', 'S1', [8, 0])];
     const result = addTripAt([], 'S1', '1_0', fromHM(9, 0), network, other);
     expect(result?.added[0]?.tripId).toBe('t6');
+  });
+});
+
+describe('便の作成（T-30、仕様書 §6.1.2・§6.1.5）', () => {
+  it('便ができ、**運用番号も提案される**', () => {
+    const result = createTrip([], 'S1', '1_0', fromHM(9, 0), network);
+
+    expect(result?.added).toHaveLength(1);
+    // 継げる運用が無ければ新しい運用番号を興す（v4.11）。
+    expect(result?.added[0]?.blockId).not.toBe('');
+  });
+
+  it('返す並びにも提案が入っている（画面が入れ直さずに済む）', () => {
+    const result = createTrip([], 'S1', '1_0', fromHM(9, 0), network);
+    const added = result?.added[0];
+
+    expect(result?.trips.at(-1)).toEqual(added);
+  });
+
+  it('継げる運用があればその番号を継ぐ', () => {
+    // 8:00 豊中発 → 8:30 工学部前着。そこから 8:30 発の豊中方面へ継げる。
+    const first = createTrip([], 'S1', '1_0', fromHM(8, 0), network);
+    const trips = first?.trips ?? [];
+    const second = createTrip(trips, 'T1', '4_0', fromHM(8, 30), network);
+
+    expect(second?.added[0]?.blockId).toBe(first?.added[0]?.blockId);
+  });
+
+  it('作れないときは `null`（`addTripAt` と同じ）', () => {
+    expect(createTrip([], '無い', '1_0', fromHM(9, 0), network)).toBeNull();
+    expect(createTrip([], 'S3', '1_0', fromHM(47, 55), network)).toBeNull();
+  });
+
+  it('元の配列を書き換えない', () => {
+    const trips = [makeTrip('t1', 'S1', [8, 0])];
+    createTrip(trips, 'S3', '1_0', fromHM(9, 0), network);
+    expect(trips).toHaveLength(1);
   });
 });
 

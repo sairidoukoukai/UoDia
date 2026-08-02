@@ -25,6 +25,7 @@
  * 「元に戻す」を押しても何も起きない段は、利用者から見れば故障である。
  */
 
+import { withSuggestedBlockId } from '@/domain/block';
 import type { DirectionId, Trip } from '@/domain/model';
 import type { NetworkIndex } from '@/domain/network';
 import { GRAIN_SECONDS, SECONDS_PER_MINUTE, compareTime, type Seconds } from '@/domain/time';
@@ -137,6 +138,39 @@ export function addTripAt(
   if (trip === null) return null;
 
   return { trips: [...trips, trip], added: [trip] };
+}
+
+/**
+ * 時刻を入れた便を 1 つ加え、**運用番号も提案する**（仕様書 §6.1.2、§6.1.5）。
+ *
+ * 時刻表の升目に打っても（T-52）、ダイヤグラムに線を引いても（T-30）、起きる
+ * ことは同じである——**同じ操作の入口が 2 つある**だけであり、規則を 2 か所に
+ * 書くと、いつか片方だけが直る。
+ *
+ * @returns 表せる範囲を外れる、またはパターンが無ければ `null`
+ */
+export function createTrip(
+  trips: readonly Trip[],
+  patternId: string,
+  stopId: string,
+  time: Seconds,
+  network: NetworkIndex,
+  among: readonly Trip[] = trips,
+): TripInsertion | null {
+  const result = addTripAt(trips, patternId, stopId, time, network, among);
+  if (result === null) return null;
+
+  // 運用番号を提案した便で置き換える。**ID は変わらない**ため、並びの側は
+  // ID で引き当てられる。
+  const numbered = result.added.map((trip) =>
+    withSuggestedBlockId(trip, undefined, trips, network),
+  );
+  const added = new Map(numbered.map((trip) => [trip.tripId, trip]));
+
+  return {
+    trips: result.trips.map((trip) => added.get(trip.tripId) ?? trip),
+    added: numbered,
+  };
 }
 
 /**
