@@ -732,12 +732,67 @@ body {
 }
 
 /*
+ * スジの右クリックメニュー（T-31、仕様書 §6.3.4）。
+ *
+ * canvas の上に重ねる。**canvas に描き足さない**——焦点も読み上げも、DOM に
+ * 元からあるものが働く（§9.4）。
+ */
+.trip-menu {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 10rem;
+  padding: 0.25rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.25rem;
+  background: var(--color-bg);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 20%);
+  font-size: 0.8125rem;
+}
+
+.trip-menu__title {
+  margin: 0;
+  padding: 0 0.25rem;
+  color: var(--color-fg-muted);
+}
+
+.trip-menu button {
+  padding: 0.15rem 0.25rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.trip-menu button:hover,
+.trip-menu button:focus-visible {
+  background: var(--color-selected);
+}
+
+.trip-menu__field {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.25rem;
+}
+
+.trip-menu__block {
+  width: 4rem;
+}
+
+/*
  * ダイヤグラム（T-24、仕様書 §6.2）。
  *
  * 高さは持たない。**入れ物（上の枠）の高さいっぱいに広がる**（T-32）。決め打ちに
  * すると、境界を動かしても canvas の大きさが変わらない。
  */
 .diagram {
+  /* メニューを重ねる基準にする（`.trip-menu` は絶対位置）。 */
+  position: relative;
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;

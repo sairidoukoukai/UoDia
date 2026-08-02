@@ -73,6 +73,15 @@ export interface TripControlOptions {
   readonly theme: SceneTheme;
   /** 引きずりの受け口を張る先。既定は `window`（テストで差し替える）。 */
   readonly target?: Pick<Window, 'addEventListener' | 'removeEventListener'>;
+  /**
+   * スジの上で右クリックされた（仕様書 §6.3.4、T-31）。
+   *
+   * 場所は canvas の左上を原点とする px。スジの無い場所では `null` を渡す
+   * （開いているメニューを閉じるため）。**メニューそのものは React が描く**
+   * ——canvas に文字と押しボタンを描き足すより、DOM に任せるほうが、焦点も
+   * 読み上げも既にあるものが働く（§9.4）。
+   */
+  readonly onContextMenu?: (at: ScreenPoint | null) => void;
 }
 
 const LEFT_BUTTON = 0;
@@ -361,6 +370,37 @@ export function attachTripControls(options: TripControlOptions): () => void {
     finish();
   };
 
+  /**
+   * 右クリック（仕様書 §6.3.4）。
+   *
+   * **押したスジをまず選ぶ。** 何に効く操作なのかを見せないままメニューを
+   * 出すと、選んだつもりの無い便が消える。既に選ばれている便を押したときは
+   * 選択をそのままにする——まとめて効かせるための選択を崩さない。
+   */
+  const onContextMenu = (event: MouseEvent): void => {
+    const view = viewOf();
+    if (view === null) return;
+
+    // ブラウザの既定のメニューは出さない。
+    event.preventDefault();
+
+    const point = pointOf(event);
+    const state = store.getState();
+    const hit = hitTrip(
+      selectDiagramScene(state, theme),
+      viewportForCanvas(view, canvas),
+      point,
+    )?.sourceTripId;
+
+    if (hit === undefined) {
+      options.onContextMenu?.(null);
+      return;
+    }
+
+    if (!state.ui.selectedTripIds.includes(hit)) state.selectTrips([hit]);
+    options.onContextMenu?.(point);
+  };
+
   const onKeyDown = (event: KeyboardEvent): void => {
     if (event.key !== 'Escape') return;
 
@@ -380,6 +420,7 @@ export function attachTripControls(options: TripControlOptions): () => void {
   };
 
   canvas.addEventListener('pointerdown', onPointerDown);
+  canvas.addEventListener('contextmenu', onContextMenu);
   canvas.addEventListener('pointermove', onHover as EventListener);
   canvas.addEventListener('keydown', onKeyDown);
   canvas.addEventListener('blur', cancel);
@@ -389,6 +430,7 @@ export function attachTripControls(options: TripControlOptions): () => void {
 
   return () => {
     canvas.removeEventListener('pointerdown', onPointerDown);
+    canvas.removeEventListener('contextmenu', onContextMenu);
     canvas.removeEventListener('pointermove', onHover as EventListener);
     canvas.removeEventListener('keydown', onKeyDown);
     canvas.removeEventListener('blur', cancel);

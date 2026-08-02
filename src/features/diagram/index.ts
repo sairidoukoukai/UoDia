@@ -2,6 +2,10 @@ export { DiagramCanvas, type DiagramCanvasProps } from './DiagramCanvas';
 
 export { cursorAt, type DiagramCursor } from './cursor';
 
+export { STOP_LINE_TOLERANCE, creationTargetAt, type CreationTarget } from './creation';
+
+export { TripContextMenu, type MenuPosition, type TripContextMenuProps } from './TripContextMenu';
+
 export {
   attachDiagram,
   paintDiagram,
