@@ -36,6 +36,7 @@ import {
   watchWindowTitle,
 } from '@/features/file';
 import {
+  BrowserNotice,
   HelpDialog,
   MenuBar,
   SplitLayout,
@@ -299,6 +300,12 @@ export function App(): ReactElement {
         メニューの代わりではない。
       */}
       <MenuBar actions={actions} extra={menuExtra} />
+
+      {/*
+        できないことを押す前に伝える（§10.4、T-42）。メニューの下・ツールバーの
+        上に置くのは、**操作を始める前に目に入る**位置だからである。
+      */}
+      <BrowserNotice kind={platform.kind} capabilities={platform.capabilities} />
 
       <Toolbar
         onNew={run(() => files.newProject())}

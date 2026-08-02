@@ -104,9 +104,13 @@ function makeProject(): Project {
 /**
  * 何度か測って**いちばん速い回**を採る。
  *
- * 遅い回は測定の邪魔（GC・他のプロセス）が混ざる。速い回に邪魔は混ざらない。
+ * 遅い回は測定の邪魔（GC・他のプロセス・JIT の暖まり）が混ざる。速い回に
+ * 邪魔は混ざらない。**1 回目は捨てる**——初回は必ず暖機を含み、利用者が
+ * 感じる速さではない。
  */
-function fastest(run: () => void, times = 5): number {
+function fastest(run: () => void, times = 12): number {
+  run();
+
   let best = Number.POSITIVE_INFINITY;
   for (let i = 0; i < times; i += 1) {
     const start = performance.now();

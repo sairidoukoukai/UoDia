@@ -138,13 +138,35 @@ body {
 .app-shell {
   display: grid;
   /*
-    メニューバー・ツールバー・本体・検証パネル・ステータスバー。
-    伸びるのは本体だけである。
+    メニューバー・案内・ツールバー・本体・検証パネル・ステータスバー。
+    伸びるのは本体だけである。**`auto` は無い行を潰す**ため、案内が出ていない
+    ときに隙間は空かない。
   */
-  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
   height: 100%;
   /* 子（分割領域）が縮めるようにする。既定の auto では中身の高さが下限になる。 */
   min-height: 0;
+}
+
+/* 対応していないブラウザへの案内（§10.4、T-42）。 */
+.notice {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 0.4rem 0.75rem;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-anchor);
+  color: var(--color-fg);
+  font-size: 0.8125rem;
+}
+
+.notice__text {
+  margin: 0;
+}
+
+.notice__close {
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 /* メニューバー（仕様書 §8.1、T-37）。 */
