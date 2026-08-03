@@ -13,7 +13,13 @@
 import type { ReactElement } from 'react';
 import { formatTime } from '@/domain/time';
 import type { DiagramCursor } from '@/features/diagram';
-import { selectBlocks, selectIsDirty, selectTrips, useAppStore } from '@/store';
+import { selectBlocks, selectIsDirty, selectTrips, useAppStore, type DiagramTool } from '@/store';
+
+/** 作図の道具の呼び名（仕様書 §6.3.3）。メニューの項目名と同じ言葉を使う。 */
+const TOOL_LABEL: Record<DiagramTool, string> = {
+  select: '選択',
+  draw: 'スジ作成',
+};
 
 export interface StatusBarProps {
   /** ダイヤグラムのカーソルが指しているもの。外にあれば `null`。 */
@@ -26,6 +32,7 @@ export function StatusBar(props: StatusBarProps): ReactElement {
   const trips = useAppStore(selectTrips);
   const blocks = useAppStore(selectBlocks);
   const dirty = useAppStore(selectIsDirty);
+  const tool = useAppStore((state) => state.ui.tool);
   const { cursor } = props;
 
   return (
@@ -37,6 +44,12 @@ export function StatusBar(props: StatusBarProps): ReactElement {
       <span className="status-bar__item status-bar__item--cursor">
         {cursor === null ? '—' : `${formatTime(cursor.time)} ／ ${cursor.shortName}`}
       </span>
+      {/*
+        いまどちらの道具を持っているか（§6.3.3、#144）。**出さないと、押しても
+        何も起きない・押した覚えのない便ができる、のどちらかが起きる。** ツール
+        バーを畳んだため（メニューへ集約）、常に見えている場所はここになった。
+      */}
+      <span className="status-bar__item status-bar__item--tool">{TOOL_LABEL[tool]}</span>
       <span className="status-bar__item">{trips.length} 便</span>
       <span className="status-bar__item">{blocks?.blocks.length ?? 0} 運用</span>
       <span className="status-bar__item">{dirty ? '未保存' : '保存済み'}</span>

@@ -41,7 +41,7 @@ import {
   MenuBar,
   SplitLayout,
   StatusBar,
-  Toolbar,
+  DocumentDialog,
   attachShortcuts,
   togglePane,
   type CommandActions,
@@ -73,6 +73,7 @@ export function App(): ReactElement {
   const [cursor, setCursor] = useState<DiagramCursor | null>(null);
   const [help, setHelp] = useState<HelpTopic | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [documentOpen, setDocumentOpen] = useState(false);
   /** 直前の操作が伝えたいこと（写した便の数など）。次の操作で置き換わる。 */
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -92,8 +93,8 @@ export function App(): ReactElement {
   const canUndo = useAppStore(selectCanUndo);
   const canRedo = useAppStore(selectCanRedo);
   const setNetworkDef = useAppStore((state) => state.setNetworkDef);
-  const editProject = useAppStore((state) => state.editProject);
-  const documentName = useAppStore((state) => state.project?.document.name ?? '');
+  const tool = useAppStore((state) => state.ui.tool);
+  const maximized = useAppStore((state) => state.ui.maximized);
 
   /** 履歴を読み直す。ファイル操作のあとに呼ぶ。 */
   const refreshRecent = useMemo(
@@ -164,11 +165,6 @@ export function App(): ReactElement {
     [platform, files, backups],
   );
 
-  /** ファイル操作を実行し、履歴を読み直す。 */
-  const run = (action: () => Promise<boolean>) => (): void => {
-    void action().then(refreshRecent, refreshRecent);
-  };
-
   // 参照を変えない。変えると、ダイヤグラムが繋ぎ直しはしないまでも（`useRef`）、
   // 指を動かすたびに App ごと描き直される道ができてしまう。
   const handleCursor = useCallback((next: DiagramCursor | null) => {
@@ -200,6 +196,9 @@ export function App(): ReactElement {
       'file.save': runFile(() => files.save()),
       'file.saveAs': runFile(() => files.saveAs()),
       'file.backupNow': runFile(() => backups.backupNow()),
+      'file.documentInfo': (): void => {
+        setDocumentOpen(true);
+      },
 
       'edit.undo': canUndo
         ? (): void => {
@@ -219,6 +218,13 @@ export function App(): ReactElement {
       },
       'edit.paste': (): void => {
         setNotice(pasteClipboard(useAppStore));
+      },
+
+      'edit.selectTool': (): void => {
+        useAppStore.getState().setTool('select');
+      },
+      'edit.drawTool': (): void => {
+        useAppStore.getState().setTool('draw');
       },
 
       'view.maximizeDiagram': maximize('diagram'),
@@ -242,6 +248,22 @@ export function App(): ReactElement {
       },
     };
   }, [files, backups, refreshRecent, canUndo, canRedo]);
+
+  /**
+   * メニューに印を付ける操作（#144）。
+   *
+   * ツールバーを畳んだため、**いまどちらの道具を持っているか**を知る場所は
+   * メニューとステータスバーだけになった。
+   */
+  const checked = useMemo(
+    () => ({
+      'edit.selectTool': tool === 'select',
+      'edit.drawTool': tool === 'draw',
+      'view.maximizeDiagram': maximized === 'diagram',
+      'view.maximizeTimetable': maximized === 'timetable',
+    }),
+    [tool, maximized],
+  );
 
   // ショートカット（仕様書 §8.1）。メニューと同じ表を読む（T-37）。
   useEffect(() => attachShortcuts({ actions }), [actions]);
@@ -295,58 +317,17 @@ export function App(): ReactElement {
   return (
     <div className="app-shell">
       {/*
-        メニューバーは画面のいちばん上に置く（仕様書 §8.1）。ツールバーはその
-        下に残る——**よく押すものを手の届く所に置く**ためのものであり、
-        メニューの代わりではない。
+        操作はすべてメニューから行う（仕様書 §8.1、#144）。**同じ操作を 2 か所に
+        置かない**——ツールバーとメニューに同じ押しボタンが並ぶと、どちらが正なのか
+        を利用者が確かめる羽目になる。
       */}
-      <MenuBar actions={actions} extra={menuExtra} />
+      <MenuBar actions={actions} extra={menuExtra} checked={checked} />
 
       {/*
-        できないことを押す前に伝える（§10.4、T-42）。メニューの下・ツールバーの
-        上に置くのは、**操作を始める前に目に入る**位置だからである。
+        できないことを押す前に伝える（§10.4、T-42）。メニューのすぐ下に置くのは、
+        **操作を始める前に目に入る**位置だからである。
       */}
       <BrowserNotice kind={platform.kind} capabilities={platform.capabilities} />
-
-      <Toolbar
-        onNew={run(() => files.newProject())}
-        onOpen={run(() => files.open())}
-        onSave={run(() => files.save())}
-        onSaveAs={run(() => files.saveAs())}
-        extra={
-          /*
-            本来の置き場所ができるまでの仮の操作。文書名は文書情報のダイアログ
-            （T-35）が引き取る。最近使ったファイルと「今すぐバックアップ」は
-            メニューへ移した（T-37）。
-          */
-          <div className="toolbar__group toolbar__group--temporary">
-            <label>
-              文書名{' '}
-              <input
-                value={documentName}
-                onChange={(event) => {
-                  const name = event.target.value;
-                  editProject(
-                    '文書名の変更',
-                    (project) => {
-                      project.document.name = name;
-                    },
-                    'document.name',
-                  );
-                }}
-              />
-            </label>
-            {/*
-              どの実行環境で何ができるか（§10.4）。Web 版では上書き保存が
-              ダウンロードになるなど、**同じ押しボタンが違う振る舞いをする**。
-              確かめる手立てが要る。
-            */}
-            <span className="toolbar__note">
-              {platform.kind}
-              {platform.capabilities.saveInPlace ? '' : '（上書き保存はダウンロード）'}
-            </span>
-          </div>
-        }
-      />
 
       {/*
         サイドパネルは上下 2 分割の**外**に置く。ダイヤ・パターン・運用・表示は
@@ -371,6 +352,12 @@ export function App(): ReactElement {
       <StatusBar cursor={cursor} message={statusMessage ?? notice} />
 
       <FileDialogHost request={request} onRespond={respond} />
+      <DocumentDialog
+        open={documentOpen}
+        onClose={() => {
+          setDocumentOpen(false);
+        }}
+      />
       <HelpDialog
         topic={help}
         onClose={() => {
