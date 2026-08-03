@@ -1058,6 +1058,33 @@ body {
   font-weight: 700;
 }
 
+/*
+ * 最大化中に 2 方向を並べた 1 枚（#145）。
+ *
+ * **配分を決める仕掛けを置かない。** 行は停留所であり便は列であるため、表の
+ * 高さは便が何本あっても変わらない。2 枚をそのまま積めば、それぞれ自然な高さに
+ * 収まる。入り切らないときは時刻表の枠が縦に送る（`.split__pane`）。
+ */
+.timetable__table + .timetable__table {
+  margin-top: 0.75rem;
+}
+
+/* どちらの表かを表の上に書く。**触っている側は色の帯で示す**——色だけに
+   頼らず、文字の濃さも併せて変える（§9.4）。 */
+.timetable__name {
+  margin: 0 0 0.25rem;
+  padding-left: 0.375rem;
+  border-left: 3px solid transparent;
+  color: var(--color-fg-muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.timetable__table--active .timetable__name {
+  border-left-color: var(--color-focus);
+  color: var(--color-fg);
+}
+
 .timetable__scroll {
   overflow-x: auto;
   border: 1px solid var(--color-border);
