@@ -1,0 +1,1496 @@
+/*
+ * 配色（仕様書 §9.4、T-39）。
+ *
+ * **色は 1 か所にしか置かない。** ダイヤグラムの canvas もここから読む
+ * （`DiagramCanvas.readTheme`）。JS 側にも色を書くと、片方だけ直した配色が
+ * 生まれ、格子とスジで違う灰色が並ぶ。
+ *
+ * 3 つの状態がある。
+ *
+ * | 選択 | 出るもの |
+ * | --- | --- |
+ * | システムに従う（既定） | 属性を付けない。媒体問い合わせが決める |
+ * | 明るい | `[data-theme='light']`。**OS が暗くても明るいまま** |
+ * | 暗い | `[data-theme='dark']` |
+ *
+ * 暗い配色を 2 度書いているのは、この 3 つを CSS だけで表すためである。媒体
+ * 問い合わせの側で `:not([data-theme='light'])` を挟むことで、明るいを選んだ人が
+ * OS の設定に引き戻されない。
+ */
+
+:root {
+  --color-bg: #ffffff;
+  --color-fg: #1a1a1a;
+  --color-fg-muted: #666666;
+  --color-border: #cccccc;
+  --color-bg-accent: #f4f4f4;
+  /* ダイヤグラムの罫線（仕様書 §6.2.2）。60 分線は --color-border を使い、
+     30 分線・10 分線を --color-grid、5 分線を --color-grid-faint とする。 */
+  --color-grid: #e4e4e4;
+  --color-grid-faint: #f0f0f0;
+  --color-error: #c0392b;
+  /* 警告（検証パネル、T-34）。エラーの赤と情報の灰の間に置く。 */
+  --color-warning: #b26a00;
+  /* アンカーの升目。色だけに頼らず太字も併用する（仕様書 §9.4）。 */
+  --color-anchor: #fff2b8;
+  --color-focus: #2f6fdb;
+  --color-invalid: #ffd6d0;
+  --color-rounded: #cfe8ff;
+  --color-selected: #dbe9ff;
+  /* 同じ運用の列に重ねる網掛け。下の色（選択・アンカー・運用の帯）を
+     消さずに済むよう、半透明にする。 */
+  --color-same-block: rgb(0 0 0 / 8%);
+
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    'Hiragino Sans',
+    'Noto Sans JP',
+    sans-serif;
+  line-height: 1.6;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  /* 「明るい」を選んだ人は OS の設定に引き戻さない。 */
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --color-bg: #1a1a1a;
+    --color-fg: #f0f0f0;
+    --color-fg-muted: #999999;
+    --color-border: #444444;
+    --color-bg-accent: #262626;
+    --color-grid: #333333;
+    --color-grid-faint: #2a2a2a;
+    --color-error: #ff7b6b;
+    --color-warning: #e0a458;
+    --color-anchor: #5a4a12;
+    --color-focus: #7aa8ff;
+    --color-invalid: #6b2a22;
+    --color-selected: #23384f;
+    --color-same-block: rgb(255 255 255 / 10%);
+    --color-rounded: #1f4468;
+  }
+}
+
+/* 選び直したテーマ。媒体問い合わせより後に置いて、同じ強さでも勝たせる。 */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --color-bg: #1a1a1a;
+  --color-fg: #f0f0f0;
+  --color-fg-muted: #999999;
+  --color-border: #444444;
+  --color-bg-accent: #262626;
+  --color-grid: #333333;
+  --color-grid-faint: #2a2a2a;
+  --color-error: #ff7b6b;
+  --color-warning: #e0a458;
+  --color-anchor: #5a4a12;
+  --color-focus: #7aa8ff;
+  --color-invalid: #6b2a22;
+  --color-selected: #23384f;
+  --color-same-block: rgb(255 255 255 / 10%);
+  --color-rounded: #1f4468;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/*
+ * 焦点の枠（仕様書 §9.4、T-39）。
+ *
+ * **どこに焦点があるかを常に見せる。** 部品ごとに書いていくと、書き忘れた 1 つが
+ * 「キーボードで辿ると行方不明になる場所」になる。ここで全体に敷き、部品側は
+ * 位置の調整だけを行う。
+ *
+ * `:focus-visible` を使うのは、押しボタンを**マウスで押しただけ**のときに枠を
+ * 出さないためである（利用者は自分が押した場所を知っている）。
+ */
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 1px;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-fg);
+}
+
+/*
+ * 画面の骨格（仕様書 §6.4、T-32）。ツールバー・上下 2 分割・ステータスバー。
+ *
+ * **窓の高さに収める。** ページ全体が縦に伸びる作りだと、ダイヤグラムの下に
+ * 時刻表が続く長い 1 枚になり、上下 2 分割にならない。
+ */
+.app-shell {
+  display: grid;
+  /*
+    **居場所は名前で与える（並び順に頼らない）。**
+
+    行の並びだけで割り当てると、途中の要素が消えたときに以下が全部繰り上がる。
+    案内（`BrowserNotice`）はふだん何も描かない——デスクトップ版でも、上書き
+    保存できるブラウザでも `null` である——ため、並び順で書いていた頃は
+    **伸びる行が本体ではなく検証パネルになっていた**（#135）。検証パネルを
+    畳んでも枠だけが残り、本体は中身なりの高さのままだった。
+
+    名前で与えれば、要素が 1 つ増えても減っても他はずれない。
+  */
+  grid-template-areas:
+    'menubar'
+    'notice'
+    'body'
+    'validation'
+    'statusbar';
+  /* 伸びるのは本体だけである。**`auto` は無い行を潰す**ため、案内が出ていない
+     ときに隙間は空かない。 */
+  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+  height: 100%;
+  /* 子（分割領域）が縮めるようにする。既定の auto では中身の高さが下限になる。 */
+  min-height: 0;
+}
+
+/* 対応していないブラウザへの案内（§10.4、T-42）。 */
+.notice {
+  grid-area: notice;
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 0.4rem 0.75rem;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-anchor);
+  color: var(--color-fg);
+  font-size: 0.8125rem;
+}
+
+.notice__text {
+  margin: 0;
+}
+
+.notice__close {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+/* メニューバー（仕様書 §8.1、T-37）。 */
+.menubar {
+  grid-area: menubar;
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-accent);
+  font-size: 0.875rem;
+}
+
+.menubar__menu {
+  position: relative;
+}
+
+.menubar__title {
+  padding: 0.25rem 0.7rem;
+  border: none;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.menubar__title:hover,
+.menubar__title[aria-expanded='true'] {
+  background: var(--color-same-block);
+}
+
+.menubar__title:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+/* 開いた一覧。**画面の重なりでツールバーより上に置く。** */
+.menubar__panel {
+  position: absolute;
+  z-index: 20;
+  top: 100%;
+  left: 0;
+  min-width: 15rem;
+  padding: 0.25rem 0;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-bg);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 18%);
+}
+
+/* 区切り線。前の群との境目に引く。 */
+.menubar__group {
+  border-top: 1px solid var(--color-border);
+  margin-top: 0.25rem;
+  padding-top: 0.25rem;
+}
+
+.menubar__item {
+  display: flex;
+  gap: 1.5rem;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.3rem 0.9rem;
+  border: none;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/*
+ * 印を付ける項目（作図の道具・最大化。#144）。
+ *
+ * **場所は常に取っておく。** 印が付いた瞬間に文字がずれると、押した先が動いた
+ * ように見える。印だけに頼らず、読み上げにも `menuitemradio` として伝わる。
+ */
+.menubar__check {
+  flex: 0 0 auto;
+  width: 1em;
+  color: var(--color-focus);
+}
+
+/* 印のぶん、名前は左端から少し離れる。名前と鍵の間は空けたままにする。 */
+.menubar__item {
+  justify-content: flex-start;
+}
+
+.menubar__label {
+  flex: 1 1 auto;
+}
+
+.menubar__item:disabled {
+  color: var(--color-fg-muted);
+  cursor: default;
+}
+
+.menubar__item:hover:not(:disabled),
+.menubar__item:focus {
+  background: var(--color-bg-accent);
+}
+
+.menubar__item:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+/* 鍵の綴り。**押す名前より控えめにする。** */
+.menubar__key {
+  color: var(--color-fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 設定ダイアログ（仕様書 §6.5、T-35）。焦点と Esc は <dialog> に任せる。 */
+.settings {
+  width: min(44rem, 92vw);
+  max-height: 86vh;
+  padding: 0;
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-bg);
+  color: var(--color-fg);
+}
+
+.settings::backdrop {
+  background: rgb(0 0 0 / 35%);
+}
+
+.settings__tabs {
+  position: sticky;
+  z-index: 1;
+  top: 0;
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.5rem 0.75rem 0;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-accent);
+}
+
+.settings__tab {
+  padding: 0.3rem 0.9rem;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 4px 4px 0 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.settings__tab--active {
+  border-color: var(--color-border);
+  background: var(--color-bg);
+  font-weight: bold;
+}
+
+.settings__panel {
+  padding: 0.75rem 1rem;
+}
+
+.settings__segments {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.settings__segments th[scope='col'] {
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+}
+
+.settings__segments th[scope='row'] {
+  padding: 0.15rem 0.5rem 0.15rem 0;
+  font-weight: normal;
+  text-align: left;
+}
+
+.settings__segments td {
+  padding: 0.15rem 0;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* 回送の区間。営業の区間と見分ける（縦軸には出ない。#118）。 */
+.settings__row--deadhead th[scope='row'] {
+  color: var(--color-fg-muted);
+}
+
+.settings__minutes {
+  width: 4.5rem;
+  font: inherit;
+  text-align: right;
+}
+
+.settings__minutes--invalid {
+  background: var(--color-invalid);
+}
+
+.settings__field {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+  font-size: 0.875rem;
+}
+
+.settings__field input {
+  width: 6rem;
+  font: inherit;
+  text-align: right;
+}
+
+.settings__note {
+  color: var(--color-fg-muted);
+  font-size: 0.8125rem;
+}
+
+.settings__error {
+  color: var(--color-error);
+  font-size: 0.875rem;
+}
+
+.settings__affected,
+.settings__message {
+  font-size: 0.875rem;
+}
+
+.settings__confirm {
+  font-size: 0.875rem;
+  font-weight: bold;
+}
+
+.settings__panel-actions,
+.settings__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.settings__actions {
+  justify-content: flex-end;
+  padding: 0 1rem 1rem;
+}
+
+/* テーマの選択（§6.5.3、T-39）。 */
+.settings__theme {
+  margin: 0 0 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  font-size: 0.875rem;
+}
+
+.settings__radio {
+  margin-right: 1rem;
+}
+
+/*
+ * 停留所の線種の上書き（§6.5.3、#133）。
+ *
+ * テーマと同じ囲みにする。**どちらも「この人の目に合わせる」設定**であり、
+ * 既定の拡大率（文書の見え方）とは別の話である。
+ */
+.settings__grid-styles {
+  margin: 0.75rem 0 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  font-size: 0.875rem;
+}
+
+.settings__stops {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+/* 運用の色を選ぶ欄（#148）と、自動に戻す押しボタン。 */
+.panel__color {
+  width: 1.5rem;
+  height: 1rem;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  background: transparent;
+  cursor: pointer;
+}
+
+.panel__reset {
+  padding: 0 0.25rem;
+  border: 0;
+  background: transparent;
+  color: var(--color-fg-muted);
+  cursor: pointer;
+}
+
+.panel__reset:hover {
+  color: var(--color-fg);
+}
+
+.settings__stops th[scope='col'] {
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+}
+
+.settings__stops th[scope='row'] {
+  padding: 0.15rem 0.5rem 0.15rem 0;
+  font-weight: normal;
+  text-align: left;
+}
+
+.settings__stops td {
+  padding: 0.15rem 0;
+  text-align: right;
+}
+
+/* 停車パターンの編集（隠し設定。§6.5.4、T-36）。 */
+.settings__patterns {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+}
+
+.settings__pattern-list {
+  max-height: 22rem;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  list-style: none;
+}
+
+.settings__pattern-list button {
+  display: block;
+  width: 100%;
+  padding: 0.25rem 0.5rem;
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 0.8125rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.settings__pattern-list button[aria-pressed='true'] {
+  background: var(--color-selected);
+}
+
+.settings__pattern-id {
+  font-weight: bold;
+}
+
+.settings__stops {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.settings__stops th[scope='row'] {
+  font-weight: normal;
+  text-align: left;
+}
+
+.settings__stops td {
+  text-align: right;
+}
+
+.settings__stops button {
+  padding: 0 0.4rem;
+}
+
+.settings__issues {
+  margin: 0.5rem 0 0;
+  padding-left: 1.2rem;
+  font-size: 0.8125rem;
+}
+
+/* ヘルプの窓（T-37）。焦点と Esc は <dialog> に任せる。 */
+.help-dialog {
+  max-width: 32rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-bg);
+  color: var(--color-fg);
+}
+
+.help-dialog::backdrop {
+  background: rgb(0 0 0 / 35%);
+}
+
+.help-dialog h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
+.help-dialog h3 {
+  margin: 0.75rem 0 0.25rem;
+  font-size: 0.875rem;
+}
+
+.help-dialog__keys {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.help-dialog__keys th {
+  padding: 0.15rem 0.5rem 0.15rem 0;
+  font-weight: normal;
+  text-align: left;
+}
+
+.help-dialog__keys td {
+  padding: 0.15rem 0;
+  color: var(--color-fg-muted);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.help-dialog__note {
+  margin: 0.75rem 0 0;
+  color: var(--color-fg-muted);
+  font-size: 0.8125rem;
+}
+
+.help-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+
+/* サイドパネルと上下 2 分割を横に並べる段（仕様書 §6.4）。 */
+.app-body {
+  grid-area: body;
+  display: flex;
+  min-height: 0;
+  /*
+   * **窓より広がらせない**（#143）。格子の升目は既定で `min-width: auto`、
+   * すなわち中身が縮められる最小の幅までしか縮まない。時刻表は「表そのものの
+   * 幅」を最小と主張するため、便が増えるほど升目が広がり、**窓全体に横の送りが
+   * 付いてしまう**（時刻表の中で送ってほしい）。ダイヤグラムも巻き添えで、
+   * canvas が窓の何倍もの幅で描かれていた。
+   */
+  min-width: 0;
+}
+
+/* サイドパネル（T-33）。幅は決め打ちにし、中身が伸びたら縦に送る。 */
+.panel {
+  display: flex;
+  flex: 0 0 15rem;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.5rem;
+  overflow-y: auto;
+  border-right: 1px solid var(--color-border);
+  background: var(--color-bg-accent);
+  font-size: 0.8125rem;
+}
+
+.panel__title {
+  margin: 0 0 0.25rem;
+  color: var(--color-fg-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+.panel__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.panel__row {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+  padding: 0.1rem 0;
+}
+
+/* 編集中のダイヤ。どれを触っているのかが一目で分かるようにする。 */
+.panel__row--active {
+  font-weight: 600;
+}
+
+/* 名前・行先は長い。**列の幅を奪わせない**——溢れたら省略する。 */
+.panel__name,
+.panel__note {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.panel__name {
+  flex: 1 1 auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.panel__name:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+.panel__id {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.panel__note {
+  flex: 1 1 auto;
+  color: var(--color-fg-muted);
+}
+
+.panel__count {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: var(--color-fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.panel__empty {
+  margin: 0;
+  color: var(--color-fg-muted);
+}
+
+.panel__field {
+  display: block;
+  padding: 0.1rem 0;
+}
+
+/* 色見本。線種も添える——色だけに頼らない（§9.4）。 */
+.panel__swatch {
+  flex: 0 0 auto;
+}
+
+.panel__swatch--solid {
+  width: 24px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.panel__icon-button {
+  flex: 0 0 auto;
+  padding: 0 0.25rem;
+  border: 0;
+  background: transparent;
+  color: var(--color-fg-muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.panel__icon-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.panel__icon-button:not(:disabled):hover {
+  color: var(--color-error);
+}
+
+/* 上下 2 分割（仕様書 §6.4）。高さは比率で与える（`SplitLayout.tsx`）。 */
+.split {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.split__pane {
+  display: flex;
+  flex-direction: column;
+  /*
+   * **0 を土台にする。** 既定（auto）では中身の高さが土台になり、比率の
+   * 効き方が中身の量で変わる。時刻表に便が増えるほど上が狭くなってしまう。
+   */
+  flex-basis: 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* ダイヤグラムは canvas が入れ物いっぱいに広がる。送るのは canvas の役目で
+   あり（T-27）、枠の側でスクロールさせない。 */
+.split__pane--diagram {
+  overflow: hidden;
+}
+
+/* 最大化で隠れている側。焦点も読み上げも届かなくする（display: none）。 */
+.split__pane--collapsed {
+  display: none;
+}
+
+/* 境界。掴めることが見て分かる幅を持たせる（仕様書 §6.4）。 */
+.split__separator {
+  flex: 0 0 6px;
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-accent);
+  cursor: row-resize;
+}
+
+.split__separator:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+/*
+ * 引きずっている間は、下にあるものに文字選択もカーソルも渡さない。境界を
+ * 掴んだつもりで時刻表の文字が選ばれると、離した拍子に見た目が壊れる。
+ */
+.split--dragging {
+  cursor: row-resize;
+  user-select: none;
+}
+
+/*
+ * 検証パネル（仕様書 §6.6、T-34）。
+ *
+ * 畳んでいるときは 1 行の帯である。**件数は畳んでも見える**（`ValidationPanel`）。
+ */
+.validation {
+  grid-area: validation;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg-accent);
+  font-size: 0.8125rem;
+}
+
+.validation__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.2rem 0.5rem;
+}
+
+.validation__toggle {
+  padding: 0 0.25rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.validation__count {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 色と記号を併用する（§9.4）。記号は `SEVERITY_MARK` が出す。 */
+.validation__count--error,
+.validation__item--error .validation__mark {
+  color: var(--color-error);
+}
+
+.validation__count--warning,
+.validation__item--warning .validation__mark {
+  color: var(--color-warning);
+}
+
+.validation__count--info,
+.validation__item--info .validation__mark {
+  color: var(--color-fg-muted);
+}
+
+.validation__summary {
+  color: var(--color-fg-muted);
+}
+
+.validation__filters {
+  display: flex;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+/* 一覧は伸ばしすぎない。画面の下半分を指摘で埋めると、直す場所が見えない。 */
+.validation__list {
+  max-height: 9rem;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  border-top: 1px solid var(--color-border);
+  list-style: none;
+}
+
+.validation__item {
+  display: flex;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.1rem 0.5rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.validation__item:hover {
+  background: var(--color-selected);
+}
+
+.validation__item:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+.validation__id {
+  flex: 0 0 auto;
+  color: var(--color-fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.validation__empty {
+  padding: 0.25rem 0.5rem;
+  color: var(--color-fg-muted);
+}
+
+/* ステータスバー（仕様書 §6.4）。 */
+.status-bar {
+  grid-area: statusbar;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.2rem 0.5rem;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg-accent);
+  color: var(--color-fg-muted);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+
+/* いまどちらの道具を持っているか（#144）。**目立たせすぎない**——常に出て
+   いるものであり、読みたいのは「今どちらか」だけである。 */
+.status-bar__item--tool {
+  font-weight: 600;
+}
+
+.status-bar__item {
+  font-variant-numeric: tabular-nums;
+}
+
+/* カーソルの位置。**幅を決める。** 動くたびに右の数字が揺れると読めない。 */
+.status-bar__item--cursor {
+  min-width: 14rem;
+}
+
+.status-bar__message {
+  overflow: hidden;
+  color: var(--color-fg);
+  text-overflow: ellipsis;
+}
+
+/* ファイル操作の問いかけ（T-17）。焦点と Esc は <dialog> に任せる。 */
+.file-dialog {
+  max-width: 32rem;
+  padding: 1.25rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  background: var(--color-bg);
+  color: var(--color-fg);
+}
+
+.file-dialog::backdrop {
+  background: rgb(0 0 0 / 40%);
+}
+
+.file-dialog h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.125rem;
+}
+
+.file-dialog__message,
+.file-dialog__warnings {
+  /* 改行を残す。読込の指摘は 1 行ずつ意味を持つ。 */
+  white-space: pre-wrap;
+}
+
+.file-dialog__actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+
+.file-dialog__note {
+  color: var(--color-fg-muted);
+  font-size: 0.875rem;
+}
+
+/* 時刻表（T-19、仕様書 §6.1.1）。 */
+.timetable-pane {
+  padding: 0.5rem;
+  /* 表の外に出さない。ページ全体が横に伸びると停留所名の固定が意味を失う。 */
+  min-width: 0;
+}
+
+/*
+ * 方向タブ（§6.1.1、#136）。
+ *
+ * **選んでいる側を、選んでいない側より弱く見せない。** タブは「押せる 2 つ」
+ * ではなく「いまこちらを見ている」という状態の表示である。地色の差だけでは
+ * 弱く、目を表へ落とした瞬間に手がかりが消える——表そのものにも方向を書く
+ * （`.timetable__caption`）。
+ */
+/*
+ * 方向タブ・知らせ・並べ替えを 1 行に載せる。
+ *
+ * **行を 1 本増やすたびに、表に使える高さがそのぶん減る。** 時刻表は縦に
+ * 詰まっているほど多くの停留所が一度に見える。
+ */
+.timetable__bar {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  /* 選んでいるタブが、この線を跨いで表と繋がって見えるようにする。 */
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: 0.5rem;
+}
+
+.timetable__tabs {
+  display: flex;
+  gap: 0.25rem;
+}
+
+/* 知らせは右へ寄せ、押しボタンの手前に置く。**場所は空でも空けておく**——
+   出た瞬間に押しボタンが動くと、押そうとしていた手が外れる。 */
+.timetable__status {
+  flex: 1 1 auto;
+  padding-bottom: 0.25rem;
+  color: var(--color-fg-muted);
+  font-size: 0.8125rem;
+  text-align: right;
+}
+
+.timetable__bar > button {
+  margin-bottom: 0.25rem;
+}
+
+.timetable__tab {
+  position: relative;
+  bottom: -1px;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid transparent;
+  border-radius: 0.25rem 0.25rem 0 0;
+  background: transparent;
+  color: var(--color-fg-muted);
+  cursor: pointer;
+}
+
+.timetable__tab:hover {
+  color: var(--color-fg);
+}
+
+.timetable__tab--active {
+  /* 上に色の帯を置く。**色だけに頼らず**、太字と地色も併せて変える（§9.4）。 */
+  border-color: var(--color-border);
+  border-top: 3px solid var(--color-focus);
+  border-bottom-color: var(--color-bg);
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-weight: 700;
+}
+
+/*
+ * 最大化中に 2 方向を並べた 1 枚（#145）。
+ *
+ * **配分を決める仕掛けを置かない。** 行は停留所であり便は列であるため、表の
+ * 高さは便が何本あっても変わらない。2 枚をそのまま積めば、それぞれ自然な高さに
+ * 収まる。入り切らないときは時刻表の枠が縦に送る（`.split__pane`）。
+ */
+.timetable__table + .timetable__table {
+  margin-top: 0.75rem;
+}
+
+/* どちらの表かを表の上に書く。**触っている側は色の帯で示す**——色だけに
+   頼らず、文字の濃さも併せて変える（§9.4）。 */
+.timetable__name {
+  margin: 0 0 0.25rem;
+  padding-left: 0.375rem;
+  border-left: 3px solid transparent;
+  color: var(--color-fg-muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.timetable__table--active .timetable__name {
+  border-left-color: var(--color-focus);
+  color: var(--color-fg);
+}
+
+.timetable__scroll {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+}
+
+.timetable {
+  border-collapse: separate;
+  /* separate + border-spacing 0 にする。collapse だと、固定した列の罫線が
+     スクロール時に一緒に流れてしまう。 */
+  border-spacing: 0;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.timetable th,
+.timetable td {
+  padding: 0.15rem 0.25rem;
+  border-right: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+  font-size: 0.875rem;
+  font-weight: normal;
+  text-align: right;
+}
+
+/*
+ * 升目の幅は決めた値にする（#146、#137）。
+ *
+ * **入っていても空でも同じ幅にする。** 幅を中身に任せると、時刻の無い升目だけが
+ * 左右の余白ぶんまで縮み、狙って押せない。
+ *
+ * 決めるのは**字数**である（`ch` は「その書体の `0` 1 文字ぶん」）。表に並ぶのは
+ * 時刻であり、決めたいのは「時刻が何文字ぶん入るか」だからである。最長の時刻
+ * （`47:55`）は 5 文字であり、`5.5ch` はそれに少し余裕を持たせた値である。
+ * 数字は等幅で出している（`tabular-nums`）ため、どの時刻も同じ幅に収まる。
+ *
+ * **px で決めない。** 字の幅は環境で変わり、px を決め打ちにすると、ある環境で
+ * だけ `25:30` がはみ出す。`ch` なら書体が変わっても字数は変わらない。
+ */
+.timetable {
+  --timetable-cell-width: 5.5ch;
+}
+
+/* 便の列。行の名前を並べる左端の列（`scope="row"`）は中身なりの幅でよい。 */
+.timetable th:not([scope='row']),
+.timetable td {
+  /*
+   * **決めた字数は、字の入る場所である。** 既定の `border-box` では左右の余白も
+   * 5.5 文字ぶんの内側に食い込み、字の場所がそのぶん減って `25:30` が入らない。
+   * 余白は外側に付ける。
+   */
+  box-sizing: content-box;
+  width: var(--timetable-cell-width);
+  min-width: var(--timetable-cell-width);
+}
+
+.timetable thead th,
+.timetable thead td {
+  background: var(--color-bg-accent);
+}
+
+/* 停留所名の列は横スクロールしても残す。 */
+.timetable tbody .timetable__stop,
+.timetable tbody .timetable__link-head,
+.timetable thead th[scope='row'] {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--color-bg-accent);
+  text-align: left;
+}
+
+.timetable__head--broken {
+  color: var(--color-error);
+}
+
+/* 経由しない停留所。空欄（未入力）と見分けられるようにする。 */
+.timetable__cell--notServed {
+  color: var(--color-fg-muted);
+  text-align: center;
+}
+
+/* アンカーの升目。どの時刻を基準に他が計算されているかを示す（§6.1.1）。 */
+.timetable__cell--anchor {
+  background: var(--color-anchor);
+  font-weight: 600;
+}
+
+/* 選択中の便（T-21、仕様書 §6.3.1）。列ごと色を変え、どの列を操作するのかを
+   示す。 */
+.timetable__head--selected,
+.timetable__cell--selected {
+  background: var(--color-selected);
+}
+
+/* 選択の色でアンカーを塗り潰さない。選択は列の見出しでも分かるが、どの升目が
+   基準なのかはここでしか分からない（§6.1.1）。 */
+.timetable__cell--selected.timetable__cell--anchor {
+  background: var(--color-anchor);
+}
+
+/* 前運用・後運用の行（T-50、仕様書 §6.1.7）。停留所の行とは区切って見せる。 */
+.timetable__link-head,
+.timetable__link-cell {
+  background: var(--color-bg-accent);
+  color: var(--color-fg-muted);
+}
+
+.timetable__link-head {
+  font-size: 0.8125rem;
+}
+
+.timetable__link {
+  display: block;
+  width: 100%;
+  /* 焦点の枠を出す。キーボードで操作できることが見て分かる（§9.4）。 */
+  outline-offset: -2px;
+  /*
+   * **空欄でも押せる高さを保つ。** 中身が空の押しボタンは高さが 0 になり、
+   * 升目の中に見た目どおりの当たり判定が無くなる。出区を「まだ付けていない」
+   * 欄こそ押されるものであり、そこが押せないのでは切り替えの意味がない。
+   */
+  min-height: 1.4em;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: right;
+  cursor: pointer;
+}
+
+/* 出区・入区が付いている欄。時刻が入っているため、はっきり見せる。 */
+.timetable__link[aria-pressed='true'] {
+  color: var(--color-fg);
+  font-weight: 600;
+}
+
+.timetable__link:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+/* 運用番号の欄（T-22、仕様書 §6.1.3）。自由記入のテキスト。 */
+/*
+ * パターンの選択欄も列の幅を決めない（#137）。
+ *
+ * **列の幅を決めるのは時刻である。** この表は時刻を並べるためのものであり、
+ * 見出しの部品がそれより広い場所を要求してよい理由が無い。選んだパターンの
+ * 正式な名前は `title`（かざすと出る）と、開いた一覧で読める。
+ */
+.timetable__pattern {
+  width: 100%;
+  min-width: 0;
+}
+
+.timetable__block {
+  /*
+   * 升目いっぱいに広げる（#137）。決め打ちの幅（3.5rem）を持たせていた頃は、
+   * **運用番号の欄が列の幅を決めていた**——1〜2 文字しか入らない欄のために、
+   * 便の列だけが空の列より広くなっていた。`min-width: 0` の理由は時刻の
+   * 入力欄と同じである。
+   */
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: right;
+}
+
+.timetable__block:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+/* 同じ運用の列。運用番号の欄に焦点があるあいだだけ照らす（§6.1.3）。
+   背景色ではなく網掛けを重ねる。選択の青も、アンカーの黄も消さずに済む。 */
+.timetable__head--sameBlock,
+.timetable__cell--sameBlock {
+  background-image: linear-gradient(var(--color-same-block), var(--color-same-block));
+}
+
+/* 列見出しは便を選ぶ押しボタン。見た目は見出しのままにする。 */
+.timetable__column {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: right;
+  cursor: pointer;
+}
+
+.timetable__column[aria-pressed='true'] {
+  font-weight: 600;
+}
+
+/* 便の操作（T-21、仕様書 §6.1.4）。本来の位置はメニューであり（T-37）、
+   ここに置くのは操作を実際に触れるようにするためである。 */
+.timetable__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.timetable__toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.timetable__minutes {
+  width: 4rem;
+}
+
+.timetable__toolbar-status {
+  color: var(--color-fg-muted);
+}
+
+.timetable__empty {
+  padding: 0.5rem;
+  color: var(--color-fg-muted);
+}
+
+/* 升目の編集（T-20、仕様書 §6.1.2）。 */
+.timetable__cell {
+  cursor: cell;
+}
+
+.timetable__cell:focus-visible,
+.timetable__cell:focus {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+.timetable__input {
+  /*
+   * 升目いっぱいに広げる。**`min-width: 0` が要る**——入力欄は既定で 20 文字ぶんの
+   * 幅を持とうとし、それが列の最小幅になると、編集を始めた瞬間に表がずれる（#137）。
+   */
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: right;
+}
+
+.timetable__input:focus {
+  outline: none;
+}
+
+/* 受け付けられない入力。打った内容は消さず、色で知らせる。 */
+.timetable__cell--invalid {
+  background: var(--color-invalid);
+}
+
+/*
+ * 5 分に丸めたことを知らせる（§6.1.2）。色だけに頼らず、動きでも示す。
+ * 動きを減らす設定の利用者には出さない（§9.4）。
+ */
+.timetable__cell--rounded {
+  animation: timetable-rounded 0.7s ease-out;
+}
+
+@keyframes timetable-rounded {
+  from {
+    background: var(--color-rounded);
+  }
+  to {
+    background: transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .timetable__cell--rounded {
+    animation: none;
+    background: var(--color-rounded);
+  }
+}
+
+/*
+ * スジの右クリックメニュー（T-31、仕様書 §6.3.4）。
+ *
+ * canvas の上に重ねる。**canvas に描き足さない**——焦点も読み上げも、DOM に
+ * 元からあるものが働く（§9.4）。
+ */
+.trip-menu {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 10rem;
+  padding: 0.25rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.25rem;
+  background: var(--color-bg);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 20%);
+  font-size: 0.8125rem;
+}
+
+.trip-menu__title {
+  margin: 0;
+  padding: 0 0.25rem;
+  color: var(--color-fg-muted);
+}
+
+.trip-menu button {
+  padding: 0.15rem 0.25rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.trip-menu button:hover,
+.trip-menu button:focus-visible {
+  background: var(--color-selected);
+}
+
+.trip-menu__field {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.25rem;
+}
+
+.trip-menu__block {
+  width: 4rem;
+}
+
+/*
+ * ダイヤグラム（T-24、仕様書 §6.2）。
+ *
+ * 高さは持たない。**入れ物（上の枠）の高さいっぱいに広がる**（T-32）。決め打ちに
+ * すると、境界を動かしても canvas の大きさが変わらない。
+ */
+/*
+ * ダイヤグラムの器。canvas の右と下に送りのつまみを置く（#143）。
+ *
+ * **居場所は名前で与える**（#135 と同じ理由）。つまみは動かせるときにしか出ない
+ * ため、並び順で書くと、片方が消えたときにもう片方がずれる。
+ */
+.diagram {
+  /* メニューを重ねる基準にする（`.trip-menu` は絶対位置）。 */
+  position: relative;
+  display: grid;
+  flex: 1 1 auto;
+  grid-template-areas:
+    'canvas axis'
+    'time .';
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+/*
+ * 送りのつまみ（#143）。**動かせるときにだけ現れる**（`DiagramScrollbars`）。
+ *
+ * 縦のつまみは書字方向を縦にして立てる。`direction` は既定（`ltr`）のままに
+ * する——**上が小さいほう**（豊中側）でなければ、縦軸の並びと上下が逆になり、
+ * 下へ送りたいのにつまみを上へ動かすことになる。
+ */
+.diagram__scroll {
+  margin: 0;
+  accent-color: var(--color-focus);
+}
+
+.diagram__scroll--time {
+  grid-area: time;
+  width: 100%;
+}
+
+.diagram__scroll--axis {
+  grid-area: axis;
+  writing-mode: vertical-lr;
+  height: 100%;
+}
+
+.diagram__canvas {
+  grid-area: canvas;
+  /*
+   * **block にする。** 既定の inline では行の下に余白が付き、canvas の
+   * CSS 上の高さと入れ物の高さが食い違う（描画が 1 行ぶん縦にずれる）。
+   */
+  display: block;
+  /*
+   * 入れ物いっぱいに広がる。canvas は既定の大きさ（300×150）を持つため、
+   * `min-width` / `min-height` を 0 に落とさないと縮む側に回れない。
+   */
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  /* 焦点の枠を出す。キーボードで操作できることが見て分かる（§9.4）。 */
+  outline-offset: -2px;
+}

@@ -1,0 +1,299 @@
+/**
+ * `data/route.json` そのものの検証（T-05）。
+ *
+ * 仕様書 §5.5.2 の R-01〜R-07 と、付録 A.4 の全区間所要時間が実データと
+ * 一致することを確認する。R-01〜R-07 を再利用可能な検証器として切り出すのは
+ * T-06 の担当であり、本テストはそれまでの間 `route.json` の正しさを保証する。
+ *
+ * ファイルは `fs` で読む。アプリ本体も `PlatformAdapter` 経由で文字列として
+ * 読み込むため（実装計画書 §3.3）、バンドラの JSON import に依存しない形を
+ * とることで実際の読込経路に近づけている。
+ */
+
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { describe, expect, it } from 'vitest';
+import { networkDefSchema, parseWithSchema, type NetworkDef } from '@/domain/model';
+import { loadNetworkDef, type LoadNetworkResult } from './load';
+import { formatNetworkIssues, validateNetwork } from './validate';
+
+const routeJsonPath = fileURLToPath(new URL('../../../data/route.json', import.meta.url));
+const rawJson = readFileSync(routeJsonPath, 'utf8');
+
+/** 読込に失敗した理由を、段階ごとに読める形にする。 */
+function formatLoadFailure(result: LoadNetworkResult): string {
+  if (result.ok) return '';
+  switch (result.stage) {
+    case 'json':
+      return `JSON 構文エラー: ${result.message}`;
+    case 'schema':
+      return `スキーマ違反:\n${result.issues.map((i) => `${i.path}: ${i.message}`).join('\n')}`;
+    case 'rules':
+      return `規則違反:\n${formatNetworkIssues(result.issues)}`;
+  }
+}
+
+function loadNetwork(): NetworkDef {
+  const result = parseWithSchema(networkDefSchema, JSON.parse(rawJson));
+  if (!result.ok) {
+    throw new Error(
+      `route.json がスキーマに適合しません:\n${JSON.stringify(result.issues, null, 2)}`,
+    );
+  }
+  return result.value;
+}
+
+const network = loadNetwork();
+const segmentKey = (from: string, to: string): string => `${from}→${to}`;
+const segmentMap = new Map(network.segments.map((s) => [segmentKey(s.fromStopId, s.toStopId), s]));
+const stopIds = new Set(network.stops.map((s) => s.stopId));
+
+describe('route.json — スキーマ適合', () => {
+  it('networkDefSchema で読み込める', () => {
+    expect(parseWithSchema(networkDefSchema, JSON.parse(rawJson)).ok).toBe(true);
+  });
+
+  it('仕様書 付録 A のとおり停留所 7 件・区間 15 件・パターン 14 件を持つ', () => {
+    expect(network.stops).toHaveLength(7);
+    expect(network.segments).toHaveLength(15);
+    expect(network.patterns).toHaveLength(14);
+  });
+
+  it('営業パターン 8 件・回送パターン 6 件', () => {
+    expect(network.patterns.filter((p) => !p.isDeadhead)).toHaveLength(8);
+    expect(network.patterns.filter((p) => p.isDeadhead)).toHaveLength(6);
+  });
+});
+
+describe('route.json — 停留所（仕様書 付録 A.1）', () => {
+  it('千里営業所が isDepot である', () => {
+    expect(network.stops.find((s) => s.stopId === '9_0')?.isDepot).toBe(true);
+  });
+
+  it('千里営業所だけが営業所である', () => {
+    expect(network.stops.filter((s) => s.isDepot).map((s) => s.stopId)).toEqual(['9_0']);
+  });
+
+  it('微生物研究所前が hiddenInEditor である', () => {
+    expect(network.stops.find((s) => s.stopId === '6_0')?.hiddenInEditor).toBe(true);
+  });
+
+  it('微生物研究所前だけが非表示である', () => {
+    expect(network.stops.filter((s) => s.hiddenInEditor).map((s) => s.stopId)).toEqual(['6_0']);
+  });
+
+  it('豊中学舎の axisPosition が 0 である', () => {
+    expect(network.stops.find((s) => s.stopId === '1_0')?.axisPosition).toBe(0);
+  });
+
+  it('axisPosition が方向 0（吹田方面＝下向き）の順に並んでいる', () => {
+    const order = ['1_0', '2_0', '3_0', '5_0', '6_0', '4_0'];
+    const positions = order.map(
+      (id) => network.stops.find((s) => s.stopId === id)?.axisPosition ?? Number.NaN,
+    );
+    // **戻らなければよい。** 所要時間 0 の区間（微研→工学部前）と、同じ所要時間の
+    // 停留所（コンベ前・人科前）は同じ位置に来る（#117）。
+    for (let i = 1; i < positions.length; i++) {
+      expect(positions[i]).toBeGreaterThanOrEqual(positions[i - 1] ?? Number.NaN);
+    }
+  });
+
+  it('**コンベ前と人科前が同じ位置にある**（#117）', () => {
+    // どちらも工学部前から 5 分である。違う高さに置くと、同じ 5 分の区間が
+    // 違う傾きで描かれ、ダイヤグラムの読み方（傾き＝速さ）が壊れる。
+    const conv = network.stops.find((s) => s.stopId === '3_0')?.axisPosition;
+    const human = network.stops.find((s) => s.stopId === '5_0')?.axisPosition;
+    expect(conv).toBe(human);
+  });
+
+  it('**軸差が所要時間と一致する**（同じ所要時間は同じ傾きになる。#117）', () => {
+    const posOf = (id: string): number =>
+      network.stops.find((s) => s.stopId === id)?.axisPosition ?? Number.NaN;
+    const depotIds = new Set(network.stops.filter((s) => s.isDepot).map((s) => s.stopId));
+
+    /**
+     * 一致させられない区間。
+     *
+     * 網目の路線を 1 本の縦軸に潰した以上、すべては合わせられない。**直行は
+     * 箕面を経由しないぶん速い**ため、箕面を通る軸の上では必ず寝る（往復とも
+     * 25 分 = 35 単位で、食い違い方は揃っている）。人科前→箕面も、箕面と
+     * 工学部前の位置が先に決まっている以上、動かす余地が無い。
+     */
+    const unavoidable = new Set(['1_0>3_0', '5_0>1_0', '5_0>2_0']);
+
+    for (const segment of network.segments) {
+      if (depotIds.has(segment.fromStopId) || depotIds.has(segment.toStopId)) continue;
+      const key = `${segment.fromStopId}>${segment.toStopId}`;
+      if (unavoidable.has(key)) continue;
+
+      expect(Math.abs(posOf(segment.toStopId) - posOf(segment.fromStopId)), key).toBe(
+        segment.runMinutes,
+      );
+    }
+  });
+
+  it('営業所の axisPosition が営業区間の外側にある（縦軸には並べない。#118）', () => {
+    const depot = network.stops.find((s) => s.isDepot)?.axisPosition ?? Number.NaN;
+    const serviceMax = Math.max(
+      ...network.stops.filter((s) => !s.isDepot).map((s) => s.axisPosition),
+    );
+    expect(depot).toBeGreaterThan(serviceMax);
+  });
+
+  it('stopId が重複しない', () => {
+    expect(stopIds.size).toBe(network.stops.length);
+  });
+});
+
+describe('route.json — ネットワーク定義の検証（仕様書 §5.5.2）', () => {
+  // 各規則そのものの振る舞いは validate.test.ts が網羅する。ここでは実データが
+  // すべての規則を満たすことだけを確認する（T-06 で検証器を切り出した）。
+  it('R-01〜R-10 のすべてを満たす', () => {
+    const issues = validateNetwork(network);
+    expect(formatNetworkIssues(issues)).toBe('');
+  });
+
+  it('loadNetworkDef が段階を通過して読み込める', () => {
+    const result = loadNetworkDef(rawJson);
+    expect(result.ok, result.ok ? '' : formatLoadFailure(result)).toBe(true);
+  });
+
+  it('使われていない区間が存在しない', () => {
+    const used = new Set<string>();
+    for (const p of network.patterns) {
+      for (let i = 1; i < p.stopSequence.length; i++) {
+        used.add(segmentKey(p.stopSequence[i - 1]?.stopId ?? '', p.stopSequence[i]?.stopId ?? ''));
+      }
+    }
+    for (const key of segmentMap.keys()) {
+      expect(used.has(key), `区間 ${key} はどのパターンからも使われていない`).toBe(true);
+    }
+  });
+});
+
+describe('route.json — 全区間所要時間（仕様書 付録 A.4）', () => {
+  /** パターンの停留所列に沿って区間表を引き、始発から終着までの所要時間を求める。 */
+  function totalMinutes(patternId: string): number {
+    const pattern = network.patterns.find((p) => p.patternId === patternId);
+    if (!pattern) throw new Error(`パターン ${patternId} が見つかりません`);
+    let total = 0;
+    for (let i = 1; i < pattern.stopSequence.length; i++) {
+      const key = segmentKey(
+        pattern.stopSequence[i - 1]?.stopId ?? '',
+        pattern.stopSequence[i]?.stopId ?? '',
+      );
+      const segment = segmentMap.get(key);
+      if (!segment) throw new Error(`区間 ${key} が見つかりません`);
+      total += segment.runMinutes;
+    }
+    return total;
+  }
+
+  it.each([
+    ['S1', '直行吹田', 30],
+    ['T1', '直行豊中', 30],
+    ['M2', '箕面（豊中発）', 20],
+    ['T2', '豊中（箕面発）', 20],
+    ['S3', '箕面経由吹田', 40],
+    ['T3', '箕面経由豊中', 45],
+    ['S2', '吹田（箕面発）', 20],
+    ['M4', '箕面（吹田発）', 25],
+  ])('%s（%s）は %d 分', (patternId, _name, expected) => {
+    expect(totalMinutes(patternId)).toBe(expected);
+  });
+
+  it('回送 6 種はすべて 20 分', () => {
+    for (const p of network.patterns.filter((x) => x.isDeadhead)) {
+      expect(totalMinutes(p.patternId), p.patternId).toBe(20);
+    }
+  });
+
+  it('箕面〜吹田間は往復で 5 分非対称（経路が異なるため。仕様書 付録 A.4）', () => {
+    expect(totalMinutes('S2')).toBe(20); // 箕面 → コンベ経由 → 吹田
+    expect(totalMinutes('M4')).toBe(25); // 吹田 → 人科経由 → 箕面
+  });
+
+  it('豊中〜吹田（直行）と豊中〜箕面は往復対称', () => {
+    expect(totalMinutes('S1')).toBe(totalMinutes('T1'));
+    expect(totalMinutes('M2')).toBe(totalMinutes('T2'));
+  });
+});
+
+describe('route.json — 停車パターンの取扱区分', () => {
+  it('始発は boardOnly、終着は alightOnly', () => {
+    for (const p of network.patterns) {
+      expect(p.stopSequence.at(0)?.handling, `${p.patternId} の始発`).toBe('boardOnly');
+      expect(p.stopSequence.at(-1)?.handling, `${p.patternId} の終着`).toBe('alightOnly');
+    }
+  });
+
+  it('微生物研究所前は常に降車専用（仕様書 付録 A.1）', () => {
+    for (const p of network.patterns) {
+      const biken = p.stopSequence.find((ps) => ps.stopId === '6_0');
+      if (biken) {
+        expect(biken.handling, p.patternId).toBe('alightOnly');
+      }
+    }
+  });
+
+  it('微生物研究所前はコンベンションセンター前から工学部前へ向かうパターンにのみ現れる', () => {
+    for (const p of network.patterns) {
+      const index = p.stopSequence.findIndex((ps) => ps.stopId === '6_0');
+      if (index >= 0) {
+        expect(p.stopSequence[index - 1]?.stopId, p.patternId).toBe('3_0');
+        expect(p.stopSequence[index + 1]?.stopId, p.patternId).toBe('4_0');
+      }
+    }
+  });
+
+  it('微生物研究所前から工学部前までが 0 分である（仕様書 §5.5.1）', () => {
+    expect(segmentMap.get(segmentKey('6_0', '4_0'))?.runMinutes).toBe(0);
+  });
+});
+
+describe('route.json — 方向と経路の整合', () => {
+  it('方向 0 のパターンは axisPosition が増加する向きに進む', () => {
+    const posOf = (id: string): number =>
+      network.stops.find((s) => s.stopId === id)?.axisPosition ?? Number.NaN;
+    for (const p of network.patterns.filter((x) => x.directionId === 0 && !x.isDeadhead)) {
+      for (let i = 1; i < p.stopSequence.length; i++) {
+        const prev = posOf(p.stopSequence[i - 1]?.stopId ?? '');
+        const curr = posOf(p.stopSequence[i]?.stopId ?? '');
+        // 所要時間 0 の区間（微研→工学部前）は同じ位置に来る（#117）。
+        expect(curr, p.patternId).toBeGreaterThanOrEqual(prev);
+      }
+    }
+  });
+
+  it('方向 1 のパターンは axisPosition が減少する向きに進む', () => {
+    const posOf = (id: string): number =>
+      network.stops.find((s) => s.stopId === id)?.axisPosition ?? Number.NaN;
+    for (const p of network.patterns.filter((x) => x.directionId === 1 && !x.isDeadhead)) {
+      for (let i = 1; i < p.stopSequence.length; i++) {
+        const prev = posOf(p.stopSequence[i - 1]?.stopId ?? '');
+        const curr = posOf(p.stopSequence[i]?.stopId ?? '');
+        expect(curr, p.patternId).toBeLessThanOrEqual(prev);
+      }
+    }
+  });
+
+  it('直行便（S1）は箕面学舎を経由しない', () => {
+    const s1 = network.patterns.find((p) => p.patternId === 'S1');
+    expect(s1?.stopSequence.some((ps) => ps.stopId === '2_0')).toBe(false);
+  });
+
+  it('吹田発のパターンは人間科学部前を、吹田行きはコンベンションセンター前を経由する', () => {
+    for (const p of network.patterns.filter((x) => !x.isDeadhead)) {
+      const ids = p.stopSequence.map((ps) => ps.stopId);
+      expect(ids.includes('3_0') && ids.includes('5_0'), p.patternId).toBe(false);
+    }
+  });
+
+  it('パターン ID の接頭辞が行先と一致する（S=吹田 / T=豊中 / M=箕面）', () => {
+    const terminalOf: Record<string, string> = { S: '4_0', T: '1_0', M: '2_0' };
+    for (const p of network.patterns.filter((x) => !x.isDeadhead)) {
+      const prefix = p.patternId.charAt(0);
+      expect(p.stopSequence.at(-1)?.stopId, p.patternId).toBe(terminalOf[prefix]);
+    }
+  });
+});

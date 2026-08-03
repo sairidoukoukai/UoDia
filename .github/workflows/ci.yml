@@ -1,0 +1,216 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+
+# 同一ブランチで新しい実行が始まったら古い実行を打ち切る。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # PR とマージの双方で必ず走る軽量ジョブ。品質ゲートの本体。
+  # ---------------------------------------------------------------------------
+  check:
+    name: 型チェック・Lint・テスト
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: 依存のインストール
+        run: npm ci
+
+      - name: 型チェック
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: 整形の確認
+        run: npm run format:check
+
+      - name: テスト（カバレッジ付き）
+        run: npm run test:coverage
+
+      - name: Web 版のビルド
+        run: npm run build:web
+
+      # デスクトップ版はより古い WebView に合わせた対象環境でビルドされる
+      # （vite.config.ts）。Web 単体のビルドだけが通って気づけない差異
+      # （トップレベル await など）を、Rust を伴わずに検出する。
+      - name: デスクトップ版と同じ対象環境でのビルド確認
+        run: npm run build:web
+        env:
+          TAURI_ENV_PLATFORM: linux
+
+      - name: カバレッジレポートの保存
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage/
+          retention-days: 14
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------
+  # デスクトップ版のビルド。Rust のコンパイルを伴い時間がかかるため、
+  # PR では実行せず develop / main へのマージ時のみ実行する。
+  # 公開リポジトリのため実行分数の費用は発生しない（実装計画書 T-02）。
+  # ---------------------------------------------------------------------------
+  desktop:
+    name: デスクトップビルド (${{ matrix.label }})
+    if: github.event_name == 'push'
+    needs: check
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            label: Linux
+          - os: windows-latest
+            label: Windows
+          - os: macos-latest
+            label: macOS
+    steps:
+      - uses: actions/checkout@v4
+
+      # Tauri v2 の Linux 依存。libappindicator3-dev は libayatana-appindicator3-dev と
+      # 競合するため入れない（Tauri v2 は ayatana 側を使う）。
+      - name: Linux の依存パッケージ
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libgtk-3-dev \
+            libxdo-dev \
+            libssl-dev \
+            build-essential \
+            patchelf \
+            file
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust のキャッシュ
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ./src-tauri -> target
+
+      - name: 依存のインストール
+        run: npm ci
+
+      # Rust 側にもファイル I/O の実ロジックがある（アトミック書き込み・
+      # route.json の複製・履歴）。ビルドが通るだけでは正しさを確かめられない。
+      - name: Rust のテスト
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
+      - name: Rust の Lint
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+
+      - name: ビルド
+        run: npm run build:desktop
+
+      # 仕様書 §9.1 の「バイナリサイズ 30MB 以内」を機械が見る。**入れ物ではなく
+      # 実行ファイルを測る**——インストーラは圧縮の効き方が OS ごとに違い、
+      # 比べる意味が薄い。
+      - name: バイナリサイズの確認
+        shell: bash
+        run: node scripts/check-bundle-size.mjs
+
+      # 出来た配布物を残す。**PR では走らないジョブ**であり（push のみ）、
+      # 手元に 3 OS を揃えられない以上、ここが唯一の確かめる手立てになる。
+      - name: 配布物の保存
+        uses: actions/upload-artifact@v4
+        with:
+          name: uodia-${{ matrix.label }}
+          path: |
+            src-tauri/target/release/bundle/**/*
+            !src-tauri/target/release/bundle/**/*.txt
+          retention-days: 14
+          if-no-files-found: warn
+
+  # ---------------------------------------------------------------------------
+  # 配布（T-41）。**タグを打ったときだけ**走る。
+  #
+  # 自動で公開しないのは、公開が取り消せない操作だからである。タグを打つのは
+  # 人の判断であり、そこまでは手で行う。
+  # ---------------------------------------------------------------------------
+  release:
+    name: 配布物の公開 (${{ matrix.label }})
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            label: Linux
+          - os: windows-latest
+            label: Windows
+          - os: macos-latest
+            label: macOS
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Linux の依存パッケージ
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libgtk-3-dev \
+            libxdo-dev \
+            libssl-dev \
+            build-essential \
+            patchelf \
+            file
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust のキャッシュ
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ./src-tauri -> target
+
+      - name: 依存のインストール
+        run: npm ci
+
+      # **下書きとして作る。** 中身を見てから公開できるようにするためであり、
+      # 3 つの OS のビルドが揃うのを待つ意味もある。
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: UoDia ${{ github.ref_name }}
+          releaseDraft: true
+          prerelease: false

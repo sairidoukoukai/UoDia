@@ -1,0 +1,64 @@
+# 依存
+node_modules/
+
+# ビルド成果物
+dist/
+dist-ssr/
+src-tauri/target/
+src-tauri/gen/
+# npm pack の出力
+*.tgz
+
+# テスト
+coverage/
+.nyc_output/
+
+# エディタ・OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+# Windows が勝手に作るもの（開発は WSL2 越しに Windows 上でも行う）
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# TypeScript の差分情報
+*.tsbuildinfo
+
+# ログ
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# 環境変数
+.env
+.env.local
+.env.*.local
+
+# UoDia のファイル
+#
+# バックアップ（§6.8）と、手元で作った検証用のダイヤ。**route.json は含めない**
+# ——路線図はソースであり、data/route.json として追跡する。
+*.uodia.bak
+*.uodia
+
+# 実機確認の使い捨ての台本
+#
+# headless Chromium で動かす台本は、node_modules を引くためにリポジトリ直下へ
+# 置く必要がある。使い終わったら消すが、**消し忘れても混ざらないようにしておく。**
+#
+# 先頭の `/` で直下だけを指す。付けないと `scripts/check-bundle-size.mjs`
+# （CI が使う）まで無視してしまう。
+/check-*.mjs
+
+# エージェントの設定（各自の環境の許可設定であり、共有しない）
+.claude/

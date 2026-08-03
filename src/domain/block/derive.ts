@@ -1,0 +1,237 @@
+/**
+ * 運用の導出（仕様書 §5.8）。
+ *
+ * 便が持つ運用の情報は `blockId`（運用番号）という**文字列 1 つだけ**である。
+ * 同じ運用番号を持つ便を始発時刻の昇順に並べたものが、その車両の 1 日の行路で
+ * あり、折返し時分・出入庫・営業所待機はすべてそこから導出される。専用の
+ * データ構造を持たないため、便を書き換えたあとに運用側の情報が古いまま残る、
+ * という状態が起こらない。
+ *
+ * 営業所待機も同様に導出される。「入庫回送の便」と「次の出庫回送の便」の間の
+ * 隙間がそれであり、待機を表すデータは存在しない（仕様書 §1.2、UC-4）。
+ *
+ * 本モジュールは検証を行わない。折返し時分が負であることも、運用が途中で
+ * 途切れていることも、ここでは値として素直に返す。それを問題として報告するのは
+ * ダイヤ検証（T-10）の責務である。
+ */
+
+import type { Trip } from '@/domain/model';
+import type { NetworkIndex } from '@/domain/network';
+import { compareTime, diffMinutes, type Seconds } from '@/domain/time';
+import { expandDeadheads, originTime, terminalTime } from '@/domain/trip';
+import { adjacentPairs } from '@/domain/util';
+
+/** 運用の中の 1 便と、そこから導出される値。 */
+export interface BlockTrip {
+  readonly trip: Trip;
+  readonly originStopId: string;
+  readonly terminalStopId: string;
+  readonly originTime: Seconds;
+  readonly terminalTime: Seconds;
+  readonly isDeadhead: boolean;
+  /**
+   * 直前の便の終着からこの便の始発までの分（仕様書 §2.2）。先頭の便は `null`。
+   *
+   * **0 分は正常値**である（折返し時分の下限は 0 分）。負の値は運用が破綻して
+   * いることを意味するが、ここでは判定せずそのまま返す（T-10 の V-02）。
+   */
+  readonly layoverMinutes: number | null;
+}
+
+/** 営業所待機（仕様書 §5.8）。入庫回送の終着から次の出庫回送の始発まで。 */
+export interface DepotStandby {
+  /** 待機に入る便（入庫回送）。 */
+  readonly inboundTripId: string;
+  /** 待機から出る便（出庫回送）。 */
+  readonly outboundTripId: string;
+  readonly startTime: Seconds;
+  readonly endTime: Seconds;
+  readonly minutes: number;
+}
+
+/**
+ * 1 便以上の行路。
+ *
+ * 運用は必ず 1 便以上を含む（0 便の運用番号は存在しようがない）。型で表して
+ * おくことで、先頭・末尾を取り出す側が「無いかもしれない」場合を書かずに済む。
+ */
+export type BlockTrips = readonly [BlockTrip, ...BlockTrip[]];
+
+/** 1 つの運用番号に属する便の行路。 */
+export interface Block {
+  readonly blockId: string;
+  /** 始発時刻の昇順。 */
+  readonly trips: BlockTrips;
+  /** 出庫時刻。先頭の便が営業所を出る回送であればその始発時刻、でなければ `null`。 */
+  readonly pullOutTime: Seconds | null;
+  /** 入庫時刻。末尾の便が営業所へ入る回送であればその終着時刻、でなければ `null`。 */
+  readonly pullInTime: Seconds | null;
+  readonly standbys: readonly DepotStandby[];
+}
+
+/** 便の集合を運用に分解した結果。 */
+export interface BlockDerivation {
+  /** 運用番号の昇順。 */
+  readonly blocks: readonly Block[];
+  /**
+   * 運用番号が空欄の便。どの運用にも属さない。
+   *
+   * 捨てずに返すのは、これが検証の情報項目（V-07）になるためである。
+   */
+  readonly unassigned: readonly Trip[];
+  /**
+   * 時刻がまだ入力されていない便（`anchor` が `null`）。
+   *
+   * **`unresolved` とは区別する。** 前者は「これから入力する」正常な途中状態、
+   * 後者は「データが壊れている」異常であり、利用者が取るべき行動が違う。
+   */
+  readonly unanchored: readonly Trip[];
+  /**
+   * 時刻を導出できなかった便。`patternId` が解決できないか、アンカー停留所が
+   * 経路に無いか、時刻が表現できる範囲を外れている。
+   */
+  readonly unresolved: readonly Trip[];
+}
+
+/**
+ * 便を運用に分解する。
+ *
+ * **回送便はここで展開する**（仕様書 §6.1.7、T-51）。渡すのは保存されている
+ * 営業便であり、出区・入区は `pullOut` / `pullIn` から作られて行路に加わる。
+ * 展開を呼び出し側の責任にすると、どこか 1 か所が忘れた瞬間に「回送を数えない
+ * 運用」が生まれ、折返し時分も出入庫時刻も静かにずれる。
+ */
+export function deriveBlocks(trips: readonly Trip[], network: NetworkIndex): BlockDerivation {
+  // 3 つの分類は互いに排他ではない。運用番号が空欄で、かつ時刻も未入力の便は
+  // 両方に現れる。どちらも「まだ埋まっていない」という別々の事実であり、
+  // 片方だけ報告すると、直したあとにもう片方が現れて二度手間になる。
+  //
+  // **数えるのは保存されている便だけ**である。展開した回送便は営業便の写しで
+  // あり、そこまで数えると「運用番号が空欄の便が 3 件」——実は 1 便とその出入区
+  // ——のような報告になる。
+  const unassigned = trips.filter((trip) => trip.blockId === '');
+  const unanchored = trips.filter((trip) => trip.anchor === null);
+  const unresolved: Trip[] = [];
+  const byBlockId = new Map<string, NonEmptyTrips>();
+
+  for (const trip of expandDeadheads(trips, network)) {
+    if (trip.anchor === null) continue;
+
+    const resolved = resolveTrip(trip, network);
+    if (resolved === null) {
+      // 展開した回送便はここに落ちない。作れた時点で時刻まで解けている。
+      unresolved.push(trip);
+      continue;
+    }
+    if (trip.blockId === '') continue;
+
+    const group = byBlockId.get(trip.blockId);
+    if (group === undefined) {
+      byBlockId.set(trip.blockId, [resolved]);
+    } else {
+      group.push(resolved);
+    }
+  }
+
+  const depotIds = new Set(network.def.stops.filter((s) => s.isDepot).map((s) => s.stopId));
+  const blocks = [...byBlockId]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([blockId, group]) => buildBlock(blockId, group, depotIds));
+
+  return { blocks, unassigned, unanchored, unresolved };
+}
+
+/** 時刻を導出できた便。折返し時分はまだ求めていない。 */
+type ResolvedTrip = Omit<BlockTrip, 'layoverMinutes'>;
+
+/**
+ * 1 件以上の便。
+ *
+ * 運用は必ず 1 便以上を含む（0 便の運用番号は存在しようがない）。それを型で
+ * 表しておくことで、先頭要素を取り出すたびに「無いかもしれない」場合を書かずに
+ * 済ませる。
+ */
+type NonEmptyTrips = [ResolvedTrip, ...ResolvedTrip[]];
+
+function resolveTrip(trip: Trip, network: NetworkIndex): ResolvedTrip | null {
+  const pattern = network.patternIndex(trip.patternId);
+  if (pattern === undefined) return null;
+
+  const origin = originTime(trip, network);
+  if (origin === null) return null;
+  const terminal = terminalTime(trip, network);
+  if (terminal === null) return null;
+
+  return {
+    trip,
+    originStopId: pattern.originStopId,
+    terminalStopId: pattern.terminalStopId,
+    originTime: origin,
+    terminalTime: terminal,
+    isDeadhead: pattern.pattern.isDeadhead,
+  };
+}
+
+function buildBlock(blockId: string, group: NonEmptyTrips, depotIds: ReadonlySet<string>): Block {
+  // 始発時刻が同じ便は運用として成立しないが（T-10 の V-03）、導出の順序は
+  // 入力の並びに左右されてはならない。終着時刻・便 ID の順で決着させる。
+  const [head, ...tail] = group;
+  const sorted: NonEmptyTrips = [head, ...tail];
+  sorted.sort(
+    (a, b) =>
+      compareTime(a.originTime, b.originTime) ||
+      compareTime(a.terminalTime, b.terminalTime) ||
+      a.trip.tripId.localeCompare(b.trip.tripId),
+  );
+
+  // 先頭の便に折返し時分は無い。以降は直前の便の終着との差で決まる。
+  const first = sorted[0];
+  const trips: [BlockTrip, ...BlockTrip[]] = [{ ...first, layoverMinutes: null }];
+  let last: ResolvedTrip = first;
+  for (const [previous, current] of adjacentPairs(sorted)) {
+    trips.push({
+      ...current,
+      layoverMinutes: diffMinutes(current.originTime, previous.terminalTime),
+    });
+    last = current;
+  }
+
+  const isDepot = (stopId: string): boolean => depotIds.has(stopId);
+
+  // 回送かどうかは見ない。R-07 により営業パターンは営業所を含まないため、
+  // 営業所に居ることと回送であることは同値である。
+  return {
+    blockId,
+    trips,
+    pullOutTime: isDepot(first.originStopId) ? first.originTime : null,
+    pullInTime: isDepot(last.terminalStopId) ? last.terminalTime : null,
+    standbys: findStandbys(trips, isDepot),
+  };
+}
+
+/**
+ * 営業所待機を見つける。
+ *
+ * 連続する 2 便が営業所で繋がっていれば、その間が待機である。待機を表すデータは
+ * 存在せず、便と便の隙間として現れる（仕様書 §1.2、UC-4）。
+ */
+function findStandbys(
+  trips: readonly BlockTrip[],
+  isDepot: (stopId: string) => boolean,
+): DepotStandby[] {
+  const standbys: DepotStandby[] = [];
+
+  for (const [previous, current] of adjacentPairs(trips)) {
+    if (isDepot(previous.terminalStopId) && isDepot(current.originStopId)) {
+      standbys.push({
+        inboundTripId: previous.trip.tripId,
+        outboundTripId: current.trip.tripId,
+        startTime: previous.terminalTime,
+        endTime: current.originTime,
+        minutes: diffMinutes(current.originTime, previous.terminalTime),
+      });
+    }
+  }
+
+  return standbys;
+}

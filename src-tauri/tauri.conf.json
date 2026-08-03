@@ -1,0 +1,56 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "UoDia",
+  "version": "1.0.0",
+  "identifier": "com.sairidoukoukai.uodia",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build:web",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "UoDia",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 600,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "publisher": "再履同好会",
+    "copyright": "© 2026 再履同好会",
+    "category": "Productivity",
+    "shortDescription": "再履バスのダイヤグラム設計ソフトウェア",
+    "longDescription": "大阪大学 学内連絡バス（再履バス）のダイヤグラムを作るための道具。時刻表とダイヤグラムを行き来しながら、便・運用・出入庫を組み立てる。大阪大学の公式なソフトウェアではない。",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": {
+      "../data/route.json": "route.json"
+    },
+    "linux": {
+      "deb": {
+        "section": "utils"
+      }
+    },
+    "windows": {
+      "wix": {
+        "language": ["ja-JP"]
+      }
+    }
+  }
+}
