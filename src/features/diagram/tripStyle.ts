@@ -20,7 +20,8 @@
  * （R-12 で検証）。
  */
 
-import type { ServiceType, StopPattern } from '@/domain/model';
+import type { DashKind, ServiceType, StopPattern } from '@/domain/model';
+import type { PatternStyleChoice } from '@/store';
 
 /** 各駅タイプ（`local`）。箕面学舎に停まる便。 */
 const LOCAL_DASH: readonly number[] = [];
@@ -33,6 +34,29 @@ export const SOLID: readonly number[] = [];
 
 /** 回送スジ（仕様書 §6.2.2）。営業パターンには使わない短い破線とする。 */
 export const DEADHEAD_DASH: readonly number[] = [5, 4];
+
+/** 1 点鎖線。利用者が選べる線種のひとつ（#147）。 */
+export const DASH_DOT: readonly number[] = [10, 4, 2, 4];
+
+/**
+ * 利用者が選べる線種（#147）。
+ *
+ * **選べる先を決めておく。** 刻みを打ち込める形にすると、線種が「見分けるための
+ * もの」から「飾り」に変わる（#114 で線種を 2 種類に揃えた理由と同じ）。
+ */
+export const DASH_KINDS: readonly DashKind[] = ['solid', 'dashed', 'dashDot'];
+
+export const DASH_KIND_LABEL: Record<DashKind, string> = {
+  solid: '実線',
+  dashed: '破線',
+  dashDot: '1 点鎖線',
+};
+
+export const DASH_BY_KIND: Record<DashKind, readonly number[]> = {
+  solid: SOLID,
+  dashed: EXPRESS_DASH,
+  dashDot: DASH_DOT,
+};
 
 /** 運行の種別に対応する線種。 */
 export function dashForServiceType(serviceType: ServiceType): readonly number[] {
@@ -61,4 +85,41 @@ export function assignPatternDashes(
   }
 
   return dashes;
+}
+
+/** 描くときのパターンの姿。 */
+export interface PatternStyle {
+  readonly color: string;
+  readonly lineDash: readonly number[];
+}
+
+/**
+ * パターンの色と線種を決める（#147）。
+ *
+ * **決める場所を 1 つにする。** ダイヤグラムのスジ（`selectDiagramScene`）と
+ * 凡例（`PatternList`）が別々に決めると、**一覧とスジが違う姿になる。**
+ *
+ * 上書きしていないパターンは `route.json` のままである。色と線種は独立であり、
+ * 片方だけ上書きできる。
+ */
+export function patternStyles(
+  patterns: readonly StopPattern[],
+  choices: Readonly<Record<string, PatternStyleChoice>> = {},
+): ReadonlyMap<string, PatternStyle> {
+  const dashes = assignPatternDashes(patterns);
+  const styles = new Map<string, PatternStyle>();
+
+  for (const pattern of patterns) {
+    const choice = choices[pattern.patternId];
+    styles.set(pattern.patternId, {
+      color: choice?.color ?? pattern.color,
+      // **回送の線種は上書きさせない。** 回送かどうかはパターンの好みではない。
+      lineDash:
+        choice?.dash !== undefined && !pattern.isDeadhead
+          ? DASH_BY_KIND[choice.dash]
+          : (dashes.get(pattern.patternId) ?? SOLID),
+    });
+  }
+
+  return styles;
 }

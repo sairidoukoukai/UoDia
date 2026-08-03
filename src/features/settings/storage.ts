@@ -24,8 +24,9 @@ export interface SettingsStorageOptions {
 
 /** 保存する分だけを取り出す。**隠し設定の有効・無効は含めない**（§6.5.4）。 */
 export function persistedOf(store: SettingsStorageOptions['store']): PersistedSettings {
-  const { theme, backupIntervalMs, defaultDiagramView, stopGridStyles } = store.getState().settings;
-  return { theme, backupIntervalMs, defaultDiagramView, stopGridStyles };
+  const { theme, backupIntervalMs, defaultDiagramView, stopGridStyles, patternStyles } =
+    store.getState().settings;
+  return { theme, backupIntervalMs, defaultDiagramView, stopGridStyles, patternStyles };
 }
 
 /** 保存されている設定を読んで当てる。 */

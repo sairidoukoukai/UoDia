@@ -38,6 +38,7 @@ import {
   selectTripNumbers,
   selectTrips,
   selectTripsByDirection,
+  selectView,
   useAppStore,
 } from '@/store';
 import { commitCellInput, type CellPosition } from './editing';
@@ -54,6 +55,9 @@ import { TimetableGrid, type CommitResult } from './TimetableGrid';
 import { TimetableToolbar } from './TimetableToolbar';
 
 const DIRECTIONS: readonly DirectionId[] = [0, 1];
+
+/** 運用の色を 1 つも選んでいない状態。**同じ参照を返す**（購読が無駄に動かない）。 */
+const NO_COLORS: Readonly<Record<string, string>> = Object.freeze({});
 
 /** 操作が成り立たなかったときに出す言葉。 */
 const CANNOT = {
@@ -109,7 +113,12 @@ export function Timetable(): ReactElement {
 
   // 色はダイヤの全便から決める。片方向だけで割り当てると、方向をまたぐ運用が
   // 方向によって違う色になる（仕様書 §5.8）。
-  const blockColors = useMemo(() => blockColorsOf(serviceTrips), [serviceTrips]);
+  // 運用ごとに選んだ色（#148）。選んでいない運用はこれまでどおり自動で決まる。
+  const chosenBlockColors = useAppStore((state) => selectView(state)?.blockColors ?? NO_COLORS);
+  const blockColors = useMemo(
+    () => blockColorsOf(serviceTrips, chosenBlockColors),
+    [serviceTrips, chosenBlockColors],
+  );
 
   // 前運用・後運用はダイヤの全便から決まる。運用は方向をまたぐため、表示中の
   // 方向だけを見ると繋がりの半分を見失う（仕様書 §6.1.7）。

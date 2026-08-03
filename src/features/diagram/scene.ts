@@ -32,11 +32,12 @@ import {
   selectTrips,
   selectVisibleStops,
   type AppState,
+  type PatternStyleChoice,
   type SelectionRect,
   type TripShift,
 } from '@/store';
 import { readableOn } from './color';
-import { assignPatternDashes, SOLID } from './tripStyle';
+import { patternStyles, SOLID } from './tripStyle';
 
 /** 縦軸に並ぶ停留所。 */
 export interface SceneStop {
@@ -148,6 +149,9 @@ const NO_TRIPS: readonly SceneTrip[] = [];
 const NO_IDS: readonly string[] = [];
 const NO_DIRECTIONS: readonly DirectionId[] = [];
 
+/** 運用の色を 1 つも選んでいない状態。**同じ参照を返す**（記憶化の鍵になる）。 */
+const NO_BLOCK_COLORS: Readonly<Record<string, string>> = Object.freeze({});
+
 /**
  * 縦軸に並ぶ停留所。**線種だけは利用者の上書きが勝つ**（§6.5.3、#133）。
  *
@@ -180,9 +184,15 @@ const depotIdsOf = memoizeByIdentity(
     new Set(network.def.stops.filter((stop) => stop.isDepot).map((stop) => stop.stopId)),
 );
 
-/** パターンの線種。路線図が変わらないかぎり組み直さない。 */
-const dashesOf = memoizeByIdentity((network: NetworkIndex) =>
-  assignPatternDashes(network.def.patterns),
+/**
+ * パターンの色と線種。**利用者の上書きが勝つ**（§6.5.3、#147）。
+ *
+ * 凡例（`PatternList`）も同じ関数を通る。別々に決めると、一覧とスジが違う姿に
+ * なる。
+ */
+const stylesOf = memoizeByIdentity(
+  (network: NetworkIndex, choices: Readonly<Record<string, PatternStyleChoice>>) =>
+    patternStyles(network.def.patterns, choices),
 );
 
 const filterOf = memoizeByIdentity(
@@ -209,8 +219,12 @@ const tripsOf = memoizeByIdentity(
     numbers: ReadonlyMap<string, string>,
     /** 地色。**色を読めるように調えるために要る**（§9.4、T-39）。 */
     background: string,
+    /** パターンの色と線種の上書き（設定。#147）。 */
+    patternChoices: Readonly<Record<string, PatternStyleChoice>>,
+    /** 運用ごとに選んだ色（プロジェクト。#148）。 */
+    blockChoices: Readonly<Record<string, string>>,
   ): readonly SceneTrip[] => {
-    const dashes = dashesOf(network);
+    const styles = stylesOf(network, patternChoices);
     const depots = depotIdsOf(network);
     // **色は隠されている便も含めて割り当てる。** 表示を切り替えるたびに残った
     // 運用の色が入れ替わっては、色で運用を追えない。
@@ -219,7 +233,11 @@ const tripsOf = memoizeByIdentity(
     // あって 1 つの運用ではなく、数に入れると他の運用の色が 1 つずつずれる。
     const blockColors =
       colorMode === 'block'
-        ? assignBlockColors(trips.map((trip) => trip.blockId).filter((blockId) => blockId !== ''))
+        ? assignBlockColors(
+            trips.map((trip) => trip.blockId).filter((blockId) => blockId !== ''),
+            undefined,
+            blockChoices,
+          )
         : null;
 
     const scene: SceneTrip[] = [];
@@ -253,8 +271,13 @@ const tripsOf = memoizeByIdentity(
         patternId: trip.patternId,
         // **持っている色は 1 つ。** 暗い配色では明るさだけを調えて出す
         // （`readableOn`）。route.json の値は書き換えない。
-        color: readableOn(blockColors?.get(trip.blockId) ?? pattern.pattern.color, background),
-        lineDash: dashes.get(trip.patternId) ?? SOLID,
+        color: readableOn(
+          blockColors?.get(trip.blockId) ??
+            styles.get(trip.patternId)?.color ??
+            pattern.pattern.color,
+          background,
+        ),
+        lineDash: styles.get(trip.patternId)?.lineDash ?? SOLID,
         directionId: pattern.pattern.directionId,
         isDeadhead: pattern.pattern.isDeadhead,
         blockId: trip.blockId,
@@ -335,6 +358,8 @@ export function selectDiagramScene(state: AppState, theme: SceneTheme): DiagramS
           view?.colorMode ?? 'pattern',
           selectTripNumbers(state),
           theme.background,
+          state.settings.patternStyles,
+          view?.blockColors ?? NO_BLOCK_COLORS,
         ),
     state.ui.selectedTripIds,
     state.ui.selectionRect,

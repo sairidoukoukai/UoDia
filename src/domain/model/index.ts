@@ -9,6 +9,7 @@ export {
 } from './primitives';
 
 export {
+  dashKindSchema,
   gridStyleSchema,
   handlingSchema,
   networkDefSchema,
@@ -17,6 +18,7 @@ export {
   serviceTypeSchema,
   stopPatternSchema,
   stopSchema,
+  type DashKind,
   type GridStyle,
   type Handling,
   type NetworkDef,

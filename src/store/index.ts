@@ -4,10 +4,12 @@ export {
   DEFAULT_THEME,
   clampBackupInterval,
   NO_GRID_STYLE_OVERRIDES,
+  NO_PATTERN_STYLES,
   parseSettings,
   persistedSettingsSchema,
   serializeSettings,
   themeModeSchema,
+  type PatternStyleChoice,
   type PersistedSettings,
   type ThemeMode,
 } from './settings';

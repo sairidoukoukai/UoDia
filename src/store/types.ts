@@ -28,7 +28,7 @@
 import type { DiagramView, GridStyle, NetworkDef, Project, Trip } from '@/domain/model';
 import type { FileHandle } from '@/platform';
 import type { History } from './history';
-import type { ThemeMode } from './settings';
+import type { PatternStyleChoice, ThemeMode } from './settings';
 
 /**
  * 矩形選択で囲んでいる範囲（仕様書 §6.3.1、T-28）。
@@ -182,6 +182,14 @@ export interface AppSettings {
    * 持つと、`route.json` 側で線種を直したときに古い値で上書きし続ける。
    */
   readonly stopGridStyles: Readonly<Record<string, GridStyle>>;
+  /**
+   * 停車パターンの色と線種の上書き（仕様書 §6.5.3、#147）。
+   *
+   * 停留所の線種（`stopGridStyles`）と同じ理屈で設定に置く——どのパターンが
+   * 直行かは路線の事実であり、その線が見分けやすいかはその人の目の話である。
+   * **色と線種は独立に持つ**（片方だけ選べる）。
+   */
+  readonly patternStyles: Readonly<Record<string, PatternStyleChoice>>;
   /**
    * 停車パターンの編集を開いてよいか（仕様書 §6.5.4、T-36）。
    *

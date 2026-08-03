@@ -222,8 +222,15 @@ export function stopsForDirection(
  * 渡すのはダイヤの全便である。運用は方向をまたぐため、片方向だけで割り当てると
  * 同じ運用が方向によって違う色になる。
  */
-export function blockColorsOf(trips: readonly Trip[]): ReadonlyMap<string, string> {
-  return assignBlockColors(trips.map((trip) => trip.blockId).filter((blockId) => blockId !== ''));
+export function blockColorsOf(
+  trips: readonly Trip[],
+  chosen: Readonly<Record<string, string>> = {},
+): ReadonlyMap<string, string> {
+  return assignBlockColors(
+    trips.map((trip) => trip.blockId).filter((blockId) => blockId !== ''),
+    undefined,
+    chosen,
+  );
 }
 
 /**

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { diagramViewSchema, gridStyleSchema, type GridStyle } from '@/domain/model';
+import { dashKindSchema, diagramViewSchema, gridStyleSchema, type GridStyle } from '@/domain/model';
 
 /**
  * 設定の既定値と範囲（仕様書 §6.5.2、§6.5.3、T-35）。
@@ -41,6 +41,13 @@ export function clampBackupInterval(ms: number): number {
   return Math.min(BACKUP_INTERVAL_LIMITS.max, Math.max(BACKUP_INTERVAL_LIMITS.min, Math.round(ms)));
 }
 
+/** パターンごとの上書き（#147）。**色と線種は独立に選ぶ。** */
+export const patternStyleChoiceSchema = z.object({
+  color: z.string().optional(),
+  dash: dashKindSchema.optional(),
+});
+export type PatternStyleChoice = z.infer<typeof patternStyleChoiceSchema>;
+
 /**
  * 保存する設定（T-39）。
  *
@@ -60,11 +67,21 @@ export const persistedSettingsSchema = z.object({
    * 大きい。当てるときに引き当たらないだけである。
    */
   stopGridStyles: z.record(z.string(), gridStyleSchema).default({}),
+  /**
+   * 停車パターンの色と線種の上書き（§6.5.3、#147）。
+   *
+   * **色と線種は独立に持つ。** 片方だけ選んだときに、もう片方まで
+   * `route.json` から離れてしまわないようにする。
+   */
+  patternStyles: z.record(z.string(), patternStyleChoiceSchema).default({}),
 });
 export type PersistedSettings = z.infer<typeof persistedSettingsSchema>;
 
 /** 上書きが 1 つも無い状態。**同じ参照を返す**——記憶化の鍵になる。 */
 export const NO_GRID_STYLE_OVERRIDES: Readonly<Record<string, GridStyle>> = Object.freeze({});
+
+/** パターンの上書きが 1 つも無い状態。 */
+export const NO_PATTERN_STYLES: Readonly<Record<string, PatternStyleChoice>> = Object.freeze({});
 
 /**
  * 保存されている設定を読む。**読めなければ既定に倒す。**
@@ -91,6 +108,7 @@ export function serializeSettings(settings: PersistedSettings): string {
       defaultDiagramView: settings.defaultDiagramView,
       // 停留所の並びも固定する。上書きを足した順で書くと、同じ内容から違う
       // バイト列が出て、**中身が変わっていないのに書き込みが走る**。
+      patternStyles: sortedByKey(settings.patternStyles),
       stopGridStyles: sortedByKey(settings.stopGridStyles),
       theme: settings.theme,
     },
@@ -99,6 +117,6 @@ export function serializeSettings(settings: PersistedSettings): string {
   )}\n`;
 }
 
-function sortedByKey(styles: Readonly<Record<string, GridStyle>>): Record<string, GridStyle> {
+function sortedByKey<T>(styles: Readonly<Record<string, T>>): Record<string, T> {
   return Object.fromEntries(Object.entries(styles).sort(([a], [b]) => a.localeCompare(b)));
 }

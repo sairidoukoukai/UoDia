@@ -11,7 +11,7 @@
  */
 
 import { useMemo, type ReactElement } from 'react';
-import { assignPatternDashes, readableOn } from '@/features/diagram';
+import { patternStyles, readableOn } from '@/features/diagram';
 import { useThemeColor } from '@/features/settings';
 import { DIRECTION_LABEL } from '@/features/timetable';
 import { selectNetwork, selectView, useAppStore } from '@/store';
@@ -30,9 +30,14 @@ export function PatternList(): ReactElement {
   const hidden = useAppStore((state) => selectView(state)?.hiddenPatternIds ?? NO_IDS);
   const editProject = useAppStore((state) => state.editProject);
 
-  const dashes = useMemo(
-    () => (network === null ? null : assignPatternDashes(network.def.patterns)),
-    [network],
+  /**
+   * 色と線種。**スジと同じ道具で決める**（`patternStyles`）——別々に決めると、
+   * 一覧とスジが違う姿になる（#147）。
+   */
+  const choices = useAppStore((state) => state.settings.patternStyles);
+  const styles = useMemo(
+    () => (network === null ? null : patternStyles(network.def.patterns, choices)),
+    [network, choices],
   );
 
   // 色見本もスジと同じ調え方をする（§9.4、T-39）。暗い配色で、一覧だけが
@@ -78,8 +83,11 @@ export function PatternList(): ReactElement {
                 }}
               />
               <Swatch
-                color={readableOn(pattern.color, background)}
-                dash={dashes?.get(pattern.patternId) ?? []}
+                color={readableOn(
+                  styles?.get(pattern.patternId)?.color ?? pattern.color,
+                  background,
+                )}
+                dash={styles?.get(pattern.patternId)?.lineDash ?? []}
               />
               <span className="panel__id">{pattern.patternId}</span>
               <span className="panel__note">{pattern.patternName}</span>

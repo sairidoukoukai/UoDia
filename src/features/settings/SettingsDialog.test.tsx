@@ -55,7 +55,7 @@ function makeTrip(tripId: string, patternId: string, hours: number): Trip {
 function mount(writable = true): void {
   // **毎回同じところから始める。** ストアは 1 つしかなく、前の検証で変えた設定が
   // 残ると、順番によって結果が変わる。
-  useAppStore.getState().setSettings({ theme: 'system', stopGridStyles: {} });
+  useAppStore.getState().setSettings({ theme: 'system', stopGridStyles: {}, patternStyles: {} });
   useAppStore.getState().setNetworkDef(network.def);
   useAppStore
     .getState()
@@ -385,6 +385,67 @@ describe('表示タブ（§6.5.3）', () => {
       choose(gridStyleField('豊中'), 'dashed');
       expect(text()).toContain('1 停留所を上書きしています');
     });
+  });
+});
+
+/** 停車パターンの色と線種（#147）。 */
+describe('停車パターンの色と線種', () => {
+  function openDisplayTab(): void {
+    mount();
+    act(() => {
+      button('表示').click();
+    });
+  }
+
+  const styles = (): unknown => useAppStore.getState().settings.patternStyles;
+
+  it('**回送のパターンは並べない**（回送かどうかは好みではない）', () => {
+    openDisplayTab();
+
+    expect(container.querySelector('[aria-label="S1 の色"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="DT-out の線種"]')).toBeNull();
+  });
+
+  it('**route.json の線種を選択肢に出す**（何を上書きするのかが分かる）', () => {
+    openDisplayTab();
+
+    const select = container.querySelector<HTMLSelectElement>('[aria-label="S1 の線種"]');
+    // S1（直行吹田）は通過タイプであり、既定は破線である（#114）。
+    expect(select?.options[0]?.textContent).toBe('路線図のまま（破線）');
+  });
+
+  it('線種を選ぶと上書きが入る', () => {
+    openDisplayTab();
+    const select = container.querySelector<HTMLSelectElement>('[aria-label="S1 の線種"]');
+    if (select === null) throw new Error('欄がありません');
+    choose(select, 'dashDot');
+
+    expect(styles()).toEqual({ S1: { dash: 'dashDot' } });
+  });
+
+  it('**色と線種を別々に変えられる**', () => {
+    openDisplayTab();
+    const select = container.querySelector<HTMLSelectElement>('[aria-label="S1 の線種"]');
+    const color = container.querySelector<HTMLInputElement>('[aria-label="S1 の色"]');
+    if (select === null || color === null) throw new Error('欄がありません');
+
+    choose(select, 'solid');
+    type(color, '#123456');
+
+    expect(styles()).toEqual({ S1: { color: '#123456', dash: 'solid' } });
+  });
+
+  it('そのパターンだけ路線図のままに戻せる', () => {
+    openDisplayTab();
+    const select = container.querySelector<HTMLSelectElement>('[aria-label="S1 の線種"]');
+    if (select === null) throw new Error('欄がありません');
+    choose(select, 'solid');
+
+    act(() => {
+      button('↺').click();
+    });
+
+    expect(styles()).toEqual({});
   });
 });
 

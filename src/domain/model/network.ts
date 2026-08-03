@@ -18,6 +18,15 @@ export const gridStyleSchema = z.enum(['bold', 'normal', 'dashed']);
 export type GridStyle = z.infer<typeof gridStyleSchema>;
 
 /**
+ * スジの線種（#147）。**選べる先を決めておく。**
+ *
+ * 刻み（`[8, 4]` など）そのものは描画側が持つ（`features/diagram/tripStyle.ts`）。
+ * ここに置くのは、設定として保存される値だからである。
+ */
+export const dashKindSchema = z.enum(['solid', 'dashed', 'dashDot']);
+export type DashKind = z.infer<typeof dashKindSchema>;
+
+/**
  * 取扱区分（仕様書 §5.4）。その便がその停留所で乗客の乗り降りをどう扱うか。
  *
  * 「通過」は設けない。パターンに含まれない停留所は、その便が経由しないことを

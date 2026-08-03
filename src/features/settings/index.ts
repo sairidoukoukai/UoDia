@@ -15,6 +15,15 @@ export {
 export { loadSettings, persistedOf, watchSettings, type SettingsStorageOptions } from './storage';
 
 export {
+  clearedPatternStyles,
+  patternStyleCount,
+  withPatternStyle,
+  withoutPatternStyle,
+  type PatternStyleChoices,
+  type PatternStylePatch,
+} from './patternStyles';
+
+export {
   GRID_STYLES,
   GRID_STYLE_LABEL,
   clearedGridStyles,
