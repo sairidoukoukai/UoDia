@@ -5,6 +5,11 @@ on:
     branches: [develop, main]
   push:
     branches: [develop, main]
+    # タグでも起動する。**書かないと配布のジョブは一度も動かない**——
+    # `branches` だけを書くと、タグの push はこのワークフローを起動しない。
+    # 配布のジョブ（`release`）は `refs/tags/v*` のときだけ走る作りであり、
+    # 起動しなければその条件を見る機会そのものが無い。
+    tags: ['v*']
 
 # 同一ブランチで新しい実行が始まったら古い実行を打ち切る。
 concurrency:
@@ -71,7 +76,9 @@ jobs:
   # ---------------------------------------------------------------------------
   desktop:
     name: デスクトップビルド (${{ matrix.label }})
-    if: github.event_name == 'push'
+    # **タグでは走らせない。** 同じコミットを `release` が 3 OS で作り直す。
+    # Rust の build を二重に回しても、出来るものは同じである。
+    if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')
     needs: check
     runs-on: ${{ matrix.os }}
     strategy:
@@ -158,6 +165,9 @@ jobs:
   release:
     name: 配布物の公開 (${{ matrix.label }})
     if: startsWith(github.ref, 'refs/tags/v')
+    # 品質ゲートを通ってから作る。下書きとはいえ、型検査すら通らないものを
+    # 配布物の形にして残す意味は無い。
+    needs: check
     runs-on: ${{ matrix.os }}
     permissions:
       contents: write
