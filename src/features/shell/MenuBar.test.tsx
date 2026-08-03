@@ -20,10 +20,14 @@ import type { CommandActions } from './shortcuts';
 let container: HTMLDivElement;
 let root: Root;
 
-function mount(actions: CommandActions, extra: readonly MenuExtra[] = []): void {
+function mount(
+  actions: CommandActions,
+  extra: readonly MenuExtra[] = [],
+  checked: Readonly<Partial<Record<string, boolean>>> = {},
+): void {
   root = createRoot(container);
   act(() => {
-    root.render(<MenuBar actions={actions} extra={extra} />);
+    root.render(<MenuBar actions={actions} extra={extra} checked={checked} />);
   });
 }
 
@@ -147,6 +151,63 @@ describe('押す', () => {
     });
 
     expect(items()).toHaveLength(0);
+  });
+});
+
+/**
+ * 印を付ける項目（#144）。
+ *
+ * ツールバーを畳んだため、**いまどちらの道具を持っているか**を知る場所は
+ * メニューとステータスバーだけになった。
+ */
+describe('印', () => {
+  it('**今その状態の項目に印を付ける**（読み上げにも伝わる）', () => {
+    mount({ 'edit.selectTool': () => undefined, 'edit.drawTool': () => undefined }, [], {
+      'edit.drawTool': true,
+    });
+    act(() => {
+      title('編集').click();
+    });
+
+    const draw = items().find(
+      (item) => item.querySelector('.menubar__label')?.textContent === 'スジ作成',
+    );
+    const select = items().find(
+      (item) => item.querySelector('.menubar__label')?.textContent === '選択',
+    );
+
+    expect(draw?.getAttribute('role')).toBe('menuitemradio');
+    expect(draw?.getAttribute('aria-checked')).toBe('true');
+    expect(select?.getAttribute('aria-checked')).toBe('false');
+  });
+
+  it('**印を付けない項目は `menuitem` のまま**（状態ではなく操作である）', () => {
+    mount({ 'edit.copy': () => undefined });
+    act(() => {
+      title('編集').click();
+    });
+
+    const copy = items().find(
+      (item) => item.querySelector('.menubar__label')?.textContent === 'コピー',
+    );
+    expect(copy?.getAttribute('role')).toBe('menuitem');
+    expect(copy?.getAttribute('aria-checked')).toBeNull();
+  });
+
+  it('作図の道具はメニューから選べる（ツールバーが無い）', () => {
+    const setTool = vi.fn();
+    mount({ 'edit.drawTool': setTool });
+    act(() => {
+      title('編集').click();
+    });
+    const draw = items().find(
+      (item) => item.querySelector('.menubar__label')?.textContent === 'スジ作成',
+    );
+    act(() => {
+      draw?.click();
+    });
+
+    expect(setTool).toHaveBeenCalledTimes(1);
   });
 });
 

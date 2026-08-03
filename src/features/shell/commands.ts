@@ -44,11 +44,14 @@ export type CommandId =
   | 'file.save'
   | 'file.saveAs'
   | 'file.backupNow'
+  | 'file.documentInfo'
   | 'edit.undo'
   | 'edit.redo'
   | 'edit.copy'
   | 'edit.cut'
   | 'edit.paste'
+  | 'edit.selectTool'
+  | 'edit.drawTool'
   | 'view.maximizeDiagram'
   | 'view.maximizeTimetable'
   | 'view.resetZoom'
@@ -78,6 +81,14 @@ export interface Command {
   /** この項目の前に区切り線を引く。 */
   readonly separatorBefore?: true;
   /**
+   * 今その状態かどうかを印で出す（作図の道具・最大化）。
+   *
+   * **状態はメニューにも出す。** ツールバーを畳んだ以上（#144）、いま選択と
+   * 作図のどちらを持っているかを知る場所がメニューしか無い。押しボタンの
+   * 「押されている」に当たるものを、メニューでは印で示す。
+   */
+  readonly checkable?: true;
+  /**
    * 記入欄の中では横取りしない。
    *
    * 時刻や運用番号を打っている最中の <kbd>Ctrl</kbd>+<kbd>Z</kbd> は**文字の
@@ -97,7 +108,13 @@ export const COMMANDS: readonly Command[] = [
     label: '名前を付けて保存…',
     accelerator: { key: 's', shift: true },
   },
-  { id: 'file.backupNow', menu: 'file', label: '今すぐバックアップ', separatorBefore: true },
+  {
+    id: 'file.documentInfo',
+    menu: 'file',
+    label: '文書情報…',
+    separatorBefore: true,
+  },
+  { id: 'file.backupNow', menu: 'file', label: '今すぐバックアップ' },
 
   {
     id: 'edit.undo',
@@ -135,18 +152,32 @@ export const COMMANDS: readonly Command[] = [
     accelerator: { key: 'v' },
     nativeInField: true,
   },
+  /*
+    作図の道具（仕様書 §6.3.3）。**鍵は与えない。** 作図をやめる <kbd>Esc</kbd>
+    は既にあり（T-30）、始める側だけに鍵を足すと釣り合わない。
+  */
+  {
+    id: 'edit.selectTool',
+    menu: 'edit',
+    label: '選択',
+    separatorBefore: true,
+    checkable: true,
+  },
+  { id: 'edit.drawTool', menu: 'edit', label: 'スジ作成', checkable: true },
 
   {
     id: 'view.maximizeDiagram',
     menu: 'view',
     label: 'ダイヤグラムを最大化',
     accelerator: { key: '1' },
+    checkable: true,
   },
   {
     id: 'view.maximizeTimetable',
     menu: 'view',
     label: '時刻表を最大化',
     accelerator: { key: '2' },
+    checkable: true,
   },
   {
     id: 'view.resetZoom',

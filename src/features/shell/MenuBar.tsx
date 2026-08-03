@@ -25,6 +25,7 @@ import {
   commandsIn,
   formatAccelerator,
   type Command,
+  type CommandId,
   type MenuId,
 } from './commands';
 import { isEnabled, type CommandActions } from './shortcuts';
@@ -41,6 +42,13 @@ export interface MenuExtra {
 export interface MenuBarProps {
   readonly actions: CommandActions;
   readonly extra?: readonly MenuExtra[];
+  /**
+   * 印を付ける操作（作図の道具・最大化。#144）。
+   *
+   * **押しボタンの「押されている」に当たるものである。** ツールバーを畳んだ
+   * 以上、いまどちらの道具を持っているかを知る場所がここしか無い。
+   */
+  readonly checked?: Readonly<Partial<Record<CommandId, boolean>>>;
 }
 
 /** メニューに並ぶ 1 行（表の操作と、表に持てない項目を同じ形にする）。 */
@@ -51,6 +59,8 @@ interface Item {
   readonly enabled: boolean;
   readonly separatorBefore: boolean;
   readonly run: (() => void) | null;
+  /** 印を付ける項目なら、今その状態か。印を付けない項目では `null`。 */
+  readonly checked: boolean | null;
 }
 
 function itemsOf(menu: MenuId, props: MenuBarProps): readonly Item[] {
@@ -64,6 +74,7 @@ function itemsOf(menu: MenuId, props: MenuBarProps): readonly Item[] {
       enabled: isEnabled(command, props.actions),
       separatorBefore: command.separatorBefore === true,
       run: run ?? null,
+      checked: command.checkable === true ? (props.checked?.[command.id] ?? false) : null,
     };
   });
 
@@ -76,6 +87,7 @@ function itemsOf(menu: MenuId, props: MenuBarProps): readonly Item[] {
       enabled: true,
       separatorBefore: item.separatorBefore ?? index === 0,
       run: item.run,
+      checked: null,
     }));
 
   return [...fromTable, ...extra];
@@ -212,7 +224,12 @@ function MenuPanel(props: MenuPanelProps): ReactElement {
         <div key={item.key} className={item.separatorBefore ? 'menubar__group' : undefined}>
           <button
             type="button"
-            role="menuitem"
+            /*
+              印を付ける項目は `menuitemradio` として出す。**印は見た目だけの
+              ものではない**——読み上げにも「選択されている」と伝わる（§9.4）。
+            */
+            role={item.checked === null ? 'menuitem' : 'menuitemradio'}
+            aria-checked={item.checked ?? undefined}
             className="menubar__item"
             disabled={!item.enabled}
             onClick={() => {
@@ -238,6 +255,12 @@ function MenuPanel(props: MenuPanelProps): ReactElement {
               }
             }}
           >
+            {/* 印の場所は常に取っておく。付いた瞬間に文字がずれない。 */}
+            {item.checked !== null && (
+              <span className="menubar__check" aria-hidden="true">
+                {item.checked ? '●' : ''}
+              </span>
+            )}
             <span className="menubar__label">{item.label}</span>
             {item.accelerator !== null && <span className="menubar__key">{item.accelerator}</span>}
           </button>

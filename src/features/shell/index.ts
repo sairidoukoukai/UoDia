@@ -1,10 +1,10 @@
 export { BrowserNotice, type BrowserNoticeProps } from './BrowserNotice';
+export { DocumentDialog, type DocumentDialogProps } from './DocumentDialog';
+
 export { HelpDialog, APP_VERSION, type HelpDialogProps, type HelpTopic } from './HelpDialog';
 export { MenuBar, type MenuBarProps, type MenuExtra } from './MenuBar';
 export { SplitLayout, type SplitLayoutProps } from './SplitLayout';
 export { StatusBar, type StatusBarProps } from './StatusBar';
-export { Toolbar, type ToolbarProps } from './Toolbar';
-
 export {
   COMMANDS,
   MENUS,

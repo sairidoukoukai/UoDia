@@ -82,6 +82,21 @@ afterEach(() => {
 
 const text = (): string => container.textContent;
 
+/** 作図の道具（#144）。ツールバーを畳んだため、常に見えている場所はここだけ。 */
+describe('作図の道具', () => {
+  it('**いまどちらの道具を持っているかを出す**（§6.3.3）', () => {
+    useAppStore.getState().setTool('select');
+    mount();
+    expect(text()).toContain('選択');
+  });
+
+  it('切り替えると変わる', () => {
+    useAppStore.getState().setTool('draw');
+    mount();
+    expect(text()).toContain('スジ作成');
+  });
+});
+
 describe('ステータスバー', () => {
   it('便数と運用数を出す（仕様書 §6.4）', () => {
     mount();
