@@ -134,6 +134,18 @@ git tag v1.0.0 && git push origin v1.0.0
 
 自動で公開しないのは、公開が取り消せない操作だからである。下書きのまま置いておけば、中身は関係者だけが取れる。
 
+**タグを打つ前に、ワークフローがタグで起動することを確かめること。** `on.push` に `branches` だけを書くと、タグの push ではワークフローそのものが起動せず、`refs/tags/v*` を見るジョブは一度も動かない（2026-08-03 に踏んだ）。
+
+### タグを打たずに配布物を取る
+
+`develop` / `main` へのマージでも 3 OS のビルドは走っており、成果物は artifact に残る（**14 日**）。
+
+```
+gh run download -n uodia-Windows -D <保存先>   # nsis/*.exe と msi/*.msi
+gh run download -n uodia-Linux   -D <保存先>   # .deb / .rpm / .AppImage
+gh run download -n uodia-macOS   -D <保存先>   # .dmg / .app
+```
+
 ## 進め方
 
 作業は GitHub issue（T-01〜T-42）単位で行う。
