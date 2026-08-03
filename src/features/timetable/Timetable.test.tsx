@@ -740,3 +740,152 @@ describe('出区・入区（T-51、仕様書 §6.1.7）', () => {
     expect(container.querySelectorAll('thead .timetable__column')).toHaveLength(1);
   });
 });
+
+/**
+ * 最大化中に 2 方向を並べる（#145、仕様書 §6.1.1）。
+ *
+ * 運用は方向をまたぐため、繋がりを追うには両方が要る。確かめるのは
+ * **並びが固定であること**、**どちらの表でも打てること**、そして
+ * **触った側が `activeDirection` になること**である。
+ */
+describe('最大化中の 2 方向（#145）', () => {
+  /** 時刻表を最大化する（`null` で戻す）。 */
+  function maximize(pane: 'timetable' | null = 'timetable'): void {
+    act(() => {
+      useAppStore.getState().setMaximizedPane(pane);
+    });
+  }
+
+  /** 画面に出ている表の名乗り。1 枚のときは空になる。 */
+  function names(): string[] {
+    return [...container.querySelectorAll('.timetable__name')].map((element) =>
+      element.textContent.trim(),
+    );
+  }
+
+  function tableAt(index: number): HTMLElement {
+    const section = container.querySelectorAll<HTMLElement>('.timetable__table')[index];
+    if (section === undefined) throw new Error(`${String(index)} 枚目の表がありません`);
+    return section;
+  }
+
+  /** その表の空の列に時刻を打って便を作る。 */
+  function newTripIn(index: number, hour: number, minute: number, row = 0): void {
+    const section = tableAt(index);
+    const column = section.querySelectorAll('thead .timetable__column').length;
+    const cell = section.querySelector<HTMLElement>(
+      `[data-cell="${String(row)}:${String(column)}"]`,
+    );
+    if (cell === null) throw new Error(`${String(index)} 枚目に打てる升目がありません`);
+
+    act(() => {
+      cell.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    });
+    act(() => {
+      cell.dispatchEvent(new KeyboardEvent('keydown', { key: 'F2', bubbles: true }));
+    });
+    fill('時刻', formatForInput(fromHM(hour, minute)));
+    act(() => {
+      container
+        .querySelector('.timetable__input')
+        ?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
+  }
+
+  /** その表を触る（升目に焦点が入る）。 */
+  function touch(index: number): void {
+    act(() => {
+      tableAt(index)
+        .querySelector('[data-cell]')
+        ?.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+    });
+  }
+
+  const direction = (): number | undefined => useAppStore.getState().project?.view.activeDirection;
+
+  it('**最大化すると 2 方向が同時に見える**', () => {
+    mount();
+    expect(names()).toEqual([]);
+
+    maximize();
+
+    expect(container.querySelectorAll('.timetable__table')).toHaveLength(2);
+    expect(names()).toEqual(['吹田方面', '豊中方面']);
+  });
+
+  it('**上が吹田方面**（ダイヤグラムの縦軸と上下が揃う）', () => {
+    mount();
+    maximize();
+
+    expect(names()[0]).toBe('吹田方面');
+  });
+
+  it('**どちらの表でも時刻を打てる**（下の表は豊中方面の便になる）', () => {
+    mount();
+    maximize();
+    newTripIn(1, 8, 0);
+
+    const trip = selectTrips(useAppStore.getState())[0];
+    expect(network.patternIndex(trip?.patternId ?? '')?.pattern.directionId).toBe(1);
+  });
+
+  it('**打つ先は触った表であり、`activeDirection` ではない**', () => {
+    mount();
+    maximize();
+    // 吹田方面を選んだまま、豊中方面の表へ打つ。
+    expect(direction()).toBe(0);
+    newTripIn(1, 8, 0);
+
+    expect(selectTrips(useAppStore.getState())).toHaveLength(1);
+    expect(trips()[0]?.startsWith('T')).toBe(true);
+  });
+
+  it('**触った表が「触っている方向」になる**（作図の行き先が移る）', () => {
+    mount();
+    maximize();
+    touch(1);
+
+    expect(direction()).toBe(1);
+  });
+
+  it('**タブを押しても選択は解けない**（隠れる便が無い）', () => {
+    mount();
+    newTrip(8, 0);
+    selectColumn(0);
+    maximize();
+
+    press('豊中方面');
+
+    expect(direction()).toBe(1);
+    expect(selectSelectedTripIds(useAppStore.getState())).toHaveLength(1);
+  });
+
+  it('**選択に追随して方向が動かない**（切り替える先が既に画面にある。T-38）', () => {
+    mount();
+    newTrip(8, 0);
+    const tripId = selectTrips(useAppStore.getState())[0]?.tripId;
+    if (tripId === undefined) throw new Error('便がありません');
+
+    maximize();
+    press('豊中方面');
+    act(() => {
+      useAppStore.getState().selectTrips([tripId]);
+    });
+
+    // 1 枚のときは吹田方面へ戻る場面である（上の「方向の切り替え」を参照）。
+    expect(direction()).toBe(1);
+  });
+
+  it('**最大化を解くと 1 枚に戻り、出るのは触っていた側**', () => {
+    mount();
+    maximize();
+    touch(1);
+    maximize(null);
+
+    expect(container.querySelectorAll('.timetable__table')).toHaveLength(1);
+    expect(names()).toEqual([]);
+    expect(direction()).toBe(1);
+    // 出ているのは豊中方面の表である（停留所の並びが反転している）。
+    expect(container.querySelector('tbody .timetable__stop')?.textContent).toBe('工学部');
+  });
+});

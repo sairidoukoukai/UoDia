@@ -5,6 +5,18 @@
  * 画面の状態としてここに持たないのは、ファイルに保存される設定だからである。
  * 両方に置くと、どちらが正かを決める規則が要る（`store/types.ts`）。
  *
+ * ## 最大化中は 2 方向を並べる（#145）
+ *
+ * 運用は方向をまたぐ（豊中方面で着いた便が折り返して吹田方面へ出る）ため、
+ * 繋がりを追うには両方が要る。最大化しているときは縦に場所がある。
+ *
+ * **上下の配分を決める仕掛けは要らない。** 行は停留所であり、便は列である
+ * ——便が何本あっても表の高さは変わらない。2 枚をそのまま積めばよい。
+ *
+ * 並べても `activeDirection` は消せない。**ダイヤグラムの作図がどちらの便を
+ * 作るかを決めている**（§6.3.3）。2 枚あるときのタブは「どちらを見るか」では
+ * なく**どちらを触っているか**の表示になる。
+ *
  * ## 便の操作は「作ってから入れ替える」
  *
  * 追加も複製も削除も、`domain/service/operations.ts` の純関数で**次の便の並びを
@@ -15,7 +27,7 @@
 
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { withSuggestedBlockId } from '@/domain/block';
-import type { DirectionId, Trip } from '@/domain/model';
+import { DIRECTIONS, type DirectionId, type StopPattern, type Trip } from '@/domain/model';
 import type { NetworkIndex } from '@/domain/network';
 import { diffMinutes } from '@/domain/time';
 import { originTime } from '@/domain/trip';
@@ -48,13 +60,12 @@ import {
   buildTimetable,
   buildTripLinks,
   stopsForDirection,
+  type Timetable as TimetableModel,
   type TripLinks,
 } from './model';
 import { directionToShow } from './sync';
 import { TimetableGrid, type CommitResult } from './TimetableGrid';
 import { TimetableToolbar } from './TimetableToolbar';
-
-const DIRECTIONS: readonly DirectionId[] = [0, 1];
 
 /** 運用の色を 1 つも選んでいない状態。**同じ参照を返す**（購読が無駄に動かない）。 */
 const NO_COLORS: Readonly<Record<string, string>> = Object.freeze({});
@@ -70,9 +81,25 @@ const CANNOT = {
 export function Timetable(): ReactElement {
   const network = useAppStore(selectNetwork);
   const direction = useAppStore(selectActiveDirection);
-  const shownTrips = useAppStore((state) => selectTripsByDirection(state, direction));
   const times = useAppStore(selectAllTripTimes);
   const editProject = useAppStore((state) => state.editProject);
+
+  /**
+   * 2 方向を同時に出すか（#145）。時刻表を最大化している間だけである。
+   *
+   * 最大化は保存しない画面の姿であり（`store/types.ts`）、解けば 1 枚に戻る。
+   * 戻ったときに出すのは `activeDirection` の側である。
+   */
+  const both = useAppStore((state) => state.ui.maximized === 'timetable');
+  const shown = useMemo<readonly DirectionId[]>(
+    () => (both ? DIRECTIONS : [direction]),
+    [both, direction],
+  );
+
+  // 2 方向とも購読する。**方向を引数に取るセレクタを 2 回呼んでも参照は安定する**
+  // ——仕分けは 1 回で両方向を作る（`selectTripsByDirection`）。
+  const outboundTrips = useAppStore((state) => selectTripsByDirection(state, 0));
+  const inboundTrips = useAppStore((state) => selectTripsByDirection(state, 1));
 
   // 操作の対象は編集中のダイヤの**全便**である。表に出ているのは片方向だけだが、
   // 便の並びは方向で分かれていない。
@@ -104,12 +131,17 @@ export function Timetable(): ReactElement {
    *
    * **循環しない。** 方向を切り替えても選択は変わらず、切り替えたあとは
    * `directionToShow` が `null` を返すため、1 回で止まる。
+   *
+   * **2 方向とも出ているときは何もしない（#145）。** 切り替える先が既に画面に
+   * あり、選んだ便の列はその表が自分で寄せる（`TimetableGrid`）。ここで方向を
+   * 動かすと、もう片方の表を触って `activeDirection` を移した端から、選択の
+   * ある側へ引き戻されてしまう。
    */
   useEffect(() => {
-    if (network === null) return;
+    if (network === null || both) return;
     const next = directionToShow(selectedTrips, direction, network);
     if (next !== null) setActiveDirection(next);
-  }, [selectedTrips, direction, network, setActiveDirection]);
+  }, [selectedTrips, direction, network, both, setActiveDirection]);
 
   // 色はダイヤの全便から決める。片方向だけで割り当てると、方向をまたぐ運用が
   // 方向によって違う色になる（仕様書 §5.8）。
@@ -130,10 +162,27 @@ export function Timetable(): ReactElement {
     [serviceTrips, network, tripNumbers],
   );
 
-  const timetable = useMemo(() => {
+  /**
+   * 画面に出す表。1 枚か 2 枚である（#145）。
+   *
+   * 出す方向のぶんだけ組む。出していない方向の表を組んでも捨てるだけであり、
+   * 便が増えるほどその無駄が効いてくる。
+   */
+  const tables = useMemo<
+    readonly { direction: DirectionId; table: TimetableModel }[] | null
+  >(() => {
     if (network === null) return null;
-    return buildTimetable(shownTrips, stopsForDirection(network, direction), network, times, links);
-  }, [network, shownTrips, direction, times, links]);
+    return shown.map((id) => ({
+      direction: id,
+      table: buildTimetable(
+        id === 0 ? outboundTrips : inboundTrips,
+        stopsForDirection(network, id),
+        network,
+        times,
+        links,
+      ),
+    }));
+  }, [network, shown, outboundTrips, inboundTrips, times, links]);
 
   /** ダイヤの便を丸ごと入れ替える。 */
   const replaceTrips = (serviceId: string | null, label: string, next: readonly Trip[]): void => {
@@ -164,15 +213,23 @@ export function Timetable(): ReactElement {
    *
    * 書き換えた便以外の升目は計算し直さない。**時刻はアンカーから導かれる純粋な
    * 関数**であるため（T-08）、便が変われば同じ列の表示は次の描画でひとりでに揃う。
+   *
+   * **どの表に打ったかを受け取る。** 2 方向が並んでいるとき（#145）、打った先の
+   * 方向は `activeDirection` とは限らない。
    */
-  const handleCommit = (at: CellPosition, text: string): CommitResult => {
-    if (network === null || timetable === null) return { ok: false, reason: 'notEditable' };
+  const handleCommit = (
+    on: DirectionId,
+    timetable: TimetableModel,
+    at: CellPosition,
+    text: string,
+  ): CommitResult => {
+    if (network === null) return { ok: false, reason: 'notEditable' };
 
     const outcome = commitCellInput(timetable, at, text, network);
     if (!outcome.ok) return { ok: false, reason: outcome.reason };
 
     if (outcome.kind === 'create') {
-      const patternId = patternForStop(network, direction, outcome.stopId);
+      const patternId = patternForStop(network, on, outcome.stopId);
       const result =
         patternId === null
           ? null
@@ -314,24 +371,30 @@ export function Timetable(): ReactElement {
    * 方向タブを押した（仕様書 §6.1.1）。
    *
    * **押して切り替えたときだけ選択を解く。** 見えていない便を一括シフトの
-   * 巻き添えにしないためである。選択に追随して切り替わる場合（下の効果）は
+   * 巻き添えにしないためである。選択に追随して切り替わる場合（上の効果）は
    * 解かない——そちらは「選ばれた便を見せる」ための切り替えである。
+   *
+   * **2 方向とも出ているときも解かない（#145）。** 隠れる便が無く、切り替えは
+   * 「どちらを触っているか」を移すだけである。
    */
   const handleDirection = (id: DirectionId): void => {
-    clearSelection();
+    if (!both) clearSelection();
     setMessage(null);
     setActiveDirection(id);
   };
 
-  const patterns = useMemo(
+  /** 方向ごとに選べる停車パターン。表が 2 枚あるときは、それぞれ自分の方向を出す。 */
+  const patternsOf = useMemo<readonly (readonly StopPattern[])[]>(
     () =>
-      network === null
-        ? []
-        : // 回送は選択肢に出さない。出区・入区の切り替えでしか作らない（§6.1.7）。
-          network.def.patterns.filter(
-            (pattern) => pattern.directionId === direction && !pattern.isDeadhead,
-          ),
-    [network, direction],
+      DIRECTIONS.map((id) =>
+        network === null
+          ? []
+          : // 回送は選択肢に出さない。出区・入区の切り替えでしか作らない（§6.1.7）。
+            network.def.patterns.filter(
+              (pattern) => pattern.directionId === id && !pattern.isDeadhead,
+            ),
+      ),
+    [network],
   );
 
   return (
@@ -341,13 +404,23 @@ export function Timetable(): ReactElement {
         増やすたびに、表に使える高さがそのぶん減る。
       */}
       <div className="timetable__bar">
-        <div className="timetable__tabs" role="tablist" aria-label="方向">
+        {/*
+          2 枚並んでいるときは、タブは表を切り替えていない。**押せば「どちらを
+          触っているか」が移る**（作図がどちらの便を作るかもこれで決まる）。
+          役割を `tab` のままにすると、押しても隠れる表が無いことと食い違う。
+        */}
+        <div
+          className="timetable__tabs"
+          role={both ? 'radiogroup' : 'tablist'}
+          aria-label={both ? '編集中の方向' : '方向'}
+        >
           {DIRECTIONS.map((id) => (
             <button
               key={id}
               type="button"
-              role="tab"
-              aria-selected={id === direction}
+              role={both ? 'radio' : 'tab'}
+              aria-selected={both ? undefined : id === direction}
+              aria-checked={both ? id === direction : undefined}
               className={
                 id === direction ? 'timetable__tab timetable__tab--active' : 'timetable__tab'
               }
@@ -378,28 +451,56 @@ export function Timetable(): ReactElement {
         onCopyTo={handleCopyTo}
       />
 
-      {timetable === null ? (
+      {tables === null ? (
         <p className="timetable__empty">ネットワーク定義を読み込んでいます…</p>
       ) : (
-        <TimetableGrid
-          timetable={timetable}
-          onCommit={handleCommit}
-          selectedTripIds={selectedTripIds}
-          onSelectTrip={handleSelectTrip}
-          onRemoveSelection={handleRemove}
-          blockColors={blockColors}
-          onChangeBlockId={handleChangeBlockId}
-          patterns={patterns}
-          onChangePattern={handleChangePattern}
-          onClearTime={handleClearTime}
-          tripNumbers={tripNumbers}
-          onTogglePullOut={(tripId) => {
-            toggleDepotLink(tripId, 'pullOut', '出区の切り替え');
-          }}
-          onTogglePullIn={(tripId) => {
-            toggleDepotLink(tripId, 'pullIn', '入区の切り替え');
-          }}
-        />
+        tables.map(({ direction: id, table }) => (
+          /*
+            2 枚あるときは、どちらの表かを表の上に書く。タブだけでは、目を表へ
+            落とした瞬間に手がかりが消える。1 枚のときは書かない——タブが真上に
+            あり、同じ言葉を 2 度並べるだけになる。
+
+            触れば「触っている方向」が移る。押しボタンを探させない。
+          */
+          <section
+            key={id}
+            className={
+              both && id === direction
+                ? 'timetable__table timetable__table--active'
+                : 'timetable__table'
+            }
+            aria-label={both ? DIRECTION_LABEL[id] : undefined}
+            onFocusCapture={
+              both && id !== direction
+                ? () => {
+                    handleDirection(id);
+                  }
+                : undefined
+            }
+          >
+            {both && <h3 className="timetable__name">{DIRECTION_LABEL[id]}</h3>}
+
+            <TimetableGrid
+              timetable={table}
+              onCommit={(at, text) => handleCommit(id, table, at, text)}
+              selectedTripIds={selectedTripIds}
+              onSelectTrip={handleSelectTrip}
+              onRemoveSelection={handleRemove}
+              blockColors={blockColors}
+              onChangeBlockId={handleChangeBlockId}
+              patterns={patternsOf[id] ?? []}
+              onChangePattern={handleChangePattern}
+              onClearTime={handleClearTime}
+              tripNumbers={tripNumbers}
+              onTogglePullOut={(tripId) => {
+                toggleDepotLink(tripId, 'pullOut', '出区の切り替え');
+              }}
+              onTogglePullIn={(tripId) => {
+                toggleDepotLink(tripId, 'pullIn', '入区の切り替え');
+              }}
+            />
+          </section>
+        ))
       )}
     </section>
   );

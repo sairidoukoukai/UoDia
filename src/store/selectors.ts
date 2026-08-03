@@ -10,7 +10,14 @@
  */
 
 import { deriveBlocks, type BlockDerivation } from '@/domain/block';
-import type { DirectionId, NetworkDef, Project, Service, Trip } from '@/domain/model';
+import {
+  DIRECTIONS,
+  type DirectionId,
+  type NetworkDef,
+  type Project,
+  type Service,
+  type Trip,
+} from '@/domain/model';
 import { buildNetworkIndex, type NetworkIndex } from '@/domain/network';
 import type { FileHandle } from '@/platform';
 import { allTimes, numberTrips } from '@/domain/trip';
@@ -26,6 +33,10 @@ import type { AppState } from './types';
 
 /** 便が 1 つも無いときに返す配列。参照を使い回して再描画を防ぐ。 */
 const NO_TRIPS: readonly Trip[] = [];
+/** ネットワーク定義を読む前の仕分け結果。**同じ参照を返す。** */
+const NO_TRIPS_BY_DIRECTION: readonly (readonly Trip[])[] = Object.freeze(
+  DIRECTIONS.map(() => NO_TRIPS),
+);
 const NO_ISSUES: readonly ValidationIssue[] = [];
 const NO_SERVICES: readonly Service[] = [];
 const NO_NUMBERS: ReadonlyMap<string, string> = new Map();
@@ -123,15 +134,20 @@ export function selectSelectedTrips(state: AppState): readonly Trip[] {
   return selectedTripsOf(selectTrips(state), state.ui.selectedTripIds);
 }
 
+/**
+ * 便を方向で仕分ける。**2 方向を 1 回で作る。**
+ *
+ * 方向ごとに記憶化すると、覚えているのは直前の 1 回だけであるため（`memo.ts`）、
+ * 両方向を交互に尋ねた瞬間に当たらなくなる。時刻表は最大化中に 2 方向を同時に
+ * 出すため（#145）、**呼ぶたびに新しい配列が返り、購読が止まらなくなる。**
+ */
 const tripsByDirectionOf = memoizeByIdentity(
-  (
-    trips: readonly Trip[],
-    network: NetworkIndex | null,
-    directionId: DirectionId,
-  ): readonly Trip[] => {
-    if (network === null) return NO_TRIPS;
-    return trips.filter(
-      (trip) => network.patternIndex(trip.patternId)?.pattern.directionId === directionId,
+  (trips: readonly Trip[], network: NetworkIndex | null): readonly (readonly Trip[])[] => {
+    if (network === null) return NO_TRIPS_BY_DIRECTION;
+    return DIRECTIONS.map((directionId) =>
+      trips.filter(
+        (trip) => network.patternIndex(trip.patternId)?.pattern.directionId === directionId,
+      ),
     );
   },
 );
@@ -145,7 +161,7 @@ const tripsByDirectionOf = memoizeByIdentity(
  * 出区・入区は営業便の `pullOut` / `pullIn` として持たれている。
  */
 export function selectTripsByDirection(state: AppState, directionId: DirectionId): readonly Trip[] {
-  return tripsByDirectionOf(selectTrips(state), selectNetwork(state), directionId);
+  return tripsByDirectionOf(selectTrips(state), selectNetwork(state))[directionId] ?? NO_TRIPS;
 }
 
 /** 時刻表の方向タブが指している方向。 */

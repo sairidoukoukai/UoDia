@@ -48,6 +48,15 @@ export const hexColorSchema = z
 export const directionIdSchema = z.union([z.literal(0), z.literal(1)]);
 export type DirectionId = z.infer<typeof directionIdSchema>;
 
+/**
+ * 方向の全部。**並びは 0 → 1（吹田方面 → 豊中方面）で固定する。**
+ *
+ * 時刻表を最大化して 2 方向を並べるとき、上に来るのは吹田方面である（#145）。
+ * ダイヤグラムの縦軸は豊中が上であり（§6.2.1）、豊中発＝吹田方面を上に置くと
+ * 絵と表の上下が揃う。**同じ参照を返す**（購読が無駄に動かない）。
+ */
+export const DIRECTIONS: readonly DirectionId[] = Object.freeze([0, 1]);
+
 /** ISO 8601 の日時文字列。 */
 export const isoDateTimeSchema = z.string().refine((v) => !Number.isNaN(Date.parse(v)), {
   message: '日時は ISO 8601 形式で指定してください',
