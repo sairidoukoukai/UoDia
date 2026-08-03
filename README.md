@@ -125,7 +125,7 @@ npm run build:web:dist   # ビルドして .gz / .br も作る
 **タグを打ったときだけ** CI が 3 OS でビルドし、GitHub Releases に**下書き**として上げる（`.github/workflows/ci.yml`）。
 
 ```
-git tag v0.1.0 && git push origin v0.1.0
+git tag v1.0.0 && git push origin v1.0.0
 ```
 
 自動で公開しないのは、公開が取り消せない操作だからである。中身を見てから、Releases の画面で公開する。
