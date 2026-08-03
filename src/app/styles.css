@@ -443,6 +443,28 @@ body {
   border-collapse: collapse;
 }
 
+/* 運用の色を選ぶ欄（#148）と、自動に戻す押しボタン。 */
+.panel__color {
+  width: 1.5rem;
+  height: 1rem;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  background: transparent;
+  cursor: pointer;
+}
+
+.panel__reset {
+  padding: 0 0.25rem;
+  border: 0;
+  background: transparent;
+  color: var(--color-fg-muted);
+  cursor: pointer;
+}
+
+.panel__reset:hover {
+  color: var(--color-fg);
+}
+
 .settings__stops th[scope='col'] {
   border-bottom: 1px solid var(--color-border);
   text-align: left;

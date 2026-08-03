@@ -160,6 +160,91 @@ describe('停留所の線種', () => {
   });
 });
 
+/**
+ * パターンの色と線種の上書き（#147）と、運用の色（#148）。
+ *
+ * **当てるのは描く直前だけである。** `route.json` もプロジェクトの便も
+ * 書き換わらない。
+ */
+describe('スジの色と線種', () => {
+  function tripOf(tripId: string) {
+    return selectDiagramScene(state(), theme).trips.find((trip) => trip.tripId === tripId);
+  }
+
+  it('上書きが無ければ route.json の色で描く', () => {
+    setTrips([makeTrip('t1', 'S1', [8, 0])]);
+    expect(tripOf('t1')?.color).toBe(network.findPattern('S1')?.color);
+  });
+
+  it('**パターンの色を上書きできる**', () => {
+    setTrips([makeTrip('t1', 'S1', [8, 0]), makeTrip('t2', 'S3', [9, 0])]);
+    store.getState().setSettings({ patternStyles: { S1: { color: '#123456' } } });
+
+    expect(tripOf('t1')?.color).toBe('#123456');
+    // 上書きしていないパターンは路線図のまま。
+    expect(tripOf('t2')?.color).toBe(network.findPattern('S3')?.color);
+  });
+
+  it('**線種だけ上書きしても色は変わらない**（色と線種は独立）', () => {
+    setTrips([makeTrip('t1', 'S1', [8, 0])]);
+    store.getState().setSettings({ patternStyles: { S1: { dash: 'dashDot' } } });
+
+    expect(tripOf('t1')?.lineDash).toEqual([10, 4, 2, 4]);
+    expect(tripOf('t1')?.color).toBe(network.findPattern('S1')?.color);
+  });
+
+  it('**回送の線種は上書きされない**（回送かどうかは好みではない）', () => {
+    setTrips([makeTrip('t1', 'S1', [8, 0], { pullOut: true })]);
+    store.getState().setSettings({ patternStyles: { 'DT-out': { dash: 'solid' } } });
+
+    const deadhead = selectDiagramScene(state(), theme).trips.find((trip) => trip.isDeadhead);
+    expect(deadhead?.lineDash).toEqual([5, 4]);
+  });
+
+  it('**route.json は書き換わらない**', () => {
+    store.getState().setSettings({ patternStyles: { S1: { color: '#123456' } } });
+
+    expect(network.findPattern('S1')?.color).not.toBe('#123456');
+    expect(state().networkDef?.patterns.find((p) => p.patternId === 'S1')?.color).not.toBe(
+      '#123456',
+    );
+  });
+
+  it('**運用の色を選べる**（着色モードが運用のとき）', () => {
+    setTrips([makeTrip('t1', 'S1', [8, 0])]);
+    setView((view) => {
+      view.colorMode = 'block';
+      view.blockColors = { A: '#123456' };
+    });
+
+    expect(tripOf('t1')?.color).toBe('#123456');
+  });
+
+  it('**淡すぎる色は地色に対して読めるよう調える**（§9.4。選んだ値そのものは残る）', () => {
+    setTrips([makeTrip('t1', 'S1', [8, 0])]);
+    setView((view) => {
+      view.colorMode = 'block';
+      view.blockColors = { A: '#abcdef' };
+    });
+
+    // 白地に #abcdef は明暗の比が足りない。暗くして描く。
+    expect(tripOf('t1')?.color).not.toBe('#abcdef');
+    expect(state().project?.view.blockColors).toEqual({ A: '#abcdef' });
+  });
+
+  it('選んでいない運用は、これまでどおり自動で決まる', () => {
+    setTrips([makeTrip('t1', 'S1', [8, 0]), { ...makeTrip('t2', 'S3', [9, 0]), blockId: 'B' }]);
+    setView((view) => {
+      view.colorMode = 'block';
+      view.blockColors = { A: '#123456' };
+    });
+
+    expect(tripOf('t1')?.color).toBe('#123456');
+    expect(tripOf('t2')?.color).not.toBe('#123456');
+    expect(tripOf('t2')?.color).not.toBe('');
+  });
+});
+
 describe('スジ', () => {
   it('**折れ点は経路の順に並び、時刻を持つ**', () => {
     setTrips([makeTrip('t1', 'S1', [8, 0])]);

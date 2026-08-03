@@ -16,6 +16,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import { DIAGRAM_ZOOM_LIMITS } from '@/domain/model';
+import { DASH_KINDS, DASH_KIND_LABEL, patternStyles } from '@/features/diagram';
 import type { PlatformAdapter } from '@/platform';
 import {
   BACKUP_INTERVAL_LIMITS,
@@ -34,6 +35,12 @@ import {
   overrideCount,
   withGridStyleOverride,
 } from './gridStyles';
+import {
+  clearedPatternStyles,
+  patternStyleCount,
+  withPatternStyle,
+  withoutPatternStyle,
+} from './patternStyles';
 import {
   affectedTripCount,
   changedEdits,
@@ -422,7 +429,128 @@ function DisplayTab(): ReactElement {
       </label>
 
       <StopGridStyles />
+      <PatternStyles />
     </section>
+  );
+}
+
+/**
+ * 停車パターンの色と線種（§6.5.3、#147）。
+ *
+ * **色と線種は独立に選ぶ。** 片方だけ変えても、もう片方は `route.json` のまま
+ * である。上書きしていないパターンは路線図のままで、`route.json` は書き換わらない。
+ */
+function PatternStyles(): ReactElement {
+  const network = useAppStore(selectNetwork);
+  const choices = useAppStore((state) => state.settings.patternStyles);
+  const setSettings = useAppStore((state) => state.setSettings);
+
+  // 回送は並べない。**回送かどうかはパターンの好みではない**（線種は破線で固定）。
+  const patterns = useMemo(
+    () => (network === null ? [] : network.def.patterns.filter((pattern) => !pattern.isDeadhead)),
+    [network],
+  );
+  const styles = useMemo(
+    () => (network === null ? null : patternStyles(network.def.patterns, choices)),
+    [network, choices],
+  );
+
+  const count = patternStyleCount(choices);
+
+  return (
+    <fieldset className="settings__grid-styles">
+      <legend>停車パターンの色と線種</legend>
+      <p className="settings__note">
+        ダイヤグラムのスジの姿です。<strong>色と線種は別々に選べます</strong>
+        。選んでいないパターンは路線図のままで、route.json は書き換わりません。
+      </p>
+
+      <table className="settings__stops">
+        <thead>
+          <tr>
+            <th scope="col">パターン</th>
+            <th scope="col">色</th>
+            <th scope="col">線種</th>
+          </tr>
+        </thead>
+        <tbody>
+          {patterns.map((pattern) => (
+            <tr key={pattern.patternId}>
+              <th scope="row">
+                {pattern.patternId}
+                <span className="settings__note"> {pattern.patternName}</span>
+              </th>
+              <td>
+                <input
+                  type="color"
+                  aria-label={`${pattern.patternId} の色`}
+                  value={styles?.get(pattern.patternId)?.color ?? pattern.color}
+                  onChange={(event) => {
+                    setSettings({
+                      patternStyles: withPatternStyle(choices, pattern.patternId, {
+                        color: event.target.value,
+                      }),
+                    });
+                  }}
+                />
+              </td>
+              <td>
+                <select
+                  aria-label={`${pattern.patternId} の線種`}
+                  value={choices[pattern.patternId]?.dash ?? ''}
+                  onChange={(event) => {
+                    const dash = DASH_KINDS.find((kind) => kind === event.target.value);
+                    setSettings({
+                      patternStyles: withPatternStyle(choices, pattern.patternId, {
+                        dash: dash ?? null,
+                      }),
+                    });
+                  }}
+                >
+                  <option value="">
+                    路線図のまま（{pattern.serviceType === 'express' ? '破線' : '実線'}）
+                  </option>
+                  {DASH_KINDS.map((kind) => (
+                    <option key={kind} value={kind}>
+                      {DASH_KIND_LABEL[kind]}
+                    </option>
+                  ))}
+                </select>{' '}
+                {/* 上書きしている行にだけ出す。押しても何も起きない印を並べない。 */}
+                {choices[pattern.patternId] !== undefined && (
+                  <button
+                    type="button"
+                    aria-label={`${pattern.patternId} を路線図のままに戻す`}
+                    onClick={() => {
+                      setSettings({
+                        patternStyles: withoutPatternStyle(choices, pattern.patternId),
+                      });
+                    }}
+                  >
+                    ↺
+                  </button>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <div className="settings__panel-actions">
+        <span className="settings__note">
+          {count === 0 ? '上書きはありません' : `${String(count)} パターンを上書きしています`}
+        </span>
+        <button
+          type="button"
+          disabled={count === 0}
+          onClick={() => {
+            setSettings({ patternStyles: clearedPatternStyles(choices) });
+          }}
+        >
+          路線図のままに戻す
+        </button>
+      </div>
+    </fieldset>
   );
 }
 

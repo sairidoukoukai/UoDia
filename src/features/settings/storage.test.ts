@@ -35,6 +35,7 @@ describe('保存する分', () => {
     expect(Object.keys(persistedOf(store)).sort()).toEqual([
       'backupIntervalMs',
       'defaultDiagramView',
+      'patternStyles',
       'stopGridStyles',
       'theme',
     ]);

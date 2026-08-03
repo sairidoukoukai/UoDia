@@ -221,6 +221,63 @@ describe('運用の一覧', () => {
   });
 });
 
+/** 運用の色（#148）。 */
+describe('運用の色', () => {
+  const chosen = (): Readonly<Record<string, string>> =>
+    selectView(useAppStore.getState())?.blockColors ?? {};
+
+  /** React の管理下にある色の欄を変える。 */
+  function pick(label: string, value: string): void {
+    const field = container.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`);
+    if (field === null) throw new Error(`「${label}」が見つかりません`);
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        'value',
+      )?.set?.bind(field);
+      setter?.(value);
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  }
+
+  it('**色を選べる**', () => {
+    pick('運用 1 の色', '#123456');
+
+    expect(chosen()).toEqual({ '1': '#123456' });
+  });
+
+  it('**選んだ色はプロジェクトに入る**（渡した相手の画面でも同じ色で見える）', () => {
+    pick('運用 1 の色', '#123456');
+
+    expect(useAppStore.getState().project?.view.blockColors).toEqual({ '1': '#123456' });
+  });
+
+  it('**運用を足しても選んだ色は動かない**', () => {
+    pick('運用 2 の色', '#123456');
+
+    // 運用 0 を足す。**昇順では先頭に入る**ため、自動割り当てなら 2 の色がずれる。
+    useAppStore.getState().editProject('便を足す', (project) => {
+      const [service] = project.services;
+      service?.trips.push(makeTrip('S3', 10, '0'));
+    });
+
+    expect(chosen()).toEqual({ '2': '#123456' });
+    const swatch = container.querySelector<HTMLInputElement>('input[aria-label="運用 2 の色"]');
+    expect(swatch?.value).toBe('#123456');
+  });
+
+  it('自動に戻せる', () => {
+    pick('運用 1 の色', '#123456');
+    press('運用 1 の色を自動に戻す');
+
+    expect(chosen()).toEqual({});
+  });
+
+  it('**選んでいなければ戻す押しボタンを出さない**（押しても何も起きない印を並べない）', () => {
+    expect(container.querySelector('[aria-label="運用 1 の色を自動に戻す"]')).toBeNull();
+  });
+});
+
 describe('ダイヤ', () => {
   it('追加すると、そのダイヤへ移る', () => {
     press('ダイヤを追加');

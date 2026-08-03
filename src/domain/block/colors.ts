@@ -54,11 +54,19 @@ export function blockColorAt(index: number, palette: readonly string[] = BLOCK_C
  *
  * 渡された順序ではなく**運用番号の昇順**で割り当てる。便の並び順や追加した順に
  * 依存しないようにするため。
+ *
+ * `chosen` に入っている運用は、その色で返す（#148）。**選んだものだけを覚える**
+ * ため、運用を足しても選んだ色は動かない。選んでいない運用は、これまでどおり
+ * 並び順から決まる——**選ばれた色を避けはしない。** 同じ色が 2 つ並ぶことは
+ * ありうるが、それは選んだ人の目に見えており、選び直せる。
  */
 export function assignBlockColors(
   blockIds: readonly string[],
   palette: readonly string[] = BLOCK_COLORS,
+  chosen: Readonly<Record<string, string>> = {},
 ): Map<string, string> {
   const sorted = [...new Set(blockIds)].sort((a, b) => a.localeCompare(b));
-  return new Map(sorted.map((blockId, index) => [blockId, blockColorAt(index, palette)]));
+  return new Map(
+    sorted.map((blockId, index) => [blockId, chosen[blockId] ?? blockColorAt(index, palette)]),
+  );
 }

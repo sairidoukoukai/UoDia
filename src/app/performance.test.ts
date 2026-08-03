@@ -97,6 +97,7 @@ function makeProject(): Project {
       hiddenDirections: [],
       showDeadhead: true,
       validationPanelOpen: true,
+      blockColors: {},
     },
   };
 }

@@ -93,7 +93,18 @@ export {
   type SceneTrip,
 } from './scene';
 
-export { DEADHEAD_DASH, SOLID, assignPatternDashes, dashForServiceType } from './tripStyle';
+export {
+  DASH_BY_KIND,
+  DASH_DOT,
+  DASH_KINDS,
+  DASH_KIND_LABEL,
+  DEADHEAD_DASH,
+  SOLID,
+  assignPatternDashes,
+  dashForServiceType,
+  patternStyles,
+  type PatternStyle,
+} from './tripStyle';
 
 export { MIN_CONTRAST, contrastRatio, luminance, readableOn } from './color';
 

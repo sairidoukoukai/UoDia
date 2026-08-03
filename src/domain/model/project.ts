@@ -7,7 +7,13 @@
 
 import { z } from 'zod';
 import { fromHM } from '@/domain/time';
-import { directionIdSchema, idSchema, isoDateTimeSchema, secondsSchema } from './primitives';
+import {
+  directionIdSchema,
+  hexColorSchema,
+  idSchema,
+  isoDateTimeSchema,
+  secondsSchema,
+} from './primitives';
 
 /** 現在のファイル形式の版数。破壊的変更のたびに繰り上げる（仕様書 §7.3）。 */
 export const CURRENT_FORMAT_VERSION = 3;
@@ -219,6 +225,20 @@ export const viewSettingsSchema = z.object({
   showDeadhead: z.boolean().default(true),
   /** 検証パネルを開いているか。 */
   validationPanelOpen: z.boolean().default(true),
+  /**
+   * 運用ごとに選んだ色（#148）。選んだものだけを入れる。
+   *
+   * **設定ではなくプロジェクトに置く。** 運用番号はその文書のものであり、
+   * `A` という運用はダイヤが違えば違う車の動きを指す。設定に持つと、別の
+   * ファイルを開いたときに無関係な `A` の色を引き継ぐことになる。色を決める
+   * のは「この日のダイヤを説明するため」であり、**渡した相手の画面でも同じ色で
+   * 見えてほしい。**
+   *
+   * 入っていない運用は、これまでどおり並び順から自動で決まる
+   * （`assignBlockColors`）。選んだものだけを覚えるため、**運用を足しても
+   * 選んだ色は動かない。**
+   */
+  blockColors: z.record(idSchema, hexColorSchema).default({}),
 });
 export type ViewSettings = z.infer<typeof viewSettingsSchema>;
 

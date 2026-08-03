@@ -37,6 +37,7 @@ import {
   DEFAULT_BACKUP_INTERVAL_MS,
   DEFAULT_THEME,
   NO_GRID_STYLE_OVERRIDES,
+  NO_PATTERN_STYLES,
   clampBackupInterval,
 } from './settings';
 import {
@@ -262,6 +263,7 @@ const INITIAL_STATE: AppState = {
     backupIntervalMs: DEFAULT_BACKUP_INTERVAL_MS,
     defaultDiagramView: diagramViewSchema.parse({}),
     stopGridStyles: NO_GRID_STYLE_OVERRIDES,
+    patternStyles: NO_PATTERN_STYLES,
     patternsUnlocked: false,
   },
 };

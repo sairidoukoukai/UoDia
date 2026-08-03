@@ -19,18 +19,22 @@ import { withHidden } from './filters';
 /** 空の一覧。**毎回作らない**——参照が変わると購読が動く。 */
 const NO_IDS: readonly string[] = [];
 
+/** 色を 1 つも選んでいない状態。 */
+const NO_COLORS: Readonly<Record<string, string>> = Object.freeze({});
+
 export function BlockList(): ReactElement {
   const derivation = useAppStore(selectBlocks);
   const trips = useAppStore(selectTrips);
   // 必要な項目だけを購読する（T-40）。送りのたびに描き直さないためである。
   const hidden = useAppStore((state) => selectView(state)?.hiddenBlockIds ?? NO_IDS);
+  const chosen = useAppStore((state) => selectView(state)?.blockColors ?? NO_COLORS);
   const editProject = useAppStore((state) => state.editProject);
 
   const blocks = derivation?.blocks ?? [];
 
   // 運用番号 → 色。**時刻表・ダイヤグラムと同じ道具で割り当てる**（`blockColorsOf`）。
   // ここで数え直すと、同じ規則を 3 か所に書くことになり、いつか食い違う。
-  const colors = useMemo(() => blockColorsOf(trips), [trips]);
+  const colors = useMemo(() => blockColorsOf(trips, chosen), [trips, chosen]);
 
   const toggle = (blockId: string, show: boolean): void => {
     editProject('運用の表示の変更', (project) => {
@@ -39,6 +43,25 @@ export function BlockList(): ReactElement {
         blockId,
         show,
       ) as string[];
+    });
+  };
+
+  /**
+   * 運用の色を選ぶ（#148）。`null` で自動に戻す。
+   *
+   * **プロジェクトの編集として履歴に載る。** 着色モードやフィルタと同じで、
+   * ファイルに保存される見え方だからである（§5.10、§6.7）。
+   */
+  const choose = (blockId: string, color: string | null): void => {
+    editProject('運用の色の変更', (project) => {
+      if (color === null) {
+        // 選んでいない状態に戻す。**空の色を覚えない**——覚えると、次に運用を
+        // 足したときに「選んだ色」として扱われる。
+        const { [blockId]: _removed, ...rest } = project.view.blockColors;
+        project.view.blockColors = rest;
+      } else {
+        project.view.blockColors = { ...project.view.blockColors, [blockId]: color };
+      }
     });
   };
 
@@ -72,16 +95,38 @@ export function BlockList(): ReactElement {
                     toggle(block.blockId, event.target.checked);
                   }}
                 />
-                <span
-                  className="panel__swatch panel__swatch--solid"
-                  style={{ background: colors.get(block.blockId) }}
-                  aria-hidden="true"
+                {/*
+                  色を選ぶ（#148）。選んでいない運用は並び順から自動で決まり、
+                  **選んだものだけを覚える**ため、運用を足しても動かない。
+                */}
+                <input
+                  type="color"
+                  className="panel__color"
+                  aria-label={`運用 ${block.blockId} の色`}
+                  value={colors.get(block.blockId) ?? '#000000'}
+                  onChange={(event) => {
+                    choose(block.blockId, event.target.value);
+                  }}
                 />
                 <span className="panel__id">{block.blockId}</span>
                 <span className="panel__note">
                   {formatTime(from)}–{formatTime(to)}
                 </span>
                 <span className="panel__count">{revenue} 便</span>
+                {/* 選んだ色があるときだけ出す。押しても何も起きない印を並べない。 */}
+                {chosen[block.blockId] !== undefined && (
+                  <button
+                    type="button"
+                    className="panel__reset"
+                    title={`運用 ${block.blockId} の色を自動に戻す`}
+                    aria-label={`運用 ${block.blockId} の色を自動に戻す`}
+                    onClick={() => {
+                      choose(block.blockId, null);
+                    }}
+                  >
+                    ↺
+                  </button>
+                )}
               </li>
             );
           })}
