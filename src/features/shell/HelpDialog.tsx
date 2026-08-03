@@ -11,6 +11,7 @@
 
 import { useEffect, useRef, type ReactElement } from 'react';
 import { COMMANDS, MENUS, commandsIn, formatAccelerator } from './commands';
+import { APP_VERSION } from './version';
 
 /** 何を出しているか。`null` なら閉じている。 */
 export type HelpTopic = 'shortcuts' | 'about';
@@ -19,9 +20,6 @@ export interface HelpDialogProps {
   readonly topic: HelpTopic | null;
   readonly onClose: () => void;
 }
-
-/** 画面に出す版数。`package.json` と揃える。 */
-export const APP_VERSION = '0.1.0';
 
 export function HelpDialog({ topic, onClose }: HelpDialogProps): ReactElement {
   const ref = useRef<HTMLDialogElement>(null);
