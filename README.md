@@ -38,6 +38,7 @@ npm install
 | `npm run dev` | Web 版の開発サーバ（http://localhost:1420） |
 | `npm run dev:desktop` | デスクトップ版の開発起動（WSL は自動判定） |
 | `npm run build:web` | Web 版のビルド |
+| `npm run preview` | ビルドした Web 版を手元で開く（http://localhost:4173） |
 | `npm run build:web:dist` | Web 版のビルド + 事前圧縮（配布用） |
 | `npm run build:desktop` | デスクトップ版のビルド（配布物も作る） |
 | `npm run test` | テスト実行 |
@@ -103,24 +104,27 @@ convert -background none src-tauri/icons/source.svg -resize 1024x1024 /tmp/uodia
 npx tauri icon /tmp/uodia.png
 ```
 
-## Web 版を置く（T-42）
+## 手元で動かす
 
-```
-npm run build:web:dist   # ビルドして .gz / .br も作る
-```
+**どこにも置かない**（2026-08-03 決定。仕様書 Q-3）。Web 版もデスクトップ版も、**手元で動かす**ものとする。GitHub Pages を含め、静的ホスティングへの配置と自動デプロイは行わない。
 
-`dist/` を**そのまま**静的ホスティングに置く。サーバ側の設定は要らない。
+| 版 | 動かし方 |
+| --- | --- |
+| Web | `npm run build:web` の後 `npm run preview` で http://localhost:4173 が開く。**サーバの用意も配置も要らない**。書きながら見るなら `npm run dev` |
+| デスクトップ | `npm run build:desktop` で出来た配布物を入れる。作らずに動かすなら `npm run dev:desktop` |
+
+**それでも「どこにでも置ける成果物」は作り続ける。**
 
 | 決め | 内容 |
 | --- | --- |
 | 置き場所 | **どこでもよい。** 資産は相対で書き出してあり、`https://例/tools/uodia/` のようなサブディレクトリでも動く |
 | 絶対パスにしたいとき | `UODIA_BASE=/uodia/ npm run build:web` |
-| 圧縮 | `.gz` と `.br` を隣に置いてある。対応するサーバはそれを配る。対応していなくても元のファイルが配られるだけで害はない |
+| 圧縮 | `npm run build:web:dist` で `.gz` と `.br` も作る。対応するサーバはそれを配る |
 | 初回に落ちる量 | **約 107KB**（gzip 後。目標は 1MB 以内） |
 
-**配信先は決めていない。** CI に自動デプロイは入れていない（GitHub Pages は 2026-07-25 に不採用と決定）。決まったら別のタスクとして追加する。
+置き場所が決まったときに作り直す羽目にならないためである。**置かないことと、置けないことは違う。**
 
-### 公開
+### 配布物
 
 **タグを打ったときだけ** CI が 3 OS でビルドし、GitHub Releases に**下書き**として上げる（`.github/workflows/ci.yml`）。
 
@@ -128,7 +132,7 @@ npm run build:web:dist   # ビルドして .gz / .br も作る
 git tag v1.0.0 && git push origin v1.0.0
 ```
 
-自動で公開しないのは、公開が取り消せない操作だからである。中身を見てから、Releases の画面で公開する。
+自動で公開しないのは、公開が取り消せない操作だからである。下書きのまま置いておけば、中身は関係者だけが取れる。
 
 ## 進め方
 
