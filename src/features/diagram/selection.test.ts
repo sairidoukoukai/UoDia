@@ -56,7 +56,15 @@ function trip(
 }
 
 function sceneOf(trips: readonly SceneTrip[]): DiagramScene {
-  return { stops, trips, selectedTripIds: new Set(), selectionRect: null, tripShift: null, theme };
+  return {
+    stops,
+    trips,
+    blockLinks: [],
+    selectedTripIds: new Set(),
+    selectionRect: null,
+    tripShift: null,
+    theme,
+  };
 }
 
 const viewport: Viewport = viewportOf(

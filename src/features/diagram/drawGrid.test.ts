@@ -45,6 +45,7 @@ const stops: readonly SceneStop[] = [
 const scene: DiagramScene = {
   stops,
   trips: [],
+  blockLinks: [],
   selectedTripIds: new Set(),
   selectionRect: null,
   tripShift: null,
