@@ -12,6 +12,7 @@ import {
   AXIS_LABEL_WIDTH,
   DIAGRAM_END_TIME,
   DIAGRAM_START_TIME,
+  AXIS_EDGE_MARGIN,
   TIME_LABEL_HEIGHT,
   axisToY,
   fitBackingStore,
@@ -54,14 +55,18 @@ describe('時刻 → x', () => {
 });
 
 describe('軸位置 → y', () => {
-  it('**上端は表示開始の軸位置**（横軸ラベルのぶんだけ内側）', () => {
-    expect(axisToY(0, viewport)).toBe(TIME_LABEL_HEIGHT);
+  it('**上端は表示開始の軸位置**（目盛の帯と余白のぶんだけ内側）', () => {
+    // 余白を挟むのは、軸の先頭にある停留所の停車点が欠けないようにするため
+    // （#171、`AXIS_EDGE_MARGIN`）。**動かすのは停留所線の位置だけ**であり、
+    // 描画領域の上端（`originY`）は目盛の帯の下のままである。
+    expect(viewport.originY).toBe(TIME_LABEL_HEIGHT);
+    expect(axisToY(0, viewport)).toBe(TIME_LABEL_HEIGHT + AXIS_EDGE_MARGIN);
   });
 
   it('軸位置 1 単位あたり pxPerAxisUnit だけ下がる', () => {
     // 豊中学舎 0 → 箕面学舎 20 → 工学部前 40。
-    expect(axisToY(20, viewport)).toBe(TIME_LABEL_HEIGHT + 120);
-    expect(axisToY(40, viewport)).toBe(TIME_LABEL_HEIGHT + 240);
+    expect(axisToY(20, viewport)).toBe(TIME_LABEL_HEIGHT + AXIS_EDGE_MARGIN + 120);
+    expect(axisToY(40, viewport)).toBe(TIME_LABEL_HEIGHT + AXIS_EDGE_MARGIN + 240);
   });
 
   it('**方向によって反転しない**（両方向を 1 枚に重ねる。§6.2.1）', () => {
@@ -109,8 +114,8 @@ describe('視野の端', () => {
   });
 
   it('下端の軸位置は高さと拡大率から決まる', () => {
-    // (600 − 24)px ÷ 6px/単位 = 96。
-    expect(viewportEndAxis(viewport)).toBe(96);
+    // (600 − 24 − 8)px ÷ 6px/単位 = 94.67。
+    expect(viewportEndAxis(viewport)).toBeCloseTo((600 - TIME_LABEL_HEIGHT - AXIS_EDGE_MARGIN) / 6);
   });
 });
 
