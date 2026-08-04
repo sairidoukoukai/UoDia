@@ -610,7 +610,6 @@ function Cell(props: CellProps): ReactElement {
   if (editing?.failure != null) classes.push('timetable__cell--invalid');
   if (cell.kind === 'notServed') classes.push('timetable__cell--notServed');
   if (cell.kind === 'empty') classes.push('timetable__cell--empty');
-  if (cell.kind === 'time' && cell.isAnchor) classes.push('timetable__cell--anchor');
 
   return (
     <td

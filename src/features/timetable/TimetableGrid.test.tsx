@@ -310,12 +310,12 @@ describe('升目（受入条件）', () => {
     expect(rowOf('箕面')).toEqual(['−', '8:50']);
   });
 
-  it('**アンカーの升目が目印で分かる**', () => {
+  it('**アンカーの升目に印を付けない**（T-60、#164）', () => {
     render([makeTrip('S1', 8, 0)]);
 
-    const anchors = [...container.querySelectorAll('.timetable__cell--anchor')];
-    expect(anchors).toHaveLength(1);
-    expect(anchors[0]?.textContent).toBe('8:00');
+    // どの升目に打っても同じように打てる（打った升目が基準になる）。
+    // **振る舞いが同じものを見た目で分ける理由が無い。**
+    expect(container.querySelectorAll('.timetable__cell--anchor')).toHaveLength(0);
   });
 
   it('**取扱区分の記号は出さない**（T-54、仕様書 §6.1.1）', () => {
