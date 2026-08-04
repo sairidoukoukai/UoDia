@@ -186,12 +186,12 @@ describe('重なりを段に振り分ける', () => {
     expect(links.map((l) => l.level)).toEqual([1, 1]);
   });
 
-  it('**ずらす向きは軸の内側**（豊中は下、工学部は上）', () => {
+  it('**ずらす向きは軸の外側**（豊中は上、工学部は下）', () => {
     const links = buildBlockLinks([...dwellAtToyonaka('A', 8, 12), ...roundTrip('B', 9, 10)], AXIS);
 
-    // 端の停留所には外側に余白しか無い。内側なら停留所どうしの間隔を使える。
-    expect(links.find((l) => l.stopId === 'toyonaka')?.direction).toBe(1);
-    expect(links.find((l) => l.stopId === 'kogaku')?.direction).toBe(-1);
+    // 内側へ積むと、便のスジが走っている場所に線を重ねることになる。
+    expect(links.find((l) => l.stopId === 'toyonaka')?.direction).toBe(-1);
+    expect(links.find((l) => l.stopId === 'kogaku')?.direction).toBe(1);
   });
 
   it('**運用番号を打ち替えても段の付き方は変わらない**（時刻順に割り当てる）', () => {

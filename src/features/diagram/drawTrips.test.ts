@@ -495,12 +495,34 @@ describe('折返しの接続線（T-62、#167）', () => {
     return ctx.segments;
   }
 
-  it('**水平に引く**（折返しのあいだバスは動いていない）', () => {
-    const [segment] = linkSegments([link()]);
+  it('**台形に引く**（停留所の点から出て、水平に走り、点へ戻る）', () => {
+    const segments = linkSegments([link({ level: 1 })]);
+    const onStop = axisToY(0, viewport);
 
-    expect(segment?.y1).toBe(segment?.y2);
-    expect(segment?.x1).toBe(timeToX(fromHM(8, 0), viewport));
-    expect(segment?.x2).toBe(timeToX(fromHM(8, 30), viewport));
+    expect(segments).toHaveLength(3);
+    // 出るのも戻るのも停留所の点そのもの。**間が空くと、どの便から続いて
+    // いるのかが読めない。**
+    expect(segments[0]?.x1).toBe(timeToX(fromHM(8, 0), viewport));
+    expect(segments[0]?.y1).toBe(onStop);
+    expect(segments[2]?.x2).toBe(timeToX(fromHM(8, 30), viewport));
+    expect(segments[2]?.y2).toBe(onStop);
+    // 真ん中は水平（折返しのあいだバスは動いていない）。
+    expect(segments[1]?.y1).toBe(segments[1]?.y2);
+  });
+
+  it('**斜めは 45 度**（どの段でも同じ角度で降りる）', () => {
+    const [slant] = linkSegments([link({ level: 2 })]);
+
+    expect(Math.abs((slant?.x2 ?? 0) - (slant?.x1 ?? 0))).toBe(
+      Math.abs((slant?.y2 ?? 0) - (slant?.y1 ?? 0)),
+    );
+  });
+
+  it('滞泊が短ければ水平部分が無くなり、三角形になる', () => {
+    const segments = linkSegments([link({ level: 3, to: fromHM(8, 5) })]);
+    const middle = segments[1];
+
+    expect(middle?.x1).toBe(middle?.x2);
   });
 
   it('運用の色で引く', () => {
@@ -508,29 +530,28 @@ describe('折返しの接続線（T-62、#167）', () => {
   });
 
   it('**実線で引く**（格子や回送のヒゲと刻みが混ざらない）', () => {
-    const [segment] = linkSegments([link()]);
-
-    expect(segment?.dash).toEqual([]);
+    expect(linkSegments([link()]).every((s) => s.dash.length === 0)).toBe(true);
   });
 
   it('**段のぶんだけ px でずらす**（拡大率によらない）', () => {
-    const [first] = linkSegments([link({ level: 1 })]);
-    const [third] = linkSegments([link({ level: 3 })]);
+    // 水平部分（2 本目）の高さで見る。
+    const first = linkSegments([link({ level: 1 })])[1];
+    const third = linkSegments([link({ level: 3 })])[1];
 
     // 上へ 2 段ぶん（direction: -1）。
     expect((first?.y1 ?? 0) - (third?.y1 ?? 0)).toBe(14);
   });
 
   it('**1 段目から停留所の線を離れる**（重なると線そのものが読めない）', () => {
-    const [segment] = linkSegments([link({ level: 1, direction: 1 })]);
+    const middle = linkSegments([link({ level: 1, direction: 1 })])[1];
     const onStop = axisToY(0, viewport);
 
-    expect((segment?.y1 ?? 0) - onStop).toBe(7);
+    expect((middle?.y1 ?? 0) - onStop).toBe(7);
   });
 
   it('向きが下なら下へ積む', () => {
-    const [first] = linkSegments([link({ level: 1, direction: 1 })]);
-    const [second] = linkSegments([link({ level: 2, direction: 1 })]);
+    const first = linkSegments([link({ level: 1, direction: 1 })])[1];
+    const second = linkSegments([link({ level: 2, direction: 1 })])[1];
 
     expect((second?.y1 ?? 0) - (first?.y1 ?? 0)).toBe(7);
   });
