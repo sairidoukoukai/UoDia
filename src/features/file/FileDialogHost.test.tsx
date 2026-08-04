@@ -16,7 +16,7 @@ import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FileDialogHost } from './FileDialogHost';
 import type { DialogRequest } from './dialogs';
-import type { DialogAnswer } from './prompts';
+import { DISCARD_QUESTIONS, type DialogAnswer } from './prompts';
 
 // act() の中で状態更新をまとめてよいことを React に伝える。付けないと、更新が
 // 反映される前に確認してしまう危険を毎回警告される。
@@ -72,16 +72,20 @@ function show(request: DialogRequest | null): {
 }
 
 describe('未保存の確認', () => {
-  const request: DialogRequest = { kind: 'discard', fileName: 'a.uodia' };
+  const request: DialogRequest = {
+    kind: 'discard',
+    fileName: 'a.uodia',
+    question: DISCARD_QUESTIONS.close,
+  };
 
   it('3 択を出す（続ける気が無いときに保存か破棄かを選ばせない）', () => {
-    expect(show(request).labels).toEqual(['保存して続ける', '破棄して続ける', 'やめる']);
+    expect(show(request).labels).toEqual(['保存する', '保存しない', 'キャンセル']);
   });
 
   it.each([
-    ['保存して続ける', 'save'],
-    ['破棄して続ける', 'discard'],
-    ['やめる', 'cancel'],
+    ['保存する', 'save'],
+    ['保存しない', 'discard'],
+    ['キャンセル', 'cancel'],
   ] as const)('「%s」は %s を返す', (label, answer) => {
     const dialog = show(request);
     dialog.click(label);
@@ -90,11 +94,31 @@ describe('未保存の確認', () => {
 
   it('既定の答えは保存で、焦点も当たっている', () => {
     show(request);
-    expect(document.activeElement?.textContent).toBe('保存して続ける');
+    expect(document.activeElement?.textContent).toBe('保存する');
   });
 
   it('保存先が未定なら「無題」と呼ぶ', () => {
-    expect(show({ kind: 'discard', fileName: '' }).text).toContain('無題');
+    expect(show({ ...request, fileName: '' }).text).toContain('無題');
+  });
+
+  /*
+   * **選択肢はこのあと何が起きるかを言わない**（T-58、仕様書 v1.1 §3.3）。
+   * この問いを出す入口は 4 つあり、選択肢に「終了」と書くと 3 つで嘘になる。
+   */
+  it('選択肢がこのあと起きることを名指ししない', () => {
+    const labels = show(request).labels.join(' ');
+    for (const word of ['終了', '続ける', '開く', '新規作成']) {
+      expect(labels).not.toContain(word);
+    }
+  });
+
+  it.each([
+    ['close', '保存せずに終了しますか。'],
+    ['open', '保存せずに別のファイルを開きますか。'],
+    ['new', '保存せずに新規作成しますか。'],
+  ] as const)('本文が何が起きるかを言う（%s）', (key, question) => {
+    expect(DISCARD_QUESTIONS[key]).toBe(question);
+    expect(show({ ...request, question }).text).toContain(question);
   });
 });
 
