@@ -35,11 +35,11 @@ const DEADHEAD_WIDTH = 1;
 /**
  * 折返しの接続線（#167、T-62、仕様書 v1.1 §5.3）。
  *
- * **回送のヒゲ（細い実線）と見分けられるようにする。** 太さと線種の両方を変え、
- * 「そこを走っているのではない」ことが見た目から読めるようにする。
+ * **実線で引く。** 破線にすると、停留所線・格子・回送のヒゲと刻みが混ざって
+ * 読みにくい。回送のヒゲと見分けるのは**太さと位置**である——ヒゲは停留所線の
+ * 上から伸び、接続線は段のぶんだけ離れた場所を水平に走る。
  */
-const LINK_WIDTH = 1;
-const LINK_DASH: readonly number[] = [2, 3];
+const LINK_WIDTH = 1.5;
 
 /**
  * 段 1 つぶんのずらし幅（px）。
@@ -47,8 +47,11 @@ const LINK_DASH: readonly number[] = [2, 3];
  * **拡大率によらない。** 回送のヒゲと同じく、これは絵の記号の大きさであって
  * 距離でも時間でもない。軸の単位でずらすと、縦に拡げるたびに段の間隔が開き、
  * 離れた停留所の線に見える。
+ *
+ * 停車点の丸（半径 3.5px）と線幅を跨いで離れる幅にする。**近すぎると、
+ * 何段あるのかも、どれが停留所線なのかも読めない。**
  */
-const LINK_LEVEL_OFFSET = 4;
+const LINK_LEVEL_OFFSET = 7;
 
 /**
  * 営業所側へ伸ばす「ヒゲ」の長さ（px。#118、仕様書 §6.2.2）。
@@ -94,7 +97,6 @@ function drawBlockLinks(ctx: DrawContext, scene: DiagramScene, viewport: Viewpor
 
   ctx.save();
   ctx.lineWidth = LINK_WIDTH;
-  ctx.setLineDash(LINK_DASH);
 
   for (const link of scene.blockLinks) {
     const y =
@@ -107,7 +109,6 @@ function drawBlockLinks(ctx: DrawContext, scene: DiagramScene, viewport: Viewpor
     ctx.stroke();
   }
 
-  ctx.setLineDash([]);
   ctx.restore();
 }
 

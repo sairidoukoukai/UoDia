@@ -507,26 +507,32 @@ describe('折返しの接続線（T-62、#167）', () => {
     expect(linkSegments([link()])[0]?.strokeStyle).toBe('#123456');
   });
 
-  it('**破線で、営業スジより細く引く**（回送のヒゲと見分ける）', () => {
+  it('**実線で引く**（格子や回送のヒゲと刻みが混ざらない）', () => {
     const [segment] = linkSegments([link()]);
 
-    expect(segment?.lineWidth).toBeLessThan(1.5);
-    expect(segment?.dash).not.toEqual([]);
+    expect(segment?.dash).toEqual([]);
   });
 
   it('**段のぶんだけ px でずらす**（拡大率によらない）', () => {
-    const [base] = linkSegments([link({ level: 0 })]);
-    const [stacked] = linkSegments([link({ level: 2 })]);
+    const [first] = linkSegments([link({ level: 1 })]);
+    const [third] = linkSegments([link({ level: 3 })]);
 
-    // 上へ 2 段（direction: -1）。
-    expect((base?.y1 ?? 0) - (stacked?.y1 ?? 0)).toBe(8);
+    // 上へ 2 段ぶん（direction: -1）。
+    expect((first?.y1 ?? 0) - (third?.y1 ?? 0)).toBe(14);
+  });
+
+  it('**1 段目から停留所の線を離れる**（重なると線そのものが読めない）', () => {
+    const [segment] = linkSegments([link({ level: 1, direction: 1 })]);
+    const onStop = axisToY(0, viewport);
+
+    expect((segment?.y1 ?? 0) - onStop).toBe(7);
   });
 
   it('向きが下なら下へ積む', () => {
-    const [base] = linkSegments([link({ level: 0, direction: 1 })]);
-    const [stacked] = linkSegments([link({ level: 1, direction: 1 })]);
+    const [first] = linkSegments([link({ level: 1, direction: 1 })]);
+    const [second] = linkSegments([link({ level: 2, direction: 1 })]);
 
-    expect((stacked?.y1 ?? 0) - (base?.y1 ?? 0)).toBe(4);
+    expect((second?.y1 ?? 0) - (first?.y1 ?? 0)).toBe(7);
   });
 
   it('接続線が無ければ何も引かない', () => {
