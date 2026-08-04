@@ -11,7 +11,7 @@
 
 import { useEffect, useRef, type ReactElement } from 'react';
 import { COMMANDS, MENUS, commandsIn, formatAccelerator } from './commands';
-import { APP_VERSION } from './version';
+import { APP_VERSION, COPYRIGHT } from './version';
 
 /** 何を出しているか。`null` なら閉じている。 */
 export type HelpTopic = 'shortcuts' | 'about';
@@ -99,6 +99,7 @@ function About(): ReactElement {
       <h2>UoDia について</h2>
       <p>大阪大学 学内連絡バス（再履バス）のダイヤグラム設計ソフトウェア</p>
       <p className="help-dialog__note">版数 {APP_VERSION}</p>
+      <p className="help-dialog__note">{COPYRIGHT}</p>
       <p className="help-dialog__note">
         大阪大学の公式なソフトウェアではありません。時刻の正しさは利用者が確かめてください。
       </p>

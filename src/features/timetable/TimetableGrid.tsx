@@ -96,7 +96,7 @@ export interface TimetableGridProps {
    */
   readonly tripNumbers: ReadonlyMap<string, string>;
   /**
-   * 前運用・後運用の欄が押された（仕様書 §6.1.7）。
+   * 前運用・次運用の欄が押された（仕様書 §6.1.7）。
    *
    * 押すと出区・入区が付き、もう一度押すと外れる。**時刻も経路も決めるものが
    * 無い**ため、切り替えだけで足りる（0 分折返し）。
@@ -300,7 +300,7 @@ export function TimetableGrid(props: TimetableGridProps): ReactElement {
           <tr>
             {/*
               左の列は**行の名前**を並べる列である（便番号・パターン・運用・
-              前運用・停留所名・後運用）。停留所名の列ではないため「停留所」とは
+              前運用・停留所名・次運用）。停留所名の列ではないため「停留所」とは
               名乗らない。停留所名の升目そのものが行見出しであり（`scope="row"`）、
               この列に列見出しは要らない。
             */}
@@ -434,7 +434,7 @@ export function TimetableGrid(props: TimetableGridProps): ReactElement {
         </thead>
         <tbody>
           {/*
-            前運用・後運用の行（仕様書 §6.1.7）。回送便を列にせず、ここに畳み込む。
+            前運用・次運用の行（仕様書 §6.1.7）。回送便を列にせず、ここに畳み込む。
             **前は必ず上端、後は必ず下端**にある。豊中方面では停留所の並びが逆に
             なるが（T-48）、時刻が上から下へ進むことは変わらないため、この位置は
             どちらのタブでも「手前」「その先」を指す。
@@ -495,7 +495,7 @@ export function TimetableGrid(props: TimetableGridProps): ReactElement {
             </tr>
           ))}
           <LinkRow
-            title="後運用"
+            title="次運用"
             action="入区"
             columns={slots}
             cellOf={(column) => column.links.next}
@@ -521,7 +521,7 @@ interface LinkRowProps {
   readonly onToggle: (tripId: string) => void;
 }
 
-/** 前運用・後運用の行（仕様書 §6.1.7）。 */
+/** 前運用・次運用の行（仕様書 §6.1.7）。 */
 function LinkRow(props: LinkRowProps): ReactElement {
   return (
     <tr>
@@ -567,7 +567,7 @@ function LinkRow(props: LinkRowProps): ReactElement {
   );
 }
 
-/** 前運用・後運用の欄に出す文字。 */
+/** 前運用・次運用の欄に出す文字。 */
 function linkText(cell: LinkCell): string {
   if (cell.kind === 'depot') return formatTime(cell.time);
   // 時刻を出せないまま空欄にすると「押しても何も起きない」に見える。

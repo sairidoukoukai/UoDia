@@ -152,7 +152,7 @@ function headTexts(): (string | null)[] {
   });
 }
 
-/** 停留所の行の見出し。前運用・後運用の行（T-50）は除く。 */
+/** 停留所の行の見出し。前運用・次運用の行（T-50）は除く。 */
 function stopHeadings(): (string | null)[] {
   return [...container.querySelectorAll('tbody .timetable__stop')].map((th) => th.textContent);
 }
@@ -288,7 +288,7 @@ describe('見出し', () => {
     expect(blockField(0).placeholder).toBe('―');
   });
 
-  it('**列になるのは営業便だけ**（回送は前運用・後運用の欄に出る。T-51）', () => {
+  it('**列になるのは営業便だけ**（回送は前運用・次運用の欄に出る。T-51）', () => {
     render([makeTrip('S1', 8, 0, { pullOut: true }), makeTrip('S1', 9, 0)]);
     expect(columnHeaders()).toEqual(['便番号', 'E1', 'E2']);
   });
@@ -795,19 +795,19 @@ describe('時刻を消す（T-52、仕様書 §6.1.2）', () => {
   });
 });
 
-describe('前運用・後運用（T-51、仕様書 §6.1.7）', () => {
-  /** 前運用・後運用の欄。 */
+describe('前運用・次運用（T-51、仕様書 §6.1.7）', () => {
+  /** 前運用・次運用の欄。 */
   function linkCells(title: string): (string | null)[] {
     return [...container.querySelectorAll<HTMLElement>(`[aria-label$="の${title}"]`)].map(
       (button) => button.textContent,
     );
   }
 
-  it('**上端が前運用、下端が後運用**', () => {
+  it('**上端が前運用、下端が次運用**', () => {
     render([makeTrip('S1', 8, 0)]);
     const headings = [...container.querySelectorAll('tbody th')].map((th) => th.textContent);
     expect(headings[0]).toBe('前運用');
-    expect(headings.at(-1)).toBe('後運用');
+    expect(headings.at(-1)).toBe('次運用');
   });
 
   it('**出区・入区が付いていれば車庫側の時刻を出す**', () => {
@@ -815,7 +815,7 @@ describe('前運用・後運用（T-51、仕様書 §6.1.7）', () => {
     render([makeTrip('S1', 8, 0, { pullOut: true, pullIn: true })]);
 
     expect(linkCells('前運用')).toEqual(['7:40']);
-    expect(linkCells('後運用')).toEqual(['8:50']);
+    expect(linkCells('次運用')).toEqual(['8:50']);
   });
 
   it('**運用番号が空欄でも時刻が出る**（出区の表示は運用に依らない。T-51）', () => {
@@ -841,15 +841,15 @@ describe('前運用・後運用（T-51、仕様書 §6.1.7）', () => {
     const westbound = makeTrip('T1', 8, 40, { blockId: 'A' });
     render([trip], undefined, { allTrips: [trip, westbound] });
 
-    // 表に出るのは吹田方面の便だけ。その後運用に豊中方面の便番号が出る。
-    expect(linkCells('後運用')).toEqual(['W1']);
+    // 表に出るのは吹田方面の便だけ。その次運用に豊中方面の便番号が出る。
+    expect(linkCells('次運用')).toEqual(['W1']);
     expect(linkCells('前運用')).toEqual(['']);
   });
 
   it('繋がっていなければ空欄', () => {
     render([makeTrip('S1', 8, 0)]);
     expect(linkCells('前運用')).toEqual(['']);
-    expect(linkCells('後運用')).toEqual(['']);
+    expect(linkCells('次運用')).toEqual(['']);
   });
 
   it('**押すと出区・入区を切り替える**', () => {
@@ -865,7 +865,7 @@ describe('前運用・後運用（T-51、仕様書 §6.1.7）', () => {
       });
     };
     press('前運用');
-    press('後運用');
+    press('次運用');
 
     expect(onTogglePullOut).toHaveBeenCalledWith(trips[0]?.tripId);
     expect(onTogglePullIn).toHaveBeenCalledWith(trips[0]?.tripId);
@@ -875,7 +875,7 @@ describe('前運用・後運用（T-51、仕様書 §6.1.7）', () => {
     render([makeTrip('S1', 8, 0, { pullOut: true })]);
 
     const before = container.querySelector('[aria-label$="の前運用"]');
-    const after = container.querySelector('[aria-label$="の後運用"]');
+    const after = container.querySelector('[aria-label$="の次運用"]');
     expect(before?.getAttribute('aria-pressed')).toBe('true');
     expect(after?.getAttribute('aria-pressed')).toBe('false');
   });
@@ -886,7 +886,7 @@ describe('前運用・後運用（T-51、仕様書 §6.1.7）', () => {
     const westbound = makeTrip('T1', 8, 40, { blockId: 'A' });
     render([trip], undefined, { allTrips: [trip, westbound], onTogglePullIn });
 
-    const after = container.querySelector<HTMLButtonElement>('[aria-label$="の後運用"]');
+    const after = container.querySelector<HTMLButtonElement>('[aria-label$="の次運用"]');
     expect(after?.disabled).toBe(false);
     act(() => {
       after?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
