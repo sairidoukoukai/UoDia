@@ -16,6 +16,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import routeJson from '../../../data/route.json?raw';
 import type { Trip } from '@/domain/model';
 import { loadNetworkDef, type NetworkIndex } from '@/domain/network';
+import type { TripMark } from '@/features/validation';
 import { fromHM, type Seconds } from '@/domain/time';
 import { allTimes, numberTrips } from '@/domain/trip';
 import type { CellPosition } from './editing';
@@ -90,6 +91,8 @@ interface RenderExtras {
   readonly onTogglePullOut?: (tripId: string) => void;
   readonly onTogglePullIn?: (tripId: string) => void;
   readonly onChangePattern?: (tripId: string, patternId: string) => void;
+  /** 便ごとの検証の印（T-61、#165）。既定は印なし。 */
+  readonly issueMarks?: ReadonlyMap<string, TripMark>;
   readonly onClearTime?: (tripId: string) => void;
   /**
    * 便の右に並べる空の列の数（T-52）。
@@ -126,6 +129,7 @@ function render(
         timetable={timetable}
         onCommit={onCommit}
         selectedTripIds={extras.selectedTripIds ?? []}
+        issueMarks={extras.issueMarks ?? new Map<string, TripMark>()}
         onSelectTrip={extras.onSelectTrip ?? (() => undefined)}
         onRemoveSelection={extras.onRemoveSelection ?? (() => undefined)}
         blockColors={blockColorsOf(trips)}
@@ -308,6 +312,72 @@ describe('升目（受入条件）', () => {
   it('**直行便の箕面は `−`、箕面経由便は時刻**', () => {
     render([makeTrip('S1', 8, 0), makeTrip('S3', 8, 30)]);
     expect(rowOf('箕面')).toEqual(['−', '8:50']);
+  });
+
+  /*
+   * 検証の印（T-61、#165、仕様書 v1.1 §5.2）。
+   *
+   * 検証の指摘は検証パネルにしか出ていなかった。**時刻表を見ているあいだ、
+   * どの列に問題があるのかが分からない。**
+   */
+  describe('検証の印（T-61、#165）', () => {
+    const mark = (severity: 'error' | 'warning' | 'info', count = 1): TripMark => ({
+      severity,
+      message: `${severity} の説明`,
+      count,
+    });
+
+    /** 便 1 本を出し、その列に印を付けた表を描く。 */
+    function withMark(m: TripMark): HTMLElement {
+      const trips = [makeTrip('S1', 8, 0)];
+      render(trips, undefined, { issueMarks: new Map([[trips[0]?.tripId ?? '', m]]) });
+      const head = container.querySelector<HTMLElement>('th[data-trip-id]');
+      if (head === null) throw new Error('列見出しがありません');
+      return head;
+    }
+
+    it('**エラーの列は地色が変わる**', () => {
+      expect(withMark(mark('error')).className).toContain('timetable__head--issue');
+    });
+
+    it('**警告・情報では地色を変えない**（全部塗ると表が塗り絵になる）', () => {
+      expect(withMark(mark('warning')).className).not.toContain('timetable__head--issue');
+      expect(withMark(mark('info')).className).not.toContain('timetable__head--issue');
+    });
+
+    it('記号・言葉・色の 3 つで示す（§9.4）', () => {
+      const head = withMark(mark('warning'));
+      const icon = head.querySelector('.timetable__issue');
+
+      expect(icon?.textContent).toBe('▲');
+      expect(icon?.getAttribute('aria-label')).toContain('警告');
+      expect(icon?.className).toContain('timetable__issue--warning');
+    });
+
+    it('指摘の文面をそのまま添える', () => {
+      expect(
+        withMark(mark('error')).querySelector('.timetable__issue')?.getAttribute('title'),
+      ).toBe('エラー: error の説明');
+    });
+
+    it('**2 件以上あるときは件数を添える**（印は最も重い 1 つだけ）', () => {
+      const icon = withMark(mark('error', 3)).querySelector('.timetable__issue');
+
+      expect(icon?.getAttribute('title')).toContain('ほか 2 件');
+      // 印そのものは 1 つ。並べると列が広がる（列の幅を決めるのは時刻である）。
+      expect(withMark(mark('error', 3)).querySelectorAll('.timetable__issue')).toHaveLength(1);
+    });
+
+    it('指摘の無い列には印を出さない', () => {
+      render([makeTrip('S1', 8, 0)]);
+      expect(container.querySelectorAll('.timetable__issue')).toHaveLength(0);
+    });
+
+    it('**升目には出さない**（悪いのは便の位置であって特定の停留所の時刻ではない）', () => {
+      const head = withMark(mark('error'));
+      expect(head.tagName).toBe('TH');
+      expect(container.querySelectorAll('td .timetable__issue')).toHaveLength(0);
+    });
   });
 
   it('**アンカーの升目に印を付けない**（T-60、#164）', () => {
