@@ -18,6 +18,7 @@ import { createAppStore } from '@/store';
 import type { SceneTheme } from './scene';
 import { attachTripControls } from './tripControls';
 import { attachViewportControls } from './viewportControls';
+import { AXIS_EDGE_MARGIN, TIME_LABEL_HEIGHT } from './viewport';
 
 const loaded = loadNetworkDef(routeJson);
 if (!loaded.ok) throw new Error('route.json を読み込めません');
@@ -71,11 +72,14 @@ const selected = (): readonly string[] => store.getState().ui.selectedTripIds;
 /**
  * S1 の便（8:00 発）のスジ上の点。
  *
- * 豊中（軸 0）8:00 = (236, 24) から コンベ前（軸 33）8:25 = (311, 288) へ下る
- * 線の中ほど。**縦軸ラベルの幅（`AXIS_LABEL_WIDTH`）がそのまま左端**であり、
- * 縦は軸 1 単位 8px（#118 で 6 から改めた既定）で決まる。
+ * 豊中（軸 0）8:00 から コンベ前（軸 33）8:25 へ下る線の中ほど。**縦軸ラベルの
+ * 幅（`AXIS_LABEL_WIDTH`）がそのまま左端**であり、縦は軸 1 単位 8px（#118 で 6
+ * から改めた既定）で決まる。
+ *
+ * **縦は `AXIS_EDGE_MARGIN` を足して書く。** 端の余白は積むものの都合で変わる
+ * ため（#167）、決め打ちにすると余白を直すたびにここが落ちる。
  */
-const ON_LINE = { clientX: 273, clientY: 155 };
+const ON_LINE = { clientX: 273, clientY: 147 + AXIS_EDGE_MARGIN };
 /** どのスジからも遠い点。 */
 const OFF_LINE = { clientX: 800, clientY: 380 };
 
@@ -418,9 +422,9 @@ describe('プロジェクトを開いていないとき', () => {
 
 describe('作図モード（T-30、仕様書 §6.3.3）', () => {
   /** 豊中（軸 0）の線の上。7:00 が左端・1 分 3px なので x=236 が 8:00。 */
-  const ON_STOP_LINE = { clientX: 236, clientY: 24 };
+  const ON_STOP_LINE = { clientX: 236, clientY: TIME_LABEL_HEIGHT + AXIS_EDGE_MARGIN };
   /** どの停留所線からも遠い点。 */
-  const BETWEEN_LINES = { clientX: 324, clientY: 120 };
+  const BETWEEN_LINES = { clientX: 324, clientY: 112 + AXIS_EDGE_MARGIN };
 
   const trips = (): readonly Trip[] => store.getState().project?.services[0]?.trips ?? [];
 
@@ -439,8 +443,10 @@ describe('作図モード（T-30、仕様書 §6.3.3）', () => {
 
   it('**同じ線でも、開いている方向が通るほうの停留所に作る**（#117）', () => {
     // コンベ前（3_0）と人科前（5_0）は同じ軸位置 35 にある。線は 1 本しか無い。
-    // y = 24 + 35 × 8 = 304。
-    const ON_SHARED_LINE = { clientX: 236, clientY: 304 };
+    const ON_SHARED_LINE = {
+      clientX: 236,
+      clientY: TIME_LABEL_HEIGHT + AXIS_EDGE_MARGIN + 35 * 8,
+    };
 
     pointer('pointerdown', { button: 0, ...ON_SHARED_LINE });
     // 吹田方面ではコンベ前を通る便になる。

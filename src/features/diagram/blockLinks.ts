@@ -62,12 +62,11 @@ export interface SceneBlockLink {
 export interface AxisPositions {
   readonly of: (stopId: string) => number | undefined;
   /**
-   * 軸の中点。**内側へ積むための境目**である。
+   * 軸の中点。**外側へ積むための境目**である。
    *
-   * 中点より上の停留所は下へ、下の停留所は上へ積む。**外側へ積まないのは、
-   * 端の停留所には外側に余白しか無い**ためである（豊中学舎は `axisPosition: 0`
-   * であり、その上にあるのは 8px の余白だけ。`AXIS_EDGE_MARGIN`）。内側なら
-   * 停留所どうしの間隔（最小 15 軸単位）を使える。
+   * 中点より上の停留所は上へ、下の停留所は下へ積む。**内側へ積むと、便のスジが
+   * 走っている場所に線を重ねる**ことになり、どちらも読みにくくなる。外側に
+   * 必要な場所は `AXIS_EDGE_MARGIN` が確保する。
    */
   readonly midpoint: number;
 }
@@ -120,8 +119,8 @@ export function buildBlockLinks(
         // **前便の色。** 接続線はそこから続く線である。
         color: previous.color,
         level: 0,
-        // **内側へ積む**（軸の上半分にある停留所は下へ、下半分は上へ）。
-        direction: position <= axis.midpoint ? 1 : -1,
+        // **外側へ積む**（軸の上半分にある停留所は上へ、下半分は下へ）。
+        direction: position <= axis.midpoint ? -1 : 1,
       });
     }
   }

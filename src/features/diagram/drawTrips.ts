@@ -99,13 +99,27 @@ function drawBlockLinks(ctx: DrawContext, scene: DiagramScene, viewport: Viewpor
   ctx.lineWidth = LINK_WIDTH;
 
   for (const link of scene.blockLinks) {
-    const y =
-      axisToY(axisOf(link.stopId, scene), viewport) +
-      link.level * LINK_LEVEL_OFFSET * link.direction;
+    const onStop = axisToY(axisOf(link.stopId, scene), viewport);
+    const offset = link.level * LINK_LEVEL_OFFSET * link.direction;
+    const left = timeToX(link.from, viewport);
+    const right = timeToX(link.to, viewport);
+
+    /*
+     * **停留所の点まで繋ぐ**（#167）。段のぶんだけ離した水平線だけを引くと、
+     * 便の端点と接続線のあいだが空いて、**どの便から続いているのかが読めない。**
+     *
+     * 斜めに降りる幅は段のずらし幅と同じにする——45 度になるため、どの段でも
+     * 同じ角度で降りる。滞泊が短くて幅が足りないときは半分ずつに詰め、
+     * **水平部分が無くなっても三角形として繋がる。**
+     */
+    const slant = Math.min(Math.abs(offset), (right - left) / 2);
+
     ctx.strokeStyle = link.color;
     ctx.beginPath();
-    ctx.moveTo(timeToX(link.from, viewport), y);
-    ctx.lineTo(timeToX(link.to, viewport), y);
+    ctx.moveTo(left, onStop);
+    ctx.lineTo(left + slant, onStop + offset);
+    ctx.lineTo(right - slant, onStop + offset);
+    ctx.lineTo(right, onStop);
     ctx.stroke();
   }
 
