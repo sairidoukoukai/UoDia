@@ -158,21 +158,23 @@ assignDwellLevels(dwells) → 各接続線の段（0, 1, 2…）
 - [x] 「UoDia について」に著作権表示が出る
 - [x] 年を書き換える運用を作っていない（`© 2026` 固定）
 - [x] **`publisher` を変えたときの上書き挙動を決めた記録が残っている**（仕様書 v1.1 §3.1.1、README の「配布物」）
+- [x] **`.deb` の `Maintainer` を実物で確かめた** → `sairidoukoukai` と出ており**未達だった**。`Cargo.toml` の `authors` を直した（仕様書 v1.1 §3.1.2）
+- [ ] **次のビルドで `.deb` の `Maintainer` が `再履バス同好会` になっている**
 - [ ] **`.exe` / `.msi` のプロパティに「再履バス同好会」と出る**
-- [ ] **`.deb` の `Maintainer`、`.app` の `NSHumanReadableCopyright` が同じ表記になっている**
+- [ ] **`.app` の `NSHumanReadableCopyright` が同じ表記になっている**
 
-**残っている確認**（#158 のコメントの受入条件）
+**確かめ方**
 
-最後の 2 つは**配布物そのものを見ないと確かめられない**。CI は 3 OS 分を artifact に残しているため（README の「タグを打たずに配布物を取る」）、次のいずれかで確かめる。
+CI は 3 OS 分を artifact に残している（README の「タグを打たずに配布物を取る」）。
 
 ```bash
 gh run download -n uodia-Linux -D <保存先>
-dpkg-deb -f <保存先>/deb/*.deb Maintainer          # → 再履バス同好会
+dpkg-deb -f <保存先>/deb/*.deb Maintainer      # → 再履バス同好会
 ```
 
 macOS は `.app/Contents/Info.plist` の `NSHumanReadableCopyright`、Windows は `.exe` のプロパティ（詳細タブ）で見る。
 
-> **Tauri がどの値を使うかは決まっている。** `.deb` の `Maintainer` と `.app` の `NSHumanReadableCopyright` は、それぞれ `bundle.publisher` と `bundle.copyright` から作られる。**それでも実物を見るのは、`Cargo.toml` の `authors`（`sairidoukoukai`）へ倒れる経路があるため**である。設定を読んだだけでは、どちらが出ているか分からない。
+> **設定を読むだけでは分からなかった。** `.deb` の `Maintainer` は `bundle.publisher` ではなく `Cargo.toml` の `authors` から作られ、**authors のほうが優先される。** 実物を開くまで気づけなかった。**配布物にしか現れない値は、配布物を見て確かめる。**
 
 **やらないこと**: LICENSE ファイルの追加（T-66 として別に起こす。仕様書 v1.1 §12）
 
