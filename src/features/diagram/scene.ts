@@ -216,6 +216,27 @@ const filterOf = memoizeByIdentity(
   }),
 );
 
+/**
+ * スジ 1 本の色（§6.2.4、§9.4）。
+ *
+ * **接続線（#167）も同じ関数を通る。** 別々に決めると、前便と接続線が違う色に
+ * なる——接続線はそこから続く線である。
+ */
+function colorOfTrip(
+  blockColors: ReadonlyMap<string, string> | null,
+  styles: ReturnType<typeof stylesOf>,
+  trip: Trip,
+  patternColor: string,
+  background: string,
+): string {
+  // **持っている色は 1 つ。** 暗い配色では明るさだけを調えて出す（`readableOn`）。
+  // route.json の値は書き換えない。
+  return readableOn(
+    blockColors?.get(trip.blockId) ?? styles.get(trip.patternId)?.color ?? patternColor,
+    background,
+  );
+}
+
 const tripsOf = memoizeByIdentity(
   (
     trips: readonly Trip[],
@@ -276,14 +297,7 @@ const tripsOf = memoizeByIdentity(
         tripId: trip.tripId,
         sourceTripId: source,
         patternId: trip.patternId,
-        // **持っている色は 1 つ。** 暗い配色では明るさだけを調えて出す
-        // （`readableOn`）。route.json の値は書き換えない。
-        color: readableOn(
-          blockColors?.get(trip.blockId) ??
-            styles.get(trip.patternId)?.color ??
-            pattern.pattern.color,
-          background,
-        ),
+        color: colorOfTrip(blockColors, styles, trip, pattern.pattern.color, background),
         lineDash: styles.get(trip.patternId)?.lineDash ?? SOLID,
         directionId: pattern.pattern.directionId,
         isDeadhead: pattern.pattern.isDeadhead,
@@ -330,16 +344,22 @@ const linksOf = memoizeByIdentity(
     stops: readonly SceneStop[],
     visible: ReadonlySet<string>,
     filter: SceneFilter,
+    colorMode: ColorMode,
     background: string,
+    patternChoices: Readonly<Record<string, PatternStyleChoice>>,
     blockChoices: Readonly<Record<string, string>>,
   ): readonly SceneBlockLink[] => {
     if (!filter.showBlockLinks) return NO_LINKS;
 
-    const colors = assignBlockColors(
-      trips.map((trip) => trip.blockId).filter((blockId) => blockId !== ''),
-      undefined,
-      blockChoices,
-    );
+    const styles = stylesOf(network, patternChoices);
+    const blockColors =
+      colorMode === 'block'
+        ? assignBlockColors(
+            trips.map((trip) => trip.blockId).filter((blockId) => blockId !== ''),
+            undefined,
+            blockChoices,
+          )
+        : null;
 
     const entries: BlockLinkEntry[] = [];
     for (const trip of expandDeadheads(shownTrips(trips, network, filter), network)) {
@@ -353,6 +373,7 @@ const linksOf = memoizeByIdentity(
 
       entries.push({
         blockId: trip.blockId,
+        color: colorOfTrip(blockColors, styles, trip, pattern.pattern.color, background),
         originStopId: pattern.originStopId,
         originTime,
         terminalStopId: pattern.terminalStopId,
@@ -365,16 +386,10 @@ const linksOf = memoizeByIdentity(
     const values = [...positions.values()];
     const midpoint = values.length === 0 ? 0 : (Math.min(...values) + Math.max(...values)) / 2;
 
-    return buildBlockLinks(
-      entries,
-      // **着色モードによらず運用の色で引く。** 繋がりは運用そのものの事実で
-      // あり、パターンには属さない。
-      (blockId) => {
-        const color = colors.get(blockId);
-        return color === undefined ? undefined : readableOn(color, background);
-      },
-      { of: (stopId) => positions.get(stopId), midpoint },
-    );
+    return buildBlockLinks(entries, {
+      of: (stopId: string) => positions.get(stopId),
+      midpoint,
+    });
   },
 );
 
@@ -443,7 +458,9 @@ export function selectDiagramScene(state: AppState, theme: SceneTheme): DiagramS
           stops,
           visibleIdsOf(stops),
           filter,
+          view?.colorMode ?? 'pattern',
           theme.background,
+          state.settings.patternStyles,
           view?.blockColors ?? NO_BLOCK_COLORS,
         ),
     state.ui.selectedTripIds,

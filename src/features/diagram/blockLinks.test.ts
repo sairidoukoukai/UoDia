@@ -15,15 +15,15 @@ const AXIS: AxisPositions = {
   midpoint: 20,
 };
 
-const COLOR = (blockId: string): string | undefined => (blockId === '' ? undefined : `#${blockId}`);
-
 function entry(
   blockId: string,
   from: [string, number, number],
   to: [string, number, number],
+  color = `#${blockId}`,
 ): BlockLinkEntry {
   return {
     blockId,
+    color,
     originStopId: from[0],
     originTime: fromHM(from[1], from[2]),
     terminalStopId: to[0],
@@ -41,8 +41,22 @@ function roundTrip(blockId: string, outbound: number, inbound: number): BlockLin
 }
 
 describe('接続線を引く条件', () => {
+  it('**色は前便から引き継ぐ**（接続線はそこから続く線である）', () => {
+    const [outbound, inbound] = roundTrip('A', 8, 9);
+    if (outbound === undefined || inbound === undefined) throw new Error('用意できません');
+    const links = buildBlockLinks(
+      [
+        { ...outbound, color: '#前便' },
+        { ...inbound, color: '#次便' },
+      ],
+      AXIS,
+    );
+
+    expect(links[0]?.color).toBe('#前便');
+  });
+
   it('**折返しで時間が空いていれば繋ぐ**', () => {
-    const links = buildBlockLinks(roundTrip('A', 8, 9), COLOR, AXIS);
+    const links = buildBlockLinks(roundTrip('A', 8, 9), AXIS);
 
     expect(links).toHaveLength(1);
     expect(links[0]).toMatchObject({
@@ -60,7 +74,6 @@ describe('接続線を引く条件', () => {
         entry('A', ['toyonaka', 8, 0], ['kogaku', 8, 30]),
         entry('A', ['kogaku', 8, 30], ['toyonaka', 9, 0]),
       ],
-      COLOR,
       AXIS,
     );
 
@@ -73,7 +86,6 @@ describe('接続線を引く条件', () => {
         entry('A', ['toyonaka', 8, 0], ['kogaku', 8, 30]),
         entry('A', ['mino', 9, 0], ['toyonaka', 9, 30]),
       ],
-      COLOR,
       AXIS,
     );
 
@@ -86,7 +98,6 @@ describe('接続線を引く条件', () => {
         entry('A', ['toyonaka', 8, 0], ['kogaku', 8, 30]),
         entry('A', ['kogaku', 8, 20], ['toyonaka', 8, 50]),
       ],
-      COLOR,
       AXIS,
     );
 
@@ -95,11 +106,11 @@ describe('接続線を引く条件', () => {
 
   it('**縦軸に無い停留所（営業所）では引かない**', () => {
     const offAxis = roundTrip('A', 8, 9).map((e) => ({ ...e, onAxis: false }));
-    expect(buildBlockLinks(offAxis, COLOR, AXIS)).toEqual([]);
+    expect(buildBlockLinks(offAxis, AXIS)).toEqual([]);
   });
 
   it('**運用番号が空欄の便には引かない**（繋ぐ相手が定義されていない）', () => {
-    expect(buildBlockLinks(roundTrip('', 8, 9), COLOR, AXIS)).toEqual([]);
+    expect(buildBlockLinks(roundTrip('', 8, 9), AXIS)).toEqual([]);
   });
 
   it('運用が違えば繋がない', () => {
@@ -108,28 +119,21 @@ describe('接続線を引く条件', () => {
         entry('A', ['toyonaka', 8, 0], ['kogaku', 8, 30]),
         entry('B', ['kogaku', 9, 0], ['toyonaka', 9, 30]),
       ],
-      COLOR,
       AXIS,
     );
 
     expect(links).toEqual([]);
   });
 
-  it('色を引けない運用には引かない', () => {
-    expect(buildBlockLinks(roundTrip('A', 8, 9), () => undefined, AXIS)).toEqual([]);
-  });
-
   it('軸位置を引けない停留所には引かない', () => {
-    expect(buildBlockLinks(roundTrip('A', 8, 9), COLOR, { ...AXIS, of: () => undefined })).toEqual(
-      [],
-    );
+    expect(buildBlockLinks(roundTrip('A', 8, 9), { ...AXIS, of: () => undefined })).toEqual([]);
   });
 
   it('並びが前後していても始発時刻の順に繋ぐ', () => {
     const [outbound, inbound] = roundTrip('A', 8, 9);
     if (outbound === undefined || inbound === undefined) throw new Error('用意できません');
 
-    expect(buildBlockLinks([inbound, outbound], COLOR, AXIS)).toHaveLength(1);
+    expect(buildBlockLinks([inbound, outbound], AXIS)).toHaveLength(1);
   });
 });
 
@@ -142,33 +146,31 @@ describe('重なりを段に振り分ける', () => {
     ];
   }
 
-  it('**1 台だけなら段 0**（停留所の位置に正直に載る）', () => {
-    const links = buildBlockLinks(dwellAtToyonaka('A', 8, 9), COLOR, AXIS);
-    expect(links[0]?.level).toBe(0);
+  it('**1 台だけでも 1 段ずらす**（停留所の線と重なると線そのものが読めない）', () => {
+    const links = buildBlockLinks(dwellAtToyonaka('A', 8, 9), AXIS);
+    expect(links[0]?.level).toBe(1);
   });
 
-  it('**同時に留まる 3 台は 0・1・2 段に積む**', () => {
+  it('**同時に留まる 3 台は 1・2・3 段に積む**', () => {
     const links = buildBlockLinks(
       [
         ...dwellAtToyonaka('A', 8, 12),
         ...dwellAtToyonaka('B', 9, 13),
         ...dwellAtToyonaka('C', 10, 14),
       ],
-      COLOR,
       AXIS,
     );
 
-    expect(links.map((l) => l.level).toSorted()).toEqual([0, 1, 2]);
+    expect(links.map((l) => l.level).toSorted()).toEqual([1, 2, 3]);
   });
 
   it('**時間帯が交わらなければ同じ段でよい**（留まっていない時間まで段を占めない）', () => {
     const links = buildBlockLinks(
       [...dwellAtToyonaka('A', 8, 9), ...dwellAtToyonaka('B', 10, 11)],
-      COLOR,
       AXIS,
     );
 
-    expect(links.map((l) => l.level)).toEqual([0, 0]);
+    expect(links.map((l) => l.level)).toEqual([1, 1]);
   });
 
   it('停留所が違えば重ならない', () => {
@@ -178,30 +180,26 @@ describe('重なりを段に振り分ける', () => {
         entry('B', ['toyonaka', 8, 0], ['kogaku', 8, 30]),
         entry('B', ['kogaku', 9, 0], ['toyonaka', 9, 30]),
       ],
-      COLOR,
       AXIS,
     );
 
-    expect(links.map((l) => l.level)).toEqual([0, 0]);
+    expect(links.map((l) => l.level)).toEqual([1, 1]);
   });
 
-  it('**ずらす向きは軸の外側**（豊中は上、工学部は下）', () => {
-    const links = buildBlockLinks(
-      [...dwellAtToyonaka('A', 8, 12), ...roundTrip('B', 9, 10)],
-      COLOR,
-      AXIS,
-    );
+  it('**ずらす向きは軸の内側**（豊中は下、工学部は上）', () => {
+    const links = buildBlockLinks([...dwellAtToyonaka('A', 8, 12), ...roundTrip('B', 9, 10)], AXIS);
 
-    expect(links.find((l) => l.stopId === 'toyonaka')?.direction).toBe(-1);
-    expect(links.find((l) => l.stopId === 'kogaku')?.direction).toBe(1);
+    // 端の停留所には外側に余白しか無い。内側なら停留所どうしの間隔を使える。
+    expect(links.find((l) => l.stopId === 'toyonaka')?.direction).toBe(1);
+    expect(links.find((l) => l.stopId === 'kogaku')?.direction).toBe(-1);
   });
 
   it('**運用番号を打ち替えても段の付き方は変わらない**（時刻順に割り当てる）', () => {
     const early = dwellAtToyonaka('Z', 8, 12);
     const late = dwellAtToyonaka('A', 9, 13);
-    const links = buildBlockLinks([...early, ...late], COLOR, AXIS);
+    const links = buildBlockLinks([...early, ...late], AXIS);
 
-    // 段 0 は先に留まり始めたほう（Z）である。番号順なら A が 0 になる。
-    expect(links.find((l) => l.level === 0)?.blockId).toBe('Z');
+    // 段 1（最初の段）は先に留まり始めたほう（Z）である。番号順なら A になる。
+    expect(links.find((l) => l.level === 1)?.blockId).toBe('Z');
   });
 });

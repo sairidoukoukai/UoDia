@@ -22,6 +22,14 @@ import type { Seconds } from '@/domain/time';
 /** 接続線を求めるための、便 1 本の端点。 */
 export interface BlockLinkEntry {
   readonly blockId: string;
+  /**
+   * その便を描く色。**接続線はこの色を引き継ぐ。**
+   *
+   * 前便の終着点から伸びる線であり、**そこから続いているものとして読める**
+   * ほうがよい。運用の色に決め打ちすると、パターンで着色しているときに
+   * 前便のスジと違う色の線が生えることになる。
+   */
+  readonly color: string;
   readonly originStopId: string;
   readonly originTime: Seconds;
   readonly terminalStopId: string;
@@ -39,7 +47,12 @@ export interface SceneBlockLink {
   /** 次便の始発時刻。 */
   readonly to: Seconds;
   readonly color: string;
-  /** 重なりを避けるための段。0 は停留所の線の上（ずらさない）。 */
+  /**
+   * 重なりを避けるための段。**1 から始まる。**
+   *
+   * 0 段（停留所の線の上）は使わない——**停留所の線と重なると、線そのものが
+   * 読めない。** 1 台しか留まっていなくても 1 段ずらす。
+   */
   readonly level: number;
   /** 段をずらす向き。`-1` が上、`1` が下。 */
   readonly direction: -1 | 1;
@@ -48,7 +61,14 @@ export interface SceneBlockLink {
 /** 段をずらす向きを決めるための、停留所の軸位置。 */
 export interface AxisPositions {
   readonly of: (stopId: string) => number | undefined;
-  /** 軸の中点。これより上なら上へ、下（と同じ）なら下へ積む。 */
+  /**
+   * 軸の中点。**内側へ積むための境目**である。
+   *
+   * 中点より上の停留所は下へ、下の停留所は上へ積む。**外側へ積まないのは、
+   * 端の停留所には外側に余白しか無い**ためである（豊中学舎は `axisPosition: 0`
+   * であり、その上にあるのは 8px の余白だけ。`AXIS_EDGE_MARGIN`）。内側なら
+   * 停留所どうしの間隔（最小 15 軸単位）を使える。
+   */
   readonly midpoint: number;
 }
 
@@ -56,12 +76,11 @@ export interface AxisPositions {
  * 運用ごとの滞泊を求め、重なりを段に振り分ける。
  *
  * @param entries 便の端点。**同じ運用の中は始発時刻の昇順に並んでいなくてよい**
- * @param colorOf 運用番号 → 色。**着色モードによらず運用の色で引く**——繋がりは
- *   運用そのものの事実であり、パターンには属さない
+ * 色は**前便から引き継ぐ**（`BlockLinkEntry.color`）。接続線は前便の終着点から
+ * 伸びる線であり、そこから続いているものとして読めるほうがよい。
  */
 export function buildBlockLinks(
   entries: readonly BlockLinkEntry[],
-  colorOf: (blockId: string) => string | undefined,
   axis: AxisPositions,
 ): readonly SceneBlockLink[] {
   const byBlock = new Map<string, BlockLinkEntry[]>();
@@ -75,9 +94,6 @@ export function buildBlockLinks(
 
   const spans: SceneBlockLink[] = [];
   for (const [blockId, group] of byBlock) {
-    const color = colorOf(blockId);
-    if (color === undefined) continue;
-
     const sorted = [...group].sort((a, b) => a.originTime - b.originTime);
     for (const [previous, current] of adjacent(sorted)) {
       /*
@@ -101,9 +117,11 @@ export function buildBlockLinks(
         stopId,
         from: previous.terminalTime,
         to: current.originTime,
-        color,
+        // **前便の色。** 接続線はそこから続く線である。
+        color: previous.color,
         level: 0,
-        direction: position < axis.midpoint ? -1 : 1,
+        // **内側へ積む**（軸の上半分にある停留所は下へ、下半分は上へ）。
+        direction: position <= axis.midpoint ? 1 : -1,
       });
     }
   }
@@ -117,9 +135,11 @@ export function buildBlockLinks(
  * 豊中学舎は `axisPosition: 0` であり、そこに留まる運用がいくつあっても線は
  * 1 本の上に集まる。**重ねて描けば、最後に描いたものしか見えない。**
  *
- * **段 0 はずらさない。** 留まっているのが 1 台だけなら、線は停留所の位置に
- * 正直に載る。割り当てを運用番号順にしないのは、**番号を打ち替えただけで絵が
- * 組み替わる**のを避けるためである。
+ * **段は 1 から始まる。** 0 段（停留所の線の上）に置くと、線そのものと重なって
+ * どちらも読めない。1 台しか留まっていなくても 1 段ずらす。
+ *
+ * 割り当てを運用番号順にしないのは、**番号を打ち替えただけで絵が組み替わる**
+ * のを避けるためである。
  *
  * 重なりの判定は**時間帯が交わるかどうか**だけを見る。運用ごとに段を固定すると、
  * 留まっていない時間まで段を占める。
@@ -147,7 +167,8 @@ function assignLevels(spans: readonly SceneBlockLink[]): readonly SceneBlockLink
       } else {
         ends[level] = span.to;
       }
-      placed.push({ ...span, level });
+      // 0 段は使わない（停留所の線と重なる）。
+      placed.push({ ...span, level: level + 1 });
     }
   }
 
