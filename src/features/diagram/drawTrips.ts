@@ -33,6 +33,24 @@ const TRIP_WIDTH = 1.5;
 const DEADHEAD_WIDTH = 1;
 
 /**
+ * 折返しの接続線（#167、T-62、仕様書 v1.1 §5.3）。
+ *
+ * **回送のヒゲ（細い実線）と見分けられるようにする。** 太さと線種の両方を変え、
+ * 「そこを走っているのではない」ことが見た目から読めるようにする。
+ */
+const LINK_WIDTH = 1;
+const LINK_DASH: readonly number[] = [2, 3];
+
+/**
+ * 段 1 つぶんのずらし幅（px）。
+ *
+ * **拡大率によらない。** 回送のヒゲと同じく、これは絵の記号の大きさであって
+ * 距離でも時間でもない。軸の単位でずらすと、縦に拡げるたびに段の間隔が開き、
+ * 離れた停留所の線に見える。
+ */
+const LINK_LEVEL_OFFSET = 4;
+
+/**
  * 営業所側へ伸ばす「ヒゲ」の長さ（px。#118、仕様書 §6.2.2）。
  *
  * **軸の単位ではなく画面の量で持つ。** 軸の単位で決めると、縦に拡げるたびに
@@ -64,6 +82,39 @@ const STOP_DOT_RADIUS = 3.5;
 
 /** 丸 1 周（ラジアン）。 */
 const FULL_CIRCLE = Math.PI * 2;
+
+/**
+ * 折返しの接続線を引く（#167、T-62）。
+ *
+ * **スジより先に引く。** 便そのものの線が上に来るようにするためであり、
+ * 繋がりは便を読むための手掛かりであって、便より目立ってはならない。
+ */
+function drawBlockLinks(ctx: DrawContext, scene: DiagramScene, viewport: Viewport): void {
+  if (scene.blockLinks.length === 0) return;
+
+  ctx.save();
+  ctx.lineWidth = LINK_WIDTH;
+  ctx.setLineDash(LINK_DASH);
+
+  for (const link of scene.blockLinks) {
+    const y =
+      axisToY(axisOf(link.stopId, scene), viewport) +
+      link.level * LINK_LEVEL_OFFSET * link.direction;
+    ctx.strokeStyle = link.color;
+    ctx.beginPath();
+    ctx.moveTo(timeToX(link.from, viewport), y);
+    ctx.lineTo(timeToX(link.to, viewport), y);
+    ctx.stroke();
+  }
+
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
+/** 停留所の軸位置。縦軸に無い停留所は 0 とする（接続線は引かれない）。 */
+function axisOf(stopId: string, scene: DiagramScene): number {
+  return scene.stops.find((stop) => stop.stopId === stopId)?.axisPosition ?? 0;
+}
 
 /** 便番号ラベル。 */
 const LABEL_FONT = '11px system-ui, sans-serif';
@@ -114,6 +165,8 @@ export function drawTrips(ctx: DrawContext, scene: DiagramScene, viewport: Viewp
     viewport.height - viewport.originY,
   );
   ctx.clip();
+
+  drawBlockLinks(ctx, scene, viewport);
 
   const drawn = tripPolylines(scene, viewport);
 

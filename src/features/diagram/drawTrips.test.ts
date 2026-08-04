@@ -104,7 +104,15 @@ function sceneOf(
   selectionRect: DiagramScene['selectionRect'] = null,
   tripShift: DiagramScene['tripShift'] = null,
 ): DiagramScene {
-  return { stops, trips, selectedTripIds: new Set(selected), selectionRect, tripShift, theme };
+  return {
+    stops,
+    trips,
+    blockLinks: [],
+    selectedTripIds: new Set(selected),
+    selectionRect,
+    tripShift,
+    theme,
+  };
 }
 
 const viewport: Viewport = viewportOf(
@@ -459,6 +467,70 @@ describe('カリング（仕様書 §6.2.2）', () => {
   it('折れ点の無い便は線にならない', () => {
     expect(isTripVisible(through({ points: [] }), viewport)).toBe(false);
     expect(draw([through({ points: [] })]).segments).toEqual([]);
+  });
+});
+
+/*
+ * 折返しの接続線（T-62、#167）。
+ *
+ * 場面（`blockLinks`）が段まで決めているため、ここで確かめるのは**渡された
+ * とおりに引いているか**だけである。
+ */
+describe('折返しの接続線（T-62、#167）', () => {
+  const link = (over: Partial<DiagramScene['blockLinks'][number]> = {}) => ({
+    blockId: 'A',
+    stopId: '1_0',
+    from: fromHM(8, 0),
+    to: fromHM(8, 30),
+    color: '#123456',
+    level: 0,
+    direction: -1 as const,
+    ...over,
+  });
+
+  /** 接続線だけを描いた結果の線分。 */
+  function linkSegments(links: DiagramScene['blockLinks']) {
+    const ctx = new Recorder();
+    drawTrips(ctx, { ...sceneOf([], []), blockLinks: links }, viewport);
+    return ctx.segments;
+  }
+
+  it('**水平に引く**（折返しのあいだバスは動いていない）', () => {
+    const [segment] = linkSegments([link()]);
+
+    expect(segment?.y1).toBe(segment?.y2);
+    expect(segment?.x1).toBe(timeToX(fromHM(8, 0), viewport));
+    expect(segment?.x2).toBe(timeToX(fromHM(8, 30), viewport));
+  });
+
+  it('運用の色で引く', () => {
+    expect(linkSegments([link()])[0]?.strokeStyle).toBe('#123456');
+  });
+
+  it('**破線で、営業スジより細く引く**（回送のヒゲと見分ける）', () => {
+    const [segment] = linkSegments([link()]);
+
+    expect(segment?.lineWidth).toBeLessThan(1.5);
+    expect(segment?.dash).not.toEqual([]);
+  });
+
+  it('**段のぶんだけ px でずらす**（拡大率によらない）', () => {
+    const [base] = linkSegments([link({ level: 0 })]);
+    const [stacked] = linkSegments([link({ level: 2 })]);
+
+    // 上へ 2 段（direction: -1）。
+    expect((base?.y1 ?? 0) - (stacked?.y1 ?? 0)).toBe(8);
+  });
+
+  it('向きが下なら下へ積む', () => {
+    const [base] = linkSegments([link({ level: 0, direction: 1 })]);
+    const [stacked] = linkSegments([link({ level: 1, direction: 1 })]);
+
+    expect((stacked?.y1 ?? 0) - (base?.y1 ?? 0)).toBe(4);
+  });
+
+  it('接続線が無ければ何も引かない', () => {
+    expect(linkSegments([])).toEqual([]);
   });
 });
 

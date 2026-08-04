@@ -220,6 +220,7 @@ describe('送りの範囲', () => {
     const empty: DiagramScene = {
       stops: [],
       trips: [],
+      blockLinks: [],
       selectedTripIds: new Set(),
       selectionRect: null,
       tripShift: null,

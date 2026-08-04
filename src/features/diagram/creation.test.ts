@@ -32,6 +32,7 @@ function stop(stopId: string, axisPosition: number): SceneStop {
 const SCENE: DiagramScene = {
   stops: [stop('a', 0), stop('b', 20)],
   trips: [],
+  blockLinks: [],
   selectedTripIds: new Set(),
   selectionRect: null,
   tripShift: null,

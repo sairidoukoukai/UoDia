@@ -37,6 +37,7 @@ import {
   type TripShift,
 } from '@/store';
 import { readableOn } from './color';
+import { buildBlockLinks, type BlockLinkEntry, type SceneBlockLink } from './blockLinks';
 import { patternStyles, SOLID } from './tripStyle';
 
 /** 縦軸に並ぶ停留所。 */
@@ -127,6 +128,8 @@ export interface SceneTheme {
 export interface DiagramScene {
   readonly stops: readonly SceneStop[];
   readonly trips: readonly SceneTrip[];
+  /** 折返しの接続線（#167、仕様書 v1.1 §5.3）。 */
+  readonly blockLinks: readonly SceneBlockLink[];
   /** 選択されている**保存されている便**の ID（`SceneTrip.sourceTripId` と照合する）。 */
   readonly selectedTripIds: ReadonlySet<string>;
   /** 引きずっている最中の選択の枠（仕様書 §6.3.1、T-28）。掴んでいなければ `null`。 */
@@ -142,6 +145,8 @@ interface SceneFilter {
   readonly blocks: ReadonlySet<string>;
   readonly directions: ReadonlySet<DirectionId>;
   readonly showDeadhead: boolean;
+  /** 折返しの接続線を出すか（#167）。 */
+  readonly showBlockLinks: boolean;
 }
 
 const NO_STOPS: readonly SceneStop[] = [];
@@ -201,11 +206,13 @@ const filterOf = memoizeByIdentity(
     hiddenBlockIds: readonly string[],
     hiddenDirections: readonly DirectionId[],
     showDeadhead: boolean,
+    showBlockLinks: boolean,
   ): SceneFilter => ({
     patterns: new Set(hiddenPatternIds),
     blocks: new Set(hiddenBlockIds),
     directions: new Set(hiddenDirections),
     showDeadhead,
+    showBlockLinks,
   }),
 );
 
@@ -307,10 +314,75 @@ function shownTrips(
   });
 }
 
+const NO_LINKS: readonly SceneBlockLink[] = [];
+
+/**
+ * 折返しの接続線（#167、T-62）。
+ *
+ * **回送便を落とす前に組む。** 出入区を隠していても、車庫へ帰る運用に線を
+ * 引いてはならない——隠したのは見え方の話であって、そこで待っていなかった
+ * という事実は変わらない。
+ */
+const linksOf = memoizeByIdentity(
+  (
+    trips: readonly Trip[],
+    network: NetworkIndex,
+    stops: readonly SceneStop[],
+    visible: ReadonlySet<string>,
+    filter: SceneFilter,
+    background: string,
+    blockChoices: Readonly<Record<string, string>>,
+  ): readonly SceneBlockLink[] => {
+    if (!filter.showBlockLinks) return NO_LINKS;
+
+    const colors = assignBlockColors(
+      trips.map((trip) => trip.blockId).filter((blockId) => blockId !== ''),
+      undefined,
+      blockChoices,
+    );
+
+    const entries: BlockLinkEntry[] = [];
+    for (const trip of expandDeadheads(shownTrips(trips, network, filter), network)) {
+      const pattern = network.patternIndex(trip.patternId);
+      if (pattern === undefined) continue;
+
+      const times = allTimes(trip, network);
+      const originTime = times.get(pattern.originStopId);
+      const terminalTime = times.get(pattern.terminalStopId);
+      if (originTime === undefined || terminalTime === undefined) continue;
+
+      entries.push({
+        blockId: trip.blockId,
+        originStopId: pattern.originStopId,
+        originTime,
+        terminalStopId: pattern.terminalStopId,
+        terminalTime,
+        onAxis: visible.has(pattern.originStopId) && visible.has(pattern.terminalStopId),
+      });
+    }
+
+    const positions = new Map(stops.map((stop) => [stop.stopId, stop.axisPosition]));
+    const values = [...positions.values()];
+    const midpoint = values.length === 0 ? 0 : (Math.min(...values) + Math.max(...values)) / 2;
+
+    return buildBlockLinks(
+      entries,
+      // **着色モードによらず運用の色で引く。** 繋がりは運用そのものの事実で
+      // あり、パターンには属さない。
+      (blockId) => {
+        const color = colors.get(blockId);
+        return color === undefined ? undefined : readableOn(color, background);
+      },
+      { of: (stopId) => positions.get(stopId), midpoint },
+    );
+  },
+);
+
 const sceneOf = memoizeByIdentity(
   (
     stops: readonly SceneStop[],
     trips: readonly SceneTrip[],
+    blockLinks: readonly SceneBlockLink[],
     selectedTripIds: readonly string[],
     selectionRect: SelectionRect | null,
     tripShift: TripShift | null,
@@ -318,6 +390,7 @@ const sceneOf = memoizeByIdentity(
   ): DiagramScene => ({
     stops,
     trips,
+    blockLinks,
     selectedTripIds: new Set(selectedTripIds),
     selectionRect,
     tripShift,
@@ -344,6 +417,7 @@ export function selectDiagramScene(state: AppState, theme: SceneTheme): DiagramS
     view?.hiddenBlockIds ?? NO_IDS,
     view?.hiddenDirections ?? NO_DIRECTIONS,
     view?.showDeadhead ?? true,
+    view?.showBlockLinks ?? true,
   );
 
   return sceneOf(
@@ -359,6 +433,17 @@ export function selectDiagramScene(state: AppState, theme: SceneTheme): DiagramS
           selectTripNumbers(state),
           theme.background,
           state.settings.patternStyles,
+          view?.blockColors ?? NO_BLOCK_COLORS,
+        ),
+    network === null
+      ? NO_LINKS
+      : linksOf(
+          selectTrips(state),
+          network,
+          stops,
+          visibleIdsOf(stops),
+          filter,
+          theme.background,
           view?.blockColors ?? NO_BLOCK_COLORS,
         ),
     state.ui.selectedTripIds,

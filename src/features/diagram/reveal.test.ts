@@ -53,6 +53,7 @@ function sceneOf(trips: readonly SceneTrip[], selected: readonly string[]): Diag
   return {
     stops: STOPS,
     trips,
+    blockLinks: [],
     selectedTripIds: new Set(selected),
     selectionRect: null,
     tripShift: null,
