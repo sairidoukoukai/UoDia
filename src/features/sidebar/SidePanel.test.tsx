@@ -125,6 +125,14 @@ function press(label: string): void {
 beforeEach(() => {
   container = document.createElement('div');
   document.body.append(container);
+  // jsdom は showModal を実装していない。開閉そのものはブラウザの責務であり、
+  // ここで確かめたいのは中身と答えである（`FileDialogHost.test.tsx` と同じ扱い）。
+  HTMLDialogElement.prototype.showModal = function showModal(this: HTMLDialogElement): void {
+    this.open = true;
+  };
+  HTMLDialogElement.prototype.close = function close(this: HTMLDialogElement): void {
+    this.open = false;
+  };
   mount();
 });
 
@@ -355,11 +363,129 @@ describe('ダイヤ', () => {
   it('消したダイヤを指したままにしない', () => {
     press('ダイヤを追加');
     const added = selectActiveService(useAppStore.getState())?.serviceId;
-    press(`新しいダイヤ を削除`);
+    press('新しいダイヤ を削除');
+    press('削除する');
 
     const state = useAppStore.getState();
     expect(selectServices(state)).toHaveLength(1);
     expect(selectView(state)?.activeServiceId).not.toBe(added);
     expect(selectActiveService(state)?.serviceId).toBe('weekday');
+  });
+});
+
+/*
+ * 削除の確認（T-59、#160）。
+ *
+ * 削除は履歴に載っており取り消せる。**それでも確認を挟むのは、戻せることが
+ * 画面から読めない**ためである。ここで固定するのは「押しただけでは消えない」
+ * ことと、「答えるまで何も動かない」ことの 2 つである。
+ */
+describe('ダイヤの削除の確認', () => {
+  /** 問いの窓。開いていなければ `null`。 */
+  function confirmDialog(): HTMLDialogElement | null {
+    const dialog = container.querySelector<HTMLDialogElement>('dialog');
+    return dialog?.open === true ? dialog : null;
+  }
+
+  beforeEach(() => {
+    press('ダイヤを追加');
+  });
+
+  it('**押しただけでは消えない**', () => {
+    press('新しいダイヤ を削除');
+
+    expect(selectServices(useAppStore.getState())).toHaveLength(2);
+    expect(confirmDialog()).not.toBeNull();
+  });
+
+  it('名前と便数を出す（失うものの大きさが読める）', () => {
+    press('新しいダイヤ を削除');
+
+    expect(confirmDialog()?.textContent).toContain('新しいダイヤ（0 便）');
+  });
+
+  it('**便が 0 件でも尋ねる**（出ない場合があると確認そのものを信用しなくなる）', () => {
+    // 追加した直後のダイヤは 0 便である。
+    expect(selectActiveService(useAppStore.getState())?.trips).toEqual([]);
+    press('新しいダイヤ を削除');
+
+    expect(confirmDialog()).not.toBeNull();
+  });
+
+  it('便が入っているダイヤでは、その便数を出す', () => {
+    act(() => {
+      checkbox('授業期間平日ダイヤ を編集する').click();
+    });
+    press('授業期間平日ダイヤ を削除');
+
+    expect(confirmDialog()?.textContent).toContain('授業期間平日ダイヤ（2 便）');
+  });
+
+  it('「削除する」を選べば消える', () => {
+    press('新しいダイヤ を削除');
+    press('削除する');
+
+    expect(selectServices(useAppStore.getState())).toHaveLength(1);
+    expect(confirmDialog()).toBeNull();
+  });
+
+  it('**「キャンセル」を選ぶと状態が一切変わらない**', () => {
+    const before = useAppStore.getState();
+    const services = selectServices(before);
+    const activeId = selectView(before)?.activeServiceId;
+    const undoDepth = before.history.past.length;
+
+    press('新しいダイヤ を削除');
+    press('キャンセル');
+
+    const after = useAppStore.getState();
+    // 配列そのものが同じであること——作り直されていれば履歴も動いている。
+    expect(selectServices(after)).toBe(services);
+    expect(selectView(after)?.activeServiceId).toBe(activeId);
+    // 履歴が 1 段でも積まれていれば、何かが書き換わっている。
+    expect(after.history.past).toHaveLength(undoDepth);
+    expect(confirmDialog()).toBeNull();
+  });
+
+  it('<kbd>Esc</kbd> はキャンセル扱い', () => {
+    press('新しいダイヤ を削除');
+    const dialog = confirmDialog();
+
+    act(() => {
+      dialog?.dispatchEvent(new Event('cancel', { bubbles: false, cancelable: true }));
+    });
+
+    expect(selectServices(useAppStore.getState())).toHaveLength(2);
+    expect(confirmDialog()).toBeNull();
+  });
+
+  it('背景を押すのもキャンセル扱い', () => {
+    press('新しいダイヤ を削除');
+    const dialog = confirmDialog();
+
+    act(() => {
+      // 中身ではなく `<dialog>` 自身が押されたときだけ、背景を押したとみなす。
+      dialog?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(selectServices(useAppStore.getState())).toHaveLength(2);
+    expect(confirmDialog()).toBeNull();
+  });
+
+  it('**既定の焦点はキャンセル**（Enter を続けて押しても消えない）', () => {
+    press('新しいダイヤ を削除');
+
+    expect(document.activeElement?.textContent).toBe('キャンセル');
+  });
+
+  it('削除は今までどおり履歴に載る（取り消せる）', () => {
+    press('新しいダイヤ を削除');
+    press('削除する');
+    expect(selectServices(useAppStore.getState())).toHaveLength(1);
+
+    act(() => {
+      useAppStore.getState().undo();
+    });
+    expect(selectServices(useAppStore.getState())).toHaveLength(2);
   });
 });
