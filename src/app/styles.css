@@ -1185,7 +1185,7 @@ body {
   background: var(--color-anchor);
 }
 
-/* 前運用・後運用の行（T-50、仕様書 §6.1.7）。停留所の行とは区切って見せる。 */
+/* 前運用・次運用の行（T-50、仕様書 §6.1.7）。停留所の行とは区切って見せる。 */
 .timetable__link-head,
 .timetable__link-cell {
   background: var(--color-bg-accent);

@@ -42,7 +42,7 @@ export type TimetableCell =
   | { readonly kind: 'notServed' };
 
 /**
- * 前運用・後運用の欄（仕様書 §6.1.7）。
+ * 前運用・次運用の欄（仕様書 §6.1.7）。
  *
  * その便自身の `pullOut` / `pullIn` を第一に映し、立っていなければ同じ運用の
  * 直前・直後にある営業便の便番号を映す。**出区・入区の表示は運用番号に依存
@@ -74,7 +74,7 @@ export interface TimetableColumn {
   readonly pattern: StopPattern | null;
   /** 停留所ごとの升目。行の並びは `stops` に従う。 */
   readonly cells: readonly TimetableCell[];
-  /** 前運用・後運用の欄（仕様書 §6.1.7）。 */
+  /** 前運用・次運用の欄（仕様書 §6.1.7）。 */
   readonly links: TripLinks;
 }
 
@@ -178,7 +178,7 @@ export function columnCount(timetable: Timetable): number {
  *
  * その方向のいずれかのパターンに含まれる停留所の和集合から、`hiddenInEditor`
  * と**営業所**を除く。営業所の行を置かないのは、回送便が列でなくなった以上
- * （§6.1.7）、営業便の列では常に空欄になるからである。出入区は前運用・後運用の
+ * （§6.1.7）、営業便の列では常に空欄になるからである。出入区は前運用・次運用の
  * 欄が受け持つ。
  *
  * ## 並びは進行方向に従う

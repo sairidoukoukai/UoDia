@@ -152,7 +152,7 @@ export function Timetable(): ReactElement {
     [serviceTrips, chosenBlockColors],
   );
 
-  // 前運用・後運用はダイヤの全便から決まる。運用は方向をまたぐため、表示中の
+  // 前運用・次運用はダイヤの全便から決まる。運用は方向をまたぐため、表示中の
   // 方向だけを見ると繋がりの半分を見失う（仕様書 §6.1.7）。
   const links = useMemo<ReadonlyMap<string, TripLinks>>(
     () =>

@@ -600,7 +600,7 @@ describe('運用番号の自動採番（T-23、仕様書 §6.1.5）', () => {
 });
 
 describe('出区・入区（T-51、仕様書 §6.1.7）', () => {
-  /** 前運用・後運用の欄を押す。 */
+  /** 前運用・次運用の欄を押す。 */
   function toggle(title: string, column = 0): void {
     const buttons = container.querySelectorAll<HTMLElement>(`[aria-label$="の${title}"]`);
     const button = buttons[column];
@@ -677,10 +677,10 @@ describe('出区・入区（T-51、仕様書 §6.1.7）', () => {
   it('入区は終着の 20 分後に車庫へ着く', () => {
     mount();
     addTripAt(8, 0, 'A');
-    toggle('後運用');
+    toggle('次運用');
 
     // S3 は豊中 8:00 発・工学部前 8:40 着。
-    expect(linkText('後運用')).toBe('9:00');
+    expect(linkText('次運用')).toBe('9:00');
     expect(trips()).toEqual(['S3:false:true']);
   });
 
@@ -722,14 +722,14 @@ describe('出区・入区（T-51、仕様書 §6.1.7）', () => {
     addTripAt(8, 0, 'A'); // 1 便目: 豊中 8:00 → 工学部前 8:40
     addTripAt(14, 0, 'A'); // 2 便目: 豊中 14:00 → 工学部前 14:40
 
-    toggle('後運用', 0); // 8:40 工学部前 → 9:00 車庫
+    toggle('次運用', 0); // 8:40 工学部前 → 9:00 車庫
     toggle('前運用', 1); // 13:40 車庫 → 14:00 豊中
 
-    expect(linkText('後運用', 0)).toBe('9:00');
+    expect(linkText('次運用', 0)).toBe('9:00');
     expect(linkText('前運用', 1)).toBe('13:40');
-    // 車庫を経由するため、1 便目の後運用は 2 便目を指さない。
+    // 車庫を経由するため、1 便目の次運用は 2 便目を指さない。
     expect(linkText('前運用', 0)).toBe('');
-    expect(linkText('後運用', 1)).toBe('');
+    expect(linkText('次運用', 1)).toBe('');
   });
 
   it('回送便は列にならない', () => {
