@@ -18,7 +18,7 @@ import { loadNetworkDef, type NetworkIndex } from '@/domain/network';
 import { createMemoryPlatform, type MemoryPlatform } from '@/platform';
 import { createAppStore, selectIsDirty, type AppStoreHook } from '@/store';
 import { createFileService, type FileService } from './fileService';
-import { DISCARD_QUESTIONS, type DialogAnswer } from './prompts';
+import { DISCARD_QUESTIONS, type DialogAnswer, type DiscardQuestion } from './prompts';
 import { windowTitleOf } from './windowTitle';
 
 const routeJsonPath = fileURLToPath(new URL('../../../data/route.json', import.meta.url));
@@ -33,7 +33,7 @@ function createFakeDialogs() {
     /** 破棄してよいか尋ねられた回数と、そのときのファイル名。 */
     discardAsks: [] as string[],
     /** そのとき出した本文（T-58）。**入口ごとに違う。** */
-    discardQuestions: [] as string[],
+    discardQuestions: [] as DiscardQuestion[],
     warnings: [] as (readonly ProjectWarning[])[],
     errors: [] as string[],
     /** 次に返す答え。 */
@@ -43,7 +43,7 @@ function createFakeDialogs() {
   return {
     record,
     dialogs: {
-      confirmDiscard(fileName: string, question: string): Promise<DialogAnswer> {
+      confirmDiscard(fileName: string, question: DiscardQuestion): Promise<DialogAnswer> {
         record.discardAsks.push(fileName);
         record.discardQuestions.push(question);
         return Promise.resolve(record.answer);
@@ -472,6 +472,21 @@ describe('未保存の確認（受入条件）', () => {
 
     await run();
     expect(fake.record.discardQuestions).toEqual([question]);
+  });
+
+  it('**決めた 3 つ以外の本文は渡せない**', () => {
+    /*
+     * 型で止める。`string` のままだと、入口と文言の対応がずれても誰も止めない
+     * ——「開く」から「終了しますか」を渡す類であり、**#168 が直そうとしたのと
+     * 同じ種類の間違いである。** 上の it.each は入れ替わりを見つけるが、
+     * 見つけるのと**起こせないようにするのは違う。**
+     *
+     * @ts-expect-error は誤りが消えたときに落ちる。`DiscardQuestion` が
+     * `string` へ広がったら、このテストが気づく。
+     */
+    // @ts-expect-error 決めていない文言は渡せない
+    const invalid: DiscardQuestion = '保存しますか。';
+    expect(invalid).toBe('保存しますか。');
   });
 });
 

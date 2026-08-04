@@ -40,6 +40,19 @@ export const DISCARD_QUESTIONS = {
   new: '保存せずに新規作成しますか。',
 } as const;
 
+/**
+ * 出してよい本文。**この 3 つ以外は渡せない。**
+ *
+ * `string` のままにすると、入口と文言の対応がずれても誰も止めない——「開く」から
+ * `close` を渡して「終了しますか」と出す類の誤りであり、**#168 が直そうとしたのと
+ * 同じ種類の間違いである。** 対応をテストだけに委ねず、型で表現できなくする。
+ *
+ * これは `DiscardIntent`（v1.1 §3.3 で採らないと決めたもの）ではない。**呼び出し
+ * 元が何をしようとしているかは表さず、出してよい文言の集合を狭めるだけ**であり、
+ * 手順の分岐は 1 つも増えない。
+ */
+export type DiscardQuestion = (typeof DISCARD_QUESTIONS)[keyof typeof DISCARD_QUESTIONS];
+
 export interface FileDialogs {
   /**
    * 未保存の変更があることを伝え、保存するかを尋ねる（T-58、仕様書 v1.1 §3.3）。
@@ -55,7 +68,7 @@ export interface FileDialogs {
    * @param question このあと何が起きるかを伝える一文。**呼び出し元が渡す。**
    *   選択肢が言わなくなったぶんをここが担う（{@link DISCARD_QUESTIONS}）
    */
-  confirmDiscard(fileName: string, question: string): Promise<DialogAnswer>;
+  confirmDiscard(fileName: string, question: DiscardQuestion): Promise<DialogAnswer>;
   /** 読込時の警告を伝える（仕様書 §7.4.1）。 */
   showWarnings(warnings: readonly ProjectWarning[]): Promise<void>;
   /** 失敗を伝える。 */

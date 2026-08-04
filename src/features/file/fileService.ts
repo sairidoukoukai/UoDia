@@ -23,7 +23,7 @@ import type { Project } from '@/domain/model';
 import { formatIssues } from '@/domain/model';
 import type { FileHandle, PlatformAdapter, RecentFile } from '@/platform';
 import { selectIsDirty, selectNetwork, type AppStoreHook } from '@/store';
-import { DISCARD_QUESTIONS, type FileDialogs } from './prompts';
+import { DISCARD_QUESTIONS, type DiscardQuestion, type FileDialogs } from './prompts';
 import { suggestFileName } from './title';
 
 export interface FileServiceOptions {
@@ -107,7 +107,7 @@ export function createFileService(options: FileServiceOptions): FileService {
    *
    * @param question このあと何が起きるかを伝える一文（`DISCARD_QUESTIONS`）
    */
-  async function ensureSaved(question: string): Promise<boolean> {
+  async function ensureSaved(question: DiscardQuestion): Promise<boolean> {
     const state = store.getState();
     if (!selectIsDirty(state)) return true;
 
