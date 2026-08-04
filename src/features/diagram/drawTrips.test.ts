@@ -10,7 +10,14 @@ import { fromHM, type Seconds } from '@/domain/time';
 import { STUB_LENGTH, drawTrips, isTripVisible, tripPolyline } from './drawTrips';
 import { Recorder } from './recorder.test-utils';
 import type { DiagramScene, SceneStop, SceneTrip } from './scene';
-import { AXIS_LABEL_WIDTH, axisToY, timeToX, viewportOf, type Viewport } from './viewport';
+import {
+  AXIS_EDGE_MARGIN,
+  AXIS_LABEL_WIDTH,
+  axisToY,
+  timeToX,
+  viewportOf,
+  type Viewport,
+} from './viewport';
 
 const theme = {
   background: '#ffffff',
@@ -465,6 +472,14 @@ describe('描画領域から出さない', () => {
       width: 1000 - AXIS_LABEL_WIDTH,
       height: 420 - viewport.originY,
     });
+  });
+
+  it('**軸の先頭にある停留所の停車点が欠けない**（#171）', () => {
+    const [clip] = draw([through()]).clips;
+    // 豊中学舎（軸位置 0）は余白のぶん内側に描かれる。停車点の丸は半径 3.5px。
+    const dotTop = axisToY(0, viewport) - 3.5;
+    expect(clip?.y).toBeLessThanOrEqual(dotTop);
+    expect(AXIS_EDGE_MARGIN).toBeGreaterThanOrEqual(3.5);
   });
 
   it('表示範囲が視野の外なら何も描かない', () => {

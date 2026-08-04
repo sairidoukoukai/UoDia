@@ -8,7 +8,13 @@ import { fromHM } from '@/domain/time';
 import { STOP_LINE_TOLERANCE, creationTargetAt } from './creation';
 import { DEFAULT_DIAGRAM_VIEW } from './interaction';
 import type { DiagramScene, SceneStop, SceneTheme } from './scene';
-import { AXIS_LABEL_WIDTH, TIME_LABEL_HEIGHT, viewportOf, type Viewport } from './viewport';
+import {
+  axisToY,
+  AXIS_LABEL_WIDTH,
+  TIME_LABEL_HEIGHT,
+  viewportOf,
+  type Viewport,
+} from './viewport';
 
 const THEME: SceneTheme = {
   background: '#fff',
@@ -36,8 +42,13 @@ const VIEW: DiagramView = DEFAULT_DIAGRAM_VIEW;
 /** 7:00 が左端、1 分 3px、軸 1 単位 8px。 */
 const VIEWPORT: Viewport = viewportOf(VIEW, 1000, 420);
 
-/** 停留所 `b`（軸 20 = 上端から 160px）の線の上。 */
-const ON_B = { x: AXIS_LABEL_WIDTH + 180, y: TIME_LABEL_HEIGHT + 160 };
+/**
+ * 停留所 `b`（軸 20）の線の上。
+ *
+ * **y は `axisToY` から導く。** 決め打ちにすると、軸の原点が動いたとき
+ * （#171 の余白など）にどこを押しているのか分からないまま落ちる。
+ */
+const ON_B = { x: AXIS_LABEL_WIDTH + 180, y: axisToY(20, VIEWPORT) };
 
 describe('停留所線を押す', () => {
   it('押した停留所と時刻を返す', () => {
@@ -77,12 +88,12 @@ describe('停留所線を押す', () => {
 
   it('近いほうの停留所を選ぶ', () => {
     // 軸 0 と 20 のちょうど中間より少し上なら `a`。
-    const upper = creationTargetAt(SCENE, VIEWPORT, ON_B.x, TIME_LABEL_HEIGHT + 8, 100);
+    const upper = creationTargetAt(SCENE, VIEWPORT, ON_B.x, axisToY(0, VIEWPORT) + 8, 100);
     expect(upper?.stopIds).toEqual(['a']);
   });
 
   it('**営業所の帯には引かせない**（車庫発は出区として作る。§6.1.7）', () => {
-    const onDepot = creationTargetAt(SCENE, VIEWPORT, ON_B.x, TIME_LABEL_HEIGHT + 52 * 6);
+    const onDepot = creationTargetAt(SCENE, VIEWPORT, ON_B.x, axisToY(52, VIEWPORT));
     expect(onDepot).toBeNull();
   });
 
