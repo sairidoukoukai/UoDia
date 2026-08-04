@@ -21,7 +21,10 @@ import type { PlatformAdapter } from '@/platform';
 import type { StopPattern } from '@/domain/model';
 import type { AppStore } from '@/store';
 import { changedPatternIds } from './patterns';
-import type { SegmentEdits } from './segments';
+import type { DistanceEdits, SegmentEdits } from './segments';
+
+/** 距離を 1 つも打ち直していない状態。 */
+const NO_DISTANCES: DistanceEdits = new Map<string, number>();
 
 /** 読み書きに要るだけの入れ口。 */
 export interface SettingsStore {
@@ -40,19 +43,33 @@ export interface ApplyResult {
  * **書き戻しはしない。** ファイルへ書くかどうかは環境で変わり（§6.5.5）、
  * 待ち時間もある。状態を変えることと、それを保存することは別の操作である。
  */
-export function applySegmentEdits(store: SettingsStore, edits: SegmentEdits): ApplyResult {
+export function applySegmentEdits(
+  store: SettingsStore,
+  edits: SegmentEdits,
+  distances: DistanceEdits = NO_DISTANCES,
+): ApplyResult {
   const state = store.getState();
   if (state.networkDef === null) return { ok: false, message: '路線図を読み込んでいません' };
 
-  const result = state.editNetwork('区間所要時間の変更', (def) => {
+  /*
+   * **所要時間と距離を 1 回の編集で当てる。**
+   *
+   * 2 回に分けると、片方だけが検証を通ったときに中途半端な状態が残る。履歴も
+   * 2 段になり、**打った 1 回の「適用」を戻すのに 2 回の取り消しが要る。**
+   */
+  const result = state.editNetwork('区間の変更', (def) => {
     for (const segment of def.segments) {
-      const next = edits.get(segmentKey(segment.fromStopId, segment.toStopId));
-      if (next !== undefined) segment.runMinutes = next;
+      const key = segmentKey(segment.fromStopId, segment.toStopId);
+      const minutes = edits.get(key);
+      if (minutes !== undefined) segment.runMinutes = minutes;
+      // **距離を変えても便の時刻は動かない**（仕様書 v1.1 §6.1.3）。
+      const distance = distances.get(key);
+      if (distance !== undefined) segment.distanceMeters = distance;
     }
   });
 
   if (!result.ok) {
-    // 検証（R-01〜R-12）を通らなかった。**状態は変わっていない。**
+    // 検証（R-01〜R-13）を通らなかった。**状態は変わっていない。**
     const first = result.issues[0];
     return {
       ok: false,
@@ -62,7 +79,7 @@ export function applySegmentEdits(store: SettingsStore, edits: SegmentEdits): Ap
   }
   if (!result.changed) return { ok: true, message: '変わった区間はありません' };
 
-  return { ok: true, message: '区間所要時間を変えました' };
+  return { ok: true, message: '区間を変えました' };
 }
 
 /**

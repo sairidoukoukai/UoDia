@@ -309,9 +309,9 @@ describe('開く', () => {
 
   it('**route.json の版数が違えば警告する**（W-01）', async () => {
     await makeSavedFile('a.uodia', '既存の文書');
-    // 版数だけを上げた定義に差し替える。
+    // 版数だけを上げた定義に差し替える。**食い違っていることだけが要る。**
     store.getState().editNetwork('版数の更新', (def) => {
-      def.version = 2;
+      def.version += 1;
     });
     platform.openTarget = 'a.uodia';
 

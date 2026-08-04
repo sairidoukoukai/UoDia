@@ -11,6 +11,8 @@ export {
   timeAt,
 } from './times';
 
+export { METERS_PER_KM, formatKm, patternDistance, sumDistances } from './distance';
+
 export { numberTrips, DIRECTION_PREFIX } from './numbering';
 
 export {

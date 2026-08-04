@@ -415,6 +415,50 @@ describe('segmentKey', () => {
   });
 });
 
+describe('R-13: 区間距離（#161）', () => {
+  /** 全区間に距離を入れた版数 2 の定義。 */
+  function withDistances(): NetworkDef {
+    const network = makeValidNetwork();
+    return {
+      ...network,
+      version: 2,
+      segments: network.segments.map((segment) => ({ ...segment, distanceMeters: 1000 })),
+    };
+  }
+
+  it('版数 2 で全区間に距離があれば報告しない', () => {
+    expect(rulesOf(withDistances())).not.toContain('R-13');
+  });
+
+  it('**版数 2 で距離が欠けていれば報告する**（入力漏れが「短い運用」に化ける）', () => {
+    const network = withDistances();
+    const [first, ...rest] = network.segments;
+    if (first === undefined) throw new Error('区間がありません');
+    network.segments = [{ ...first, distanceMeters: undefined }, ...rest];
+
+    expect(rulesOf(network)).toContain('R-13');
+  });
+
+  it('**版数 1 には適用しない**（距離を持たないことが正しい状態である）', () => {
+    // 弾くと古い定義が読めなくなる（仕様書 v1.1 §8.1）。
+    expect(rulesOf(makeValidNetwork())).not.toContain('R-13');
+  });
+
+  it('欠けている区間を名指しする', () => {
+    const network = withDistances();
+    const [first, ...rest] = network.segments;
+    if (first === undefined) throw new Error('区間がありません');
+    network.segments = [{ ...first, distanceMeters: undefined }, ...rest];
+
+    const issue = validateNetwork(network).find((i) => i.rule === 'R-13');
+    expect(issue?.target).toEqual({
+      kind: 'segment',
+      fromStopId: first.fromStopId,
+      toStopId: first.toStopId,
+    });
+  });
+});
+
 describe('R-12: 各駅・通過の別（#114）', () => {
   it('営業パターンに serviceType が無ければ報告する', () => {
     const network = makeValidNetwork();
