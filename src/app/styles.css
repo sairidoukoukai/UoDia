@@ -1166,6 +1166,38 @@ body {
   text-align: center;
 }
 
+/*
+ * 検証の指摘がある列（T-61、#165、仕様書 v1.1 §5.2）。
+ *
+ * **地色を変えるのはエラーだけ。** 警告・情報は記号だけで示す——情報は白紙から
+ * 作っているあいだほぼ全列に付き、全部塗ると表が塗り絵になる。
+ *
+ * 選択の色より下に置く。選んでいる列は選択の色が勝ってよい——**選んだことは
+ * 自分の操作の結果であり、指摘は記号が示し続ける。**
+ */
+.timetable__head--issue {
+  background: var(--color-invalid);
+}
+
+/* 重大度の記号。色に頼らず記号と読み上げ名でも伝える（§9.4）。 */
+.timetable__issue {
+  margin-left: 0.15em;
+  font-size: 0.75em;
+  line-height: 1;
+}
+
+.timetable__issue--error {
+  color: var(--color-error);
+}
+
+.timetable__issue--warning {
+  color: var(--color-warning);
+}
+
+.timetable__issue--info {
+  color: var(--color-fg-muted);
+}
+
 /* 選択中の便（T-21、仕様書 §6.3.1）。列ごと色を変え、どの列を操作するのかを
    示す。 */
 .timetable__head--selected,

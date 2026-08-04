@@ -2,6 +2,8 @@ export { ValidationPanel } from './ValidationPanel';
 
 export { JUMP_LEAD_MINUTES, jumpTargetOf, scrollTimeFor, type JumpTarget } from './jump';
 
+export { tripMarks, type TripMark } from './marks';
+
 export {
   SEVERITY_LABEL,
   SEVERITY_MARK,

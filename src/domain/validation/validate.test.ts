@@ -83,9 +83,24 @@ describe('V-01: 同一運用内の停留所不一致', () => {
 
   it('エラーとして報告し、該当の便と運用を指す', () => {
     const trips = [trip('S1', 8, 0, '1'), trip('S1', 9, 0, '1')];
-    const found = validateService(trips, network).find((i) => i.id === 'V-01');
-    expect(found?.severity).toBe('error');
-    expect(found?.target).toEqual({ blockId: '1', tripId: trips[1]?.tripId });
+    const found = validateService(trips, network).filter((i) => i.id === 'V-01');
+
+    expect(found.every((i) => i.severity === 'error')).toBe(true);
+    // **両側から 1 件ずつ出す**（T-61、#165）。時刻表では指摘のある便の列に印を
+    // 付けるため、片方だけを指すとどちらが悪いのかを探すことになる。
+    expect(found.map((i) => i.target)).toEqual([
+      { blockId: '1', tripId: trips[0]?.tripId },
+      { blockId: '1', tripId: trips[1]?.tripId },
+    ]);
+  });
+
+  it('**文面はその便の視点で書く**（前の便に「前の便は」と出さない）', () => {
+    const trips = [trip('S1', 8, 0, '1'), trip('S1', 9, 0, '1')];
+    const [onEarlier, onLater] = validateService(trips, network).filter((i) => i.id === 'V-01');
+
+    expect(onEarlier?.message).toContain('次の便は');
+    expect(onEarlier?.message).not.toContain('前の便は');
+    expect(onLater?.message).toContain('前の便は');
   });
 
   it('名前を引けない停留所は ID のまま出す（伏せると何が壊れたか分からない）', () => {
