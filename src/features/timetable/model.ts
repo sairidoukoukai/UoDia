@@ -33,8 +33,14 @@ export type TimetableCell =
       readonly kind: 'time';
       readonly time: Seconds;
       readonly handling: Handling;
-      /** この升目が便の基準時刻か（仕様書 §6.1.1）。 */
-      readonly isAnchor: boolean;
+      /*
+       * **どの升目が基準時刻（アンカー）かは持たない**（T-60、#164、仕様書 v1.1 §5.1）。
+       *
+       * アンカー 1 点方式は**便の中で時刻が食い違わないようにするための設計**で
+       * あって、利用者が意識する概念ではない。どの升目に打っても同じように打て
+       * （打った升目がアンカーになる）、**振る舞いが同じものを見た目で分ける理由が
+       * 無い。** 基準の位置は `Trip.anchor` にそのまま残っている。
+       */
     }
   /** 経由するが時刻を出せない。 */
   | { readonly kind: 'empty'; readonly handling: Handling; readonly reason: EmptyReason }
@@ -283,7 +289,7 @@ function buildColumn(
     const time = times?.get(stop.stopId);
     if (time === undefined) return { kind: 'empty', handling, reason };
 
-    return { kind: 'time', time, handling, isAnchor: trip.anchor?.stopId === stop.stopId };
+    return { kind: 'time', time, handling };
   });
 
   return { trip, pattern, cells, links };

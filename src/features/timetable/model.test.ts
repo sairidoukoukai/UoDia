@@ -124,21 +124,30 @@ describe('経由しない停留所（受入条件）', () => {
   });
 });
 
-describe('アンカー（受入条件）', () => {
-  it('**基準にした升目だけが印になる**', () => {
+/*
+ * アンカー（T-60、#164、仕様書 v1.1 §5.1）。
+ *
+ * **どの升目が基準かは表に出さない。** アンカー 1 点方式は便の中で時刻が
+ * 食い違わないようにするための設計であって、利用者が意識する概念ではない。
+ * 基準を移しても**時刻の出方は変わらない**ことを、ここで固定する。
+ */
+describe('アンカー', () => {
+  it('**升目は基準かどうかを持たない**', () => {
     const timetable = build([makeTrip('S1', 8, 0)]);
 
-    expect(cellAt(timetable, 0, '1_0')).toMatchObject({ isAnchor: true });
-    expect(cellAt(timetable, 0, '3_0')).toMatchObject({ isAnchor: false });
-    expect(cellAt(timetable, 0, '4_0')).toMatchObject({ isAnchor: false });
+    expect(cellAt(timetable, 0, '1_0')).not.toHaveProperty('isAnchor');
   });
 
-  it('別の停留所を基準にすれば印もそちらへ移る', () => {
-    const trip = makeTrip('S1', 8, 0, { anchor: { stopId: '4_0', time: fromHM(9, 0) } });
-    const timetable = build([trip]);
+  it('基準をどの停留所に置いても、出る時刻は同じである', () => {
+    const fromOrigin = build([makeTrip('S1', 8, 0)]);
+    // S1 は豊中から工学部前まで 30 分（25 + 5 + 0）。同じ便を工学部前 8:30
+    // 基準で表しても、豊中 8:00 発は変わらない。
+    const fromTerminal = build([
+      makeTrip('S1', 8, 0, { anchor: { stopId: '4_0', time: fromHM(8, 30) } }),
+    ]);
 
-    expect(cellAt(timetable, 0, '4_0')).toMatchObject({ isAnchor: true, time: fromHM(9, 0) });
-    expect(cellAt(timetable, 0, '1_0')).toMatchObject({ isAnchor: false, time: fromHM(8, 30) });
+    expect(cellAt(fromTerminal, 0, '1_0')).toEqual(cellAt(fromOrigin, 0, '1_0'));
+    expect(cellAt(fromTerminal, 0, '4_0')).toEqual(cellAt(fromOrigin, 0, '4_0'));
   });
 });
 
