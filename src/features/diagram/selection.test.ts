@@ -60,7 +60,6 @@ function sceneOf(trips: readonly SceneTrip[]): DiagramScene {
     stops,
     trips,
     blockLinks: [],
-    focus: null,
     selectedTripIds: new Set(),
     selectionRect: null,
     tripShift: null,

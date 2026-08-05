@@ -21,7 +21,7 @@
  */
 
 import { assignBlockColors } from '@/domain/block';
-import type { ColorMode, DirectionId, FocusRange, GridStyle, Stop, Trip } from '@/domain/model';
+import type { ColorMode, DirectionId, GridStyle, Stop, Trip } from '@/domain/model';
 import type { NetworkIndex } from '@/domain/network';
 import type { Seconds } from '@/domain/time';
 import { allTimes, expandDeadheads, sourceTripId } from '@/domain/trip';
@@ -130,15 +130,6 @@ export interface DiagramScene {
   readonly trips: readonly SceneTrip[];
   /** 折返しの接続線（#167、仕様書 v1.1 §5.3）。 */
   readonly blockLinks: readonly SceneBlockLink[];
-  /**
-   * 計算の対象としている時間の範囲（#166、仕様書 v1.1 §6.4）。無効なら `null`。
-   *
-   * **描くものは変わらない。** 範囲の外のスジも同じ場所に同じ形で描かれ、
-   * 薄くなるだけである——**隠すと、範囲の境目をまたぐ便の繋がりが読めなくなる。**
-   * 選ぶことも動かすことも今までどおりできる（フォーカスは数える範囲であって、
-   * 触れる範囲ではない）。
-   */
-  readonly focus: { readonly from: Seconds; readonly to: Seconds } | null;
   /** 選択されている**保存されている便**の ID（`SceneTrip.sourceTripId` と照合する）。 */
   readonly selectedTripIds: ReadonlySet<string>;
   /** 引きずっている最中の選択の枠（仕様書 §6.3.1、T-28）。掴んでいなければ `null`。 */
@@ -340,17 +331,6 @@ function shownTrips(
 const NO_LINKS: readonly SceneBlockLink[] = [];
 
 /**
- * 数える範囲。無効なら `null`。
- *
- * **同じ参照を返す**（記憶化の鍵になる）。範囲を触っていないのに場面を組み直すと、
- * 送るたびにスジを作り直すことになる。
- */
-const focusOf = memoizeByIdentity(
-  (focus: FocusRange | undefined): { readonly from: Seconds; readonly to: Seconds } | null =>
-    focus?.enabled === true ? { from: focus.from, to: focus.to } : null,
-);
-
-/**
  * 折返しの接続線（#167、T-62）。
  *
  * **回送便を落とす前に組む。** 出入区を隠していても、車庫へ帰る運用に線を
@@ -418,7 +398,6 @@ const sceneOf = memoizeByIdentity(
     stops: readonly SceneStop[],
     trips: readonly SceneTrip[],
     blockLinks: readonly SceneBlockLink[],
-    focus: { readonly from: Seconds; readonly to: Seconds } | null,
     selectedTripIds: readonly string[],
     selectionRect: SelectionRect | null,
     tripShift: TripShift | null,
@@ -427,7 +406,6 @@ const sceneOf = memoizeByIdentity(
     stops,
     trips,
     blockLinks,
-    focus,
     selectedTripIds: new Set(selectedTripIds),
     selectionRect,
     tripShift,
@@ -485,7 +463,6 @@ export function selectDiagramScene(state: AppState, theme: SceneTheme): DiagramS
           state.settings.patternStyles,
           view?.blockColors ?? NO_BLOCK_COLORS,
         ),
-    focusOf(view?.focus),
     state.ui.selectedTripIds,
     state.ui.selectionRect,
     state.ui.tripShift,

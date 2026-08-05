@@ -119,7 +119,6 @@ describe('serializeProject — 出力の形（仕様書 §7.1）', () => {
       view: project.view,
       services: [{ trips: service.trips, serviceName: service.serviceName, serviceId: 'weekday' }],
       document: project.document,
-      patternCapacities: project.patternCapacities,
       meta: project.meta,
     };
     expect(serializeProject(reordered)).toBe(serializeProject(project));
@@ -222,24 +221,6 @@ describe('loadProject — 失敗する段階を区別する', () => {
     expect(!result.ok && result.stage === 'schema' && result.issues[0]?.path).toBe(
       'services[0].trips[0].anchor.time',
     );
-  });
-});
-
-describe('系統ごとの乗車可能人員（#162）', () => {
-  it('**書き出して読み直すと残る**（どの版でも変えられる）', () => {
-    const project: Project = { ...makeProject(), patternCapacities: { S1: 40, T1: 60 } };
-    const { project: loaded } = loadOrThrow(serializeProject(project));
-
-    expect(loaded.patternCapacities).toEqual({ S1: 40, T1: 60 });
-  });
-
-  it('**版数を上げずに読める**（既定値があるためマイグレーションが要らない）', () => {
-    // 定員を持たない v1.0 のファイル。
-    const json = serializeProject(makeProject()).replace(/"patternCapacities": \{\},?\n/, '');
-    const { project: loaded } = loadOrThrow(json);
-
-    expect(loaded.meta.formatVersion).toBe(3);
-    expect(loaded.patternCapacities).toEqual({});
   });
 });
 

@@ -27,7 +27,6 @@ const SCENE: DiagramScene = {
   stops: [stop('toyonaka', '豊中', 0), stop('minoh', '箕面', 40)],
   trips: [],
   blockLinks: [],
-  focus: null,
   selectedTripIds: new Set(),
   selectionRect: null,
   tripShift: null,

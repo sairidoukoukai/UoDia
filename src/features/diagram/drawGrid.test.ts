@@ -46,7 +46,6 @@ const scene: DiagramScene = {
   stops,
   trips: [],
   blockLinks: [],
-  focus: null,
   selectedTripIds: new Set(),
   selectionRect: null,
   tripShift: null,
