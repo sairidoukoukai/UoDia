@@ -399,11 +399,14 @@ describe('停車パターンの色と線種', () => {
 
   const styles = (): unknown => useAppStore.getState().settings.patternStyles;
 
-  it('**回送のパターンは並べない**（回送かどうかは好みではない）', () => {
+  it('**回送のパターンも並べる**（#179）', () => {
     openDisplayTab();
 
     expect(container.querySelector('[aria-label="S1 の色"]')).not.toBeNull();
-    expect(container.querySelector('[aria-label="DT-out の線種"]')).toBeNull();
+    // 運用で着色すると回送は元の便と同じ色になり、太さの違いだけが手掛かりに
+    // なる。そこを補えるようにする。
+    expect(container.querySelector('[aria-label="DT-out の線種"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="DT-out の色"]')).not.toBeNull();
   });
 
   it('**route.json の線種を選択肢に出す**（何を上書きするのかが分かる）', () => {

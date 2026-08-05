@@ -264,6 +264,12 @@ describe('回送スジ', () => {
     expect(STUB_LENGTH).toBeLessThan(axisToY(20, viewport) - axisToY(0, viewport));
   });
 
+  it('**一番下の停留所から伸ばしても切れない**（#179）', () => {
+    // ヒゲは下へしか伸びない。端の余白がヒゲより短いと、一番下まで送ったときに
+    // 先が描画領域の外に出る。
+    expect(AXIS_EDGE_MARGIN).toBeGreaterThanOrEqual(STUB_LENGTH);
+  });
+
   it('縦軸に乗る点が 1 つも無ければ線にならない（伸ばす元が無い）', () => {
     const orphan = pullOut({
       points: [
