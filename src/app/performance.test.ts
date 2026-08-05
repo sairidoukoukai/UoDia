@@ -83,6 +83,7 @@ function makeProject(): Project {
       updatedAt: now,
     },
     document: { name: '性能検証', author: '', comment: '' },
+    patternCapacities: {},
     services: [
       { serviceId: 'weekday', serviceName: '授業期間平日ダイヤ', trips: [...makeTrips()] },
     ],
