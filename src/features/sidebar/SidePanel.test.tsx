@@ -17,6 +17,7 @@ import { createProject } from '@/domain/io';
 import type { Project, Trip } from '@/domain/model';
 import { loadNetworkDef, type NetworkIndex } from '@/domain/network';
 import { fromHM } from '@/domain/time';
+import { DEFAULT_CAPACITY } from '@/domain/block';
 import { selectDiagramScene, type SceneTheme } from '@/features/diagram';
 import { selectActiveService, selectServices, selectView, useAppStore } from '@/store';
 import { SidePanel } from './SidePanel';
@@ -283,6 +284,60 @@ describe('運用の色', () => {
 
   it('**選んでいなければ戻す押しボタンを出さない**（押しても何も起きない印を並べない）', () => {
     expect(container.querySelector('[aria-label="運用 1 の色を自動に戻す"]')).toBeNull();
+  });
+});
+
+describe('系統ごとの乗車可能人員（#162）', () => {
+  function capacityInput(patternId: string): HTMLInputElement {
+    const found = container.querySelector<HTMLInputElement>(
+      `[aria-label="${patternId} の乗車可能人員"]`,
+    );
+    if (found === null) throw new Error(`「${patternId} の乗車可能人員」が見つかりません`);
+    return found;
+  }
+
+  /** React の管理下にある入力欄へ打つ。 */
+  function typeInto(field: HTMLInputElement, text: string): void {
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        'value',
+      )?.set?.bind(field);
+      setter?.(text);
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  }
+
+  it('打っていない系統は既定値を出す', () => {
+    expect(capacityInput('S1').value).toBe(String(DEFAULT_CAPACITY));
+  });
+
+  it('**系統ごとに打ち替えられる**（系統によって入る車両の型式が違う）', () => {
+    typeInto(capacityInput('S1'), '40');
+
+    expect(useAppStore.getState().project?.patternCapacities).toEqual({ S1: 40 });
+    // 打っていない系統は既定値のまま。
+    expect(capacityInput('S3').value).toBe(String(DEFAULT_CAPACITY));
+  });
+
+  it('**受け取れない値では状態に触れない**（打ちかけの空欄で定員が消えない）', () => {
+    typeInto(capacityInput('S1'), '');
+    typeInto(capacityInput('S1'), '0');
+
+    expect(useAppStore.getState().project?.patternCapacities).toEqual({});
+  });
+
+  it('**回送は並ばない**（客を乗せない便に定員は無い）', () => {
+    expect(container.querySelector('[aria-label="DT-out の乗車可能人員"]')).toBeNull();
+  });
+
+  it('打ち替えは履歴に載る（取り消せる）', () => {
+    typeInto(capacityInput('S1'), '40');
+    act(() => {
+      useAppStore.getState().undo();
+    });
+
+    expect(useAppStore.getState().project?.patternCapacities).toEqual({});
   });
 });
 

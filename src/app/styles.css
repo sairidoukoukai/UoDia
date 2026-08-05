@@ -464,6 +464,20 @@ body {
 }
 
 /* 運用の色を選ぶ欄（#148）と、自動に戻す押しボタン。 */
+/* 系統ごとの乗車可能人員（#162）。**幅は字数で決める**——px で決めると、
+   字の幅が変わる環境で 3 桁が入らなくなる（時刻表の升目と同じ考え方）。 */
+.panel__capacity {
+  box-sizing: content-box;
+  width: 3ch;
+  min-width: 3ch;
+  padding: 0 0.15rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
 .panel__color {
   width: 1.5rem;
   height: 1rem;
