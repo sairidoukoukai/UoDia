@@ -197,19 +197,6 @@ export function clampSplitRatio(ratio: number): number {
 }
 
 /**
- * 計算の対象とする時間の範囲（#166、仕様書 v1.1 §6.4）。
- *
- * 24 時をまたぐ範囲を許す——時刻は 24 時を超える（仕様書 §2.1）。`22:00〜25:00`
- * と書ける。
- */
-export const focusRangeSchema = z.object({
-  enabled: z.boolean().default(false),
-  from: secondsSchema.default(fromHM(7, 0)),
-  to: secondsSchema.default(fromHM(22, 0)),
-});
-export type FocusRange = z.infer<typeof focusRangeSchema>;
-
-/**
  * 表示設定（仕様書 §5.10）。プロジェクトに保存され、開き直しても再現される。
  *
  * すべての項目に既定値を与えている。古いファイルに項目が欠けていても、
@@ -246,18 +233,6 @@ export const viewSettingsSchema = z.object({
   /** 検証パネルを開いているか。 */
   validationPanelOpen: z.boolean().default(true),
   /**
-   * 計算の対象とする時間の範囲（#166、仕様書 v1.1 §6.4）。
-   *
-   * **フォーカスは視野ではない。** 視野（`diagram`）は「画面のどこを見ているか」
-   * を決め、絵が動いても数は変わらない。フォーカスは「どこを数えるか」を決め、
-   * **数が変わっても絵は動かない。** 視野に連動させると、拡大しただけで輸送力の
-   * 数が変わる——**画面を送るたびに数が動く表は読めない。**
-   *
-   * 既定は無効（1 日全部）。**何も指定していない状態で数が絞られていると、
-   * 合計が合わない理由を探すことになる。**
-   */
-  focus: focusRangeSchema.default({}),
-  /**
    * 運用ごとに選んだ色（#148）。選んだものだけを入れる。
    *
    * **設定ではなくプロジェクトに置く。** 運用番号はその文書のものであり、
@@ -274,36 +249,11 @@ export const viewSettingsSchema = z.object({
 });
 export type ViewSettings = z.infer<typeof viewSettingsSchema>;
 
-/**
- * 乗車可能人員（#162）。
- *
- * 立席と着席を分けない。**分けると、輸送力をどちらで数えるかを毎回決めることに
- * なる。**
- */
-export const capacitySchema = z.number().int().min(1);
-
 /** プロジェクト全体（仕様書 §5.10、§7.2）。`.uodia` ファイルの中身。 */
 export const projectSchema = z.object({
   meta: metaSchema,
   document: documentInfoSchema,
   services: z.array(serviceSchema),
-  /**
-   * 停車パターン（系統）ごとの乗車可能人員（#162、仕様書 v1.1 §6.2.1）。
-   *
-   * **系統によって入る車両の型式が違う。** 定員を決めているのは「その便がどの
-   * 系統を走るか」であり、運用番号ではない——運用番号はその文書の中だけの名前で
-   * あり、`A` の定員という概念が文書をまたいで意味を持たない。
-   *
-   * **上書きしたものだけを入れる。** 全パターンぶんを持つと、既定値を直したときに
-   * 古い値で上書きし続け、**直したのに変わらない**という食い違いになる（運用の色
-   * `view.blockColors` と同じ形）。
-   *
-   * **`view` ではなくここに置く。** 定員は見せ方ではなく**何を計画したか**であり、
-   * 「表示設定を初期化したら定員が消えた」は起きてはならない。設定
-   * （`settings.json`）にも置かない——輸送力は計算結果として人に見せる数であり、
-   * **同じファイルを開いた相手が違う数を見てはならない。**
-   */
-  patternCapacities: z.record(idSchema, capacitySchema).default({}),
   view: viewSettingsSchema.default({}),
 });
 

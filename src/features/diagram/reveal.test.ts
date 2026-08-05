@@ -54,7 +54,6 @@ function sceneOf(trips: readonly SceneTrip[], selected: readonly string[]): Diag
     stops: STOPS,
     trips,
     blockLinks: [],
-    focus: null,
     selectedTripIds: new Set(selected),
     selectionRect: null,
     tripShift: null,

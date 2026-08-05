@@ -103,13 +103,11 @@ function sceneOf(
   selected: readonly string[] = [],
   selectionRect: DiagramScene['selectionRect'] = null,
   tripShift: DiagramScene['tripShift'] = null,
-  focus: DiagramScene['focus'] = null,
 ): DiagramScene {
   return {
     stops,
     trips,
     blockLinks: [],
-    focus,
     selectedTripIds: new Set(selected),
     selectionRect,
     tripShift,
@@ -127,10 +125,9 @@ function draw(
   trips: readonly SceneTrip[],
   selected: readonly string[] = [],
   overrides: Partial<Viewport> = {},
-  focus: DiagramScene['focus'] = null,
 ): Recorder {
   const ctx = new Recorder();
-  drawTrips(ctx, sceneOf(trips, selected, null, null, focus), { ...viewport, ...overrides });
+  drawTrips(ctx, sceneOf(trips, selected), { ...viewport, ...overrides });
   return ctx;
 }
 
@@ -567,45 +564,6 @@ describe('折返しの接続線（T-62、#167）', () => {
 
   it('接続線が無ければ何も引かない', () => {
     expect(linkSegments([])).toEqual([]);
-  });
-});
-
-describe('フォーカス範囲（T-65、#166）', () => {
-  /** 8:00 発の S1（豊中 8:00 → 工学部 8:30）。 */
-  const inFocus = { from: fromHM(8, 0), to: fromHM(9, 0) };
-  const outOfFocus = { from: fromHM(12, 0), to: fromHM(13, 0) };
-
-  function alphaOf(focus: { from: Seconds; to: Seconds } | null): number | undefined {
-    const ctx = draw([through()], [], {}, focus);
-    return ctx.segments[0]?.alpha;
-  }
-
-  it('範囲が無効なら薄くしない', () => {
-    expect(alphaOf(null)).toBe(1);
-  });
-
-  it('範囲に掛かっていれば薄くしない', () => {
-    expect(alphaOf(inFocus)).toBe(1);
-  });
-
-  it('**範囲の外は薄く描く**（隠さない）', () => {
-    const alpha = alphaOf(outOfFocus);
-
-    expect(alpha).toBeLessThan(1);
-    expect(alpha).toBeGreaterThan(0);
-  });
-
-  it('**消しはしない**（境目をまたぐ便の繋がりが読めなくなる）', () => {
-    const ctx = draw([through()], [], {}, outOfFocus);
-    expect(ctx.segments.length).toBeGreaterThan(0);
-  });
-
-  it('**便まるごとで決める**（1 本のスジの途中で濃さを変えない）', () => {
-    // 8:00〜8:30 の便に対し、8:20〜9:00 の範囲。端は外れるが掛かってはいる。
-    const ctx = draw([through()], [], {}, { from: fromHM(8, 20), to: fromHM(9, 0) });
-    const alphas = new Set(ctx.segments.map((segment) => segment.alpha));
-
-    expect(alphas.size).toBe(1);
   });
 });
 

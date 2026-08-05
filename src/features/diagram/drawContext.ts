@@ -29,13 +29,6 @@ export type DrawContext = Pick<
   fillStyle: string | CanvasGradient | CanvasPattern;
   strokeStyle: string | CanvasGradient | CanvasPattern;
   lineWidth: number;
-  /**
-   * 不透明度（#166）。フォーカス範囲の外を薄く描くために使う。
-   *
-   * **隠すのではなく薄くする。** 範囲の外の便を消すと、境目をまたぐ便の
-   * 繋がりが読めなくなる（仕様書 v1.1 §6.4.1）。
-   */
-  globalAlpha: number;
   font: string;
   textAlign: CanvasTextAlign;
   textBaseline: CanvasTextBaseline;

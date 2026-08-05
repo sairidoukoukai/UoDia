@@ -221,7 +221,6 @@ describe('送りの範囲', () => {
       stops: [],
       trips: [],
       blockLinks: [],
-      focus: null,
       selectedTripIds: new Set(),
       selectionRect: null,
       tripShift: null,

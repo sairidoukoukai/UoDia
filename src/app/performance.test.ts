@@ -23,7 +23,7 @@ import { describe, expect, it } from 'vitest';
 import { loadProject, serializeProject } from '@/domain/io';
 import type { Project, Trip } from '@/domain/model';
 import { loadNetworkDef, type NetworkIndex } from '@/domain/network';
-import { fromHM, seconds } from '@/domain/time';
+import { seconds } from '@/domain/time';
 import { selectDiagramScene } from '@/features/diagram';
 import { createAppStore, selectBlocks, selectValidation, type AppStoreHook } from '@/store';
 
@@ -83,7 +83,6 @@ function makeProject(): Project {
       updatedAt: now,
     },
     document: { name: '性能検証', author: '', comment: '' },
-    patternCapacities: {},
     services: [
       { serviceId: 'weekday', serviceName: '授業期間平日ダイヤ', trips: [...makeTrips()] },
     ],
@@ -99,7 +98,6 @@ function makeProject(): Project {
       showDeadhead: true,
       showBlockLinks: true,
       validationPanelOpen: true,
-      focus: { enabled: false, from: fromHM(7, 0), to: fromHM(22, 0) },
       blockColors: {},
     },
   };

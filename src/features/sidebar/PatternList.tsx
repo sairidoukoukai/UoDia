@@ -11,7 +11,6 @@
  */
 
 import { useMemo, type ReactElement } from 'react';
-import { DEFAULT_CAPACITY } from '@/domain/block';
 import { patternStyles, readableOn } from '@/features/diagram';
 import { useThemeColor } from '@/features/settings';
 import { DIRECTION_LABEL } from '@/features/timetable';
@@ -20,9 +19,6 @@ import { withHidden } from './filters';
 
 /** 空の一覧。**毎回作らない**——参照が変わると購読が動く。 */
 const NO_IDS: readonly string[] = [];
-
-/** 定員を 1 つも打ち替えていない状態。**毎回作らない**——参照が変わると購読が動く。 */
-const NO_CAPACITIES: Readonly<Record<string, number>> = Object.freeze({});
 
 export function PatternList(): ReactElement {
   const network = useAppStore(selectNetwork);
@@ -48,9 +44,6 @@ export function PatternList(): ReactElement {
   // 沈んだ色のままにならないようにする。
   const background = useThemeColor('--color-bg', '#ffffff');
 
-  /** 系統ごとの定員（#162）。上書きしたものだけが入る。 */
-  const capacities = useAppStore((state) => state.project?.patternCapacities ?? NO_CAPACITIES);
-
   // **回送のパターンは出さない。** 回送スジは営業便から展開された線であり
   // （§6.1.7）、パターンの絞り込みは保存されている便にしか掛からない——ここに
   // 並べても、押しても何も起きないチェックになる。回送の表示はまとめて 1 つの
@@ -60,30 +53,6 @@ export function PatternList(): ReactElement {
     () => (network?.def.patterns ?? []).filter((pattern) => !pattern.isDeadhead),
     [network],
   );
-
-  /**
-   * 系統ごとの定員を打ち替える（#162）。
-   *
-   * **プロジェクトの編集として履歴に載る。** 定員は見せ方ではなく**何を計画
-   * したか**であり、輸送力の計算に直に効く。
-   *
-   * 打つたびに `mergeKey` でまとめる（運用番号の欄・ダイヤ名と同じ）。1 文字
-   * ずつが履歴に積まれると、打ち直しを戻すのに何度も取り消すことになる。
-   */
-  const setCapacity = (patternId: string, text: string): void => {
-    const value = Number(text);
-    // **受け取れない値では状態に触れない。** 打ちかけの空欄で定員が消えては、
-    // 打っている最中に輸送力が跳ね回る。
-    if (!Number.isInteger(value) || value < 1) return;
-
-    editProject(
-      '乗車可能人員の変更',
-      (project) => {
-        project.patternCapacities = { ...project.patternCapacities, [patternId]: value };
-      },
-      `pattern.capacity:${patternId}`,
-    );
-  };
 
   const toggle = (patternId: string, show: boolean): void => {
     editProject('パターンの表示の変更', (project) => {
@@ -123,24 +92,6 @@ export function PatternList(): ReactElement {
               <span className="panel__id">{pattern.patternId}</span>
               <span className="panel__note">{pattern.patternName}</span>
               <span className="panel__count">{DIRECTION_LABEL[pattern.directionId]}</span>
-              {/*
-                系統ごとの乗車可能人員（#162、仕様書 v1.1 §6.2.1）。
-                **系統によって入る車両の型式が違う。** 上書きしたものだけを
-                プロジェクトに持ち、打っていない系統は既定値のまま。
-              */}
-              <input
-                type="number"
-                className="panel__capacity"
-                min={1}
-                step={1}
-                inputMode="numeric"
-                aria-label={`${pattern.patternId} の乗車可能人員`}
-                value={capacities[pattern.patternId] ?? DEFAULT_CAPACITY}
-                onChange={(event) => {
-                  setCapacity(pattern.patternId, event.target.value);
-                }}
-              />
-              <span className="panel__note">人</span>
             </li>
           ))}
         </ul>
