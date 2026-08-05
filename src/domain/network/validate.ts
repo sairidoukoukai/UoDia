@@ -25,7 +25,8 @@ export type NetworkRule =
   | 'R-09'
   | 'R-10'
   | 'R-11'
-  | 'R-12';
+  | 'R-12'
+  | 'R-13';
 
 /** 問題のある要素への参照。 */
 export type NetworkIssueTarget =
@@ -66,6 +67,7 @@ export function validateNetwork(network: NetworkDef): NetworkIssue[] {
     ...checkDuplicateStopsInPattern(network),
     ...checkConnectingDeadheads(network),
     ...checkServiceTypes(network),
+    ...checkDistances(network),
   ];
 }
 
@@ -346,6 +348,38 @@ function findDuplicates(values: readonly string[]): string[] {
 /** 問題の一覧を人が読める複数行の文にする。 */
 export function formatNetworkIssues(issues: readonly NetworkIssue[]): string {
   return issues.map((i) => `[${i.rule}] ${i.message}`).join('\n');
+}
+
+/**
+ * 距離を必須とする `route.json` の版数（#161、仕様書 v1.1 §8.1）。
+ *
+ * これより古い定義は距離を持たないことが正しく、**未設定は「不明」として
+ * 扱う**——0 に倒すと合計が静かに小さく出る。
+ */
+export const DISTANCE_VERSION = 2;
+
+/**
+ * R-13: すべての区間が距離を持つこと（#161）。**版数 2 以上にのみ適用する。**
+ *
+ * 距離が 1 区間でも欠けると、そこを通る運用の合計が出せない。**入力漏れが
+ * 「短い運用」に化けて気付けない**ことを避けるため、読み込みの段階で弾く。
+ */
+function checkDistances(network: NetworkDef): NetworkIssue[] {
+  // **版数 1 には適用しない。** 版数 1 は距離を持たないことが正しい状態であり、
+  // これを違反として弾くと古い定義が読めなくなる（仕様書 v1.1 §8.1）。
+  if (network.version < DISTANCE_VERSION) return [];
+
+  return network.segments
+    .filter((segment) => segment.distanceMeters === undefined)
+    .map((segment) => ({
+      rule: 'R-13' as const,
+      message: `区間 ${segment.fromStopId} → ${segment.toStopId} に distanceMeters がありません`,
+      target: {
+        kind: 'segment' as const,
+        fromStopId: segment.fromStopId,
+        toStopId: segment.toStopId,
+      },
+    }));
 }
 
 /**

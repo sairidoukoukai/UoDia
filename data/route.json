@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "name": "大阪大学 学内連絡バス",
   "timeGrain": 300,
   "stops": [
@@ -75,21 +75,96 @@
     }
   ],
   "segments": [
-    { "fromStopId": "1_0", "toStopId": "3_0", "runMinutes": 25 },
-    { "fromStopId": "1_0", "toStopId": "2_0", "runMinutes": 20 },
-    { "fromStopId": "2_0", "toStopId": "3_0", "runMinutes": 15 },
-    { "fromStopId": "3_0", "toStopId": "6_0", "runMinutes": 5 },
-    { "fromStopId": "6_0", "toStopId": "4_0", "runMinutes": 0 },
-    { "fromStopId": "4_0", "toStopId": "5_0", "runMinutes": 5 },
-    { "fromStopId": "5_0", "toStopId": "1_0", "runMinutes": 25 },
-    { "fromStopId": "5_0", "toStopId": "2_0", "runMinutes": 20 },
-    { "fromStopId": "2_0", "toStopId": "1_0", "runMinutes": 20 },
-    { "fromStopId": "9_0", "toStopId": "4_0", "runMinutes": 20 },
-    { "fromStopId": "9_0", "toStopId": "1_0", "runMinutes": 20 },
-    { "fromStopId": "9_0", "toStopId": "2_0", "runMinutes": 20 },
-    { "fromStopId": "4_0", "toStopId": "9_0", "runMinutes": 20 },
-    { "fromStopId": "1_0", "toStopId": "9_0", "runMinutes": 20 },
-    { "fromStopId": "2_0", "toStopId": "9_0", "runMinutes": 20 }
+    {
+      "fromStopId": "1_0",
+      "toStopId": "3_0",
+      "runMinutes": 25,
+      "distanceMeters": 8500
+    },
+    {
+      "fromStopId": "1_0",
+      "toStopId": "2_0",
+      "runMinutes": 20,
+      "distanceMeters": 6400
+    },
+    {
+      "fromStopId": "2_0",
+      "toStopId": "3_0",
+      "runMinutes": 15,
+      "distanceMeters": 6100
+    },
+    {
+      "fromStopId": "3_0",
+      "toStopId": "6_0",
+      "runMinutes": 5,
+      "distanceMeters": 1300
+    },
+    {
+      "fromStopId": "6_0",
+      "toStopId": "4_0",
+      "runMinutes": 0,
+      "distanceMeters": 0
+    },
+    {
+      "fromStopId": "4_0",
+      "toStopId": "5_0",
+      "runMinutes": 5,
+      "distanceMeters": 1000
+    },
+    {
+      "fromStopId": "5_0",
+      "toStopId": "1_0",
+      "runMinutes": 25,
+      "distanceMeters": 10600
+    },
+    {
+      "fromStopId": "5_0",
+      "toStopId": "2_0",
+      "runMinutes": 20,
+      "distanceMeters": 9000
+    },
+    {
+      "fromStopId": "2_0",
+      "toStopId": "1_0",
+      "runMinutes": 20,
+      "distanceMeters": 6500
+    },
+    {
+      "fromStopId": "9_0",
+      "toStopId": "4_0",
+      "runMinutes": 20,
+      "distanceMeters": 5200
+    },
+    {
+      "fromStopId": "9_0",
+      "toStopId": "1_0",
+      "runMinutes": 20,
+      "distanceMeters": 5600
+    },
+    {
+      "fromStopId": "9_0",
+      "toStopId": "2_0",
+      "runMinutes": 20,
+      "distanceMeters": 4100
+    },
+    {
+      "fromStopId": "4_0",
+      "toStopId": "9_0",
+      "runMinutes": 20,
+      "distanceMeters": 3300
+    },
+    {
+      "fromStopId": "1_0",
+      "toStopId": "9_0",
+      "runMinutes": 20,
+      "distanceMeters": 5700
+    },
+    {
+      "fromStopId": "2_0",
+      "toStopId": "9_0",
+      "runMinutes": 20,
+      "distanceMeters": 6900
+    }
   ],
   "patterns": [
     {
@@ -102,10 +177,22 @@
       "isDeadhead": false,
       "serviceType": "express",
       "stopSequence": [
-        { "stopId": "1_0", "handling": "boardOnly" },
-        { "stopId": "3_0", "handling": "stop" },
-        { "stopId": "6_0", "handling": "alightOnly" },
-        { "stopId": "4_0", "handling": "alightOnly" }
+        {
+          "stopId": "1_0",
+          "handling": "boardOnly"
+        },
+        {
+          "stopId": "3_0",
+          "handling": "stop"
+        },
+        {
+          "stopId": "6_0",
+          "handling": "alightOnly"
+        },
+        {
+          "stopId": "4_0",
+          "handling": "alightOnly"
+        }
       ]
     },
     {
@@ -118,11 +205,26 @@
       "isDeadhead": false,
       "serviceType": "local",
       "stopSequence": [
-        { "stopId": "1_0", "handling": "boardOnly" },
-        { "stopId": "2_0", "handling": "stop" },
-        { "stopId": "3_0", "handling": "stop" },
-        { "stopId": "6_0", "handling": "alightOnly" },
-        { "stopId": "4_0", "handling": "alightOnly" }
+        {
+          "stopId": "1_0",
+          "handling": "boardOnly"
+        },
+        {
+          "stopId": "2_0",
+          "handling": "stop"
+        },
+        {
+          "stopId": "3_0",
+          "handling": "stop"
+        },
+        {
+          "stopId": "6_0",
+          "handling": "alightOnly"
+        },
+        {
+          "stopId": "4_0",
+          "handling": "alightOnly"
+        }
       ]
     },
     {
@@ -135,10 +237,22 @@
       "isDeadhead": false,
       "serviceType": "local",
       "stopSequence": [
-        { "stopId": "2_0", "handling": "boardOnly" },
-        { "stopId": "3_0", "handling": "stop" },
-        { "stopId": "6_0", "handling": "alightOnly" },
-        { "stopId": "4_0", "handling": "alightOnly" }
+        {
+          "stopId": "2_0",
+          "handling": "boardOnly"
+        },
+        {
+          "stopId": "3_0",
+          "handling": "stop"
+        },
+        {
+          "stopId": "6_0",
+          "handling": "alightOnly"
+        },
+        {
+          "stopId": "4_0",
+          "handling": "alightOnly"
+        }
       ]
     },
     {
@@ -151,8 +265,14 @@
       "isDeadhead": false,
       "serviceType": "local",
       "stopSequence": [
-        { "stopId": "1_0", "handling": "boardOnly" },
-        { "stopId": "2_0", "handling": "alightOnly" }
+        {
+          "stopId": "1_0",
+          "handling": "boardOnly"
+        },
+        {
+          "stopId": "2_0",
+          "handling": "alightOnly"
+        }
       ]
     },
     {
@@ -165,9 +285,18 @@
       "isDeadhead": false,
       "serviceType": "express",
       "stopSequence": [
-        { "stopId": "4_0", "handling": "boardOnly" },
-        { "stopId": "5_0", "handling": "stop" },
-        { "stopId": "1_0", "handling": "alightOnly" }
+        {
+          "stopId": "4_0",
+          "handling": "boardOnly"
+        },
+        {
+          "stopId": "5_0",
+          "handling": "stop"
+        },
+        {
+          "stopId": "1_0",
+          "handling": "alightOnly"
+        }
       ]
     },
     {
@@ -180,10 +309,22 @@
       "isDeadhead": false,
       "serviceType": "local",
       "stopSequence": [
-        { "stopId": "4_0", "handling": "boardOnly" },
-        { "stopId": "5_0", "handling": "stop" },
-        { "stopId": "2_0", "handling": "stop" },
-        { "stopId": "1_0", "handling": "alightOnly" }
+        {
+          "stopId": "4_0",
+          "handling": "boardOnly"
+        },
+        {
+          "stopId": "5_0",
+          "handling": "stop"
+        },
+        {
+          "stopId": "2_0",
+          "handling": "stop"
+        },
+        {
+          "stopId": "1_0",
+          "handling": "alightOnly"
+        }
       ]
     },
     {
@@ -196,8 +337,14 @@
       "isDeadhead": false,
       "serviceType": "local",
       "stopSequence": [
-        { "stopId": "2_0", "handling": "boardOnly" },
-        { "stopId": "1_0", "handling": "alightOnly" }
+        {
+          "stopId": "2_0",
+          "handling": "boardOnly"
+        },
+        {
+          "stopId": "1_0",
+          "handling": "alightOnly"
+        }
       ]
     },
     {
@@ -210,9 +357,18 @@
       "isDeadhead": false,
       "serviceType": "local",
       "stopSequence": [
-        { "stopId": "4_0", "handling": "boardOnly" },
-        { "stopId": "5_0", "handling": "stop" },
-        { "stopId": "2_0", "handling": "alightOnly" }
+        {
+          "stopId": "4_0",
+          "handling": "boardOnly"
+        },
+        {
+          "stopId": "5_0",
+          "handling": "stop"
+        },
+        {
+          "stopId": "2_0",
+          "handling": "alightOnly"
+        }
       ]
     },
     {
@@ -224,8 +380,14 @@
       "isDefault": false,
       "isDeadhead": true,
       "stopSequence": [
-        { "stopId": "9_0", "handling": "boardOnly" },
-        { "stopId": "4_0", "handling": "alightOnly" }
+        {
+          "stopId": "9_0",
+          "handling": "boardOnly"
+        },
+        {
+          "stopId": "4_0",
+          "handling": "alightOnly"
+        }
       ]
     },
     {
@@ -237,8 +399,14 @@
       "isDefault": false,
       "isDeadhead": true,
       "stopSequence": [
-        { "stopId": "9_0", "handling": "boardOnly" },
-        { "stopId": "1_0", "handling": "alightOnly" }
+        {
+          "stopId": "9_0",
+          "handling": "boardOnly"
+        },
+        {
+          "stopId": "1_0",
+          "handling": "alightOnly"
+        }
       ]
     },
     {
@@ -250,8 +418,14 @@
       "isDefault": false,
       "isDeadhead": true,
       "stopSequence": [
-        { "stopId": "9_0", "handling": "boardOnly" },
-        { "stopId": "2_0", "handling": "alightOnly" }
+        {
+          "stopId": "9_0",
+          "handling": "boardOnly"
+        },
+        {
+          "stopId": "2_0",
+          "handling": "alightOnly"
+        }
       ]
     },
     {
@@ -263,8 +437,14 @@
       "isDefault": false,
       "isDeadhead": true,
       "stopSequence": [
-        { "stopId": "4_0", "handling": "boardOnly" },
-        { "stopId": "9_0", "handling": "alightOnly" }
+        {
+          "stopId": "4_0",
+          "handling": "boardOnly"
+        },
+        {
+          "stopId": "9_0",
+          "handling": "alightOnly"
+        }
       ]
     },
     {
@@ -276,8 +456,14 @@
       "isDefault": false,
       "isDeadhead": true,
       "stopSequence": [
-        { "stopId": "1_0", "handling": "boardOnly" },
-        { "stopId": "9_0", "handling": "alightOnly" }
+        {
+          "stopId": "1_0",
+          "handling": "boardOnly"
+        },
+        {
+          "stopId": "9_0",
+          "handling": "alightOnly"
+        }
       ]
     },
     {
@@ -289,8 +475,14 @@
       "isDefault": false,
       "isDeadhead": true,
       "stopSequence": [
-        { "stopId": "2_0", "handling": "boardOnly" },
-        { "stopId": "9_0", "handling": "alightOnly" }
+        {
+          "stopId": "2_0",
+          "handling": "boardOnly"
+        },
+        {
+          "stopId": "9_0",
+          "handling": "alightOnly"
+        }
       ]
     }
   ]

@@ -15,7 +15,7 @@
 
 import type { NetworkDef, Trip } from '@/domain/model';
 import { segmentKey, type NetworkIndex } from '@/domain/network';
-import { expandDeadheads, sourceTripId } from '@/domain/trip';
+import { METERS_PER_KM, expandDeadheads, sourceTripId } from '@/domain/trip';
 
 /** 一覧に出す 1 行。 */
 export interface SegmentRow {
@@ -28,10 +28,15 @@ export interface SegmentRow {
   readonly runMinutes: number;
   /** 営業所を含む区間（回送区間）。 */
   readonly isDeadhead: boolean;
+  /** 区間距離（メートル。#161）。版数 1 の定義では `undefined`。 */
+  readonly distanceMeters: number | undefined;
 }
 
-/** 打ち直した値。鍵は `segmentKey`。 */
+/** 打ち直した所要時間（分）。鍵は `segmentKey`。 */
 export type SegmentEdits = ReadonlyMap<string, number>;
+
+/** 打ち直した距離（メートル）。鍵は `segmentKey`。 */
+export type DistanceEdits = ReadonlyMap<string, number>;
 
 /**
  * 区間表を一覧の形にする。**定義の順に出す。**
@@ -52,6 +57,7 @@ export function segmentRows(network: NetworkIndex): readonly SegmentRow[] {
     label: `${nameOf(segment.fromStopId)} → ${nameOf(segment.toStopId)}`,
     runMinutes: segment.runMinutes,
     isDeadhead: depotIds.has(segment.fromStopId) || depotIds.has(segment.toStopId),
+    distanceMeters: segment.distanceMeters,
   }));
 }
 
@@ -70,6 +76,29 @@ export function parseRunMinutes(text: string): number | null {
   const value = Number(normalized);
   if (!Number.isInteger(value) || value < 0 || value % 5 !== 0) return null;
   return value;
+}
+
+/**
+ * 打たれた文字を距離（メートル）にする。受け取れなければ `null`。
+ *
+ * **km で打たせ、メートルで持つ**（#161、仕様書 v1.1 §6.1.1）。画面に出すのは
+ * km だが、足し合わせるのはメートルの整数である——km の小数で足すと丸め誤差が
+ * 乗る。
+ *
+ * **5 の倍数のような刻みは設けない。** 所要時間が 5 分刻みなのはダイヤ全体が
+ * 5 分刻みだからであり（§2.1）、距離にその制約は無い。小数第 1 位（100m）まで
+ * 受け取る。
+ */
+export function parseDistanceKm(text: string): number | null {
+  const normalized = text
+    .replace(/[０-９．]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
+    .trim();
+  if (!/^\d+(\.\d+)?$/.test(normalized)) return null;
+
+  const km = Number(normalized);
+  if (!Number.isFinite(km) || km < 0) return null;
+  // 100m 未満は表せない。丸めは近いほう（仕様書 §6.5.2 と同じ規則）。
+  return Math.round(km * METERS_PER_KM);
 }
 
 /** 今の定義と違う値だけを残す。 */
@@ -113,6 +142,34 @@ export function affectedTripCount(
     }
   }
   return affected.size;
+}
+
+/** 今の定義と違う距離だけを残す。 */
+export function changedDistances(network: NetworkIndex, edits: DistanceEdits): DistanceEdits {
+  const changed = new Map<string, number>();
+  for (const row of segmentRows(network)) {
+    const next = edits.get(row.key);
+    if (next !== undefined && next !== row.distanceMeters) changed.set(row.key, next);
+  }
+  return changed;
+}
+
+/**
+ * 打ち直した距離を当てた定義。**元の定義は変えない。**
+ *
+ * **距離を変えても便の時刻は動かない。** 時刻を決めるのは所要時間だけであり、
+ * ここは所要時間に触れない（仕様書 v1.1 §6.1.3）。
+ */
+export function withDistances(def: NetworkDef, edits: DistanceEdits): NetworkDef {
+  return {
+    ...def,
+    segments: def.segments.map((segment) => {
+      const next = edits.get(segmentKey(segment.fromStopId, segment.toStopId));
+      return next === undefined || next === segment.distanceMeters
+        ? segment
+        : { ...segment, distanceMeters: next };
+    }),
+  };
 }
 
 /** 打ち直した値を当てた定義。**元の定義は変えない。** */

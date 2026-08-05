@@ -17,7 +17,7 @@ import type { Trip } from '@/domain/model';
 import { loadNetworkDef, type NetworkIndex } from '@/domain/network';
 import type { PlatformAdapter } from '@/platform';
 import { fromHM } from '@/domain/time';
-import { selectNetwork, useAppStore } from '@/store';
+import { selectNetwork, selectTrips, useAppStore } from '@/store';
 import { SettingsDialog } from './SettingsDialog';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -389,6 +389,50 @@ describe('表示タブ（§6.5.3）', () => {
 });
 
 /** 停車パターンの色と線種（#147）。 */
+describe('区間距離（#161）', () => {
+  /** 区間タブは既定で開いている。 */
+  function distanceInput(label: string): HTMLInputElement {
+    const found = container.querySelector<HTMLInputElement>(`[aria-label="${label} の距離（km）"]`);
+    if (found === null) throw new Error(`「${label} の距離」が見つかりません`);
+    return found;
+  }
+
+  beforeEach(() => {
+    mount();
+  });
+
+  it('**距離の欄が出る**（所要時間と同じ表に並べる）', () => {
+    expect(distanceInput('豊中 → 箕面').value).toBe('6.4');
+  });
+
+  it('**距離を変えても便の時刻は動かない**（時刻を決めるのは所要時間だけ）', () => {
+    const before = selectTrips(useAppStore.getState()).map((t) => t.anchor?.time);
+
+    type(distanceInput('豊中 → 箕面'), '9.9');
+    act(() => {
+      button('変更を適用').click();
+    });
+    act(() => {
+      button('適用する').click();
+    });
+
+    expect(selectTrips(useAppStore.getState()).map((t) => t.anchor?.time)).toEqual(before);
+    expect(
+      useAppStore.getState().networkDef?.segments.find((s) => s.toStopId === '2_0')?.distanceMeters,
+    ).toBe(9900);
+  });
+
+  it('**5 の倍数の縛りは掛けない**（5 分刻みはダイヤの側の決まりである）', () => {
+    type(distanceInput('豊中 → 箕面'), '1.3');
+    expect(distanceInput('豊中 → 箕面').getAttribute('aria-invalid')).toBe('false');
+  });
+
+  it('受け取れない距離は伝える', () => {
+    type(distanceInput('豊中 → 箕面'), 'あ');
+    expect(container.textContent).toContain('距離は 0 以上の数で入れてください');
+  });
+});
+
 describe('停車パターンの色と線種', () => {
   function openDisplayTab(): void {
     mount();
