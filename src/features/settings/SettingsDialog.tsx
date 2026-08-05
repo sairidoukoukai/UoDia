@@ -445,11 +445,14 @@ function PatternStyles(): ReactElement {
   const choices = useAppStore((state) => state.settings.patternStyles);
   const setSettings = useAppStore((state) => state.setSettings);
 
-  // 回送は並べない。**回送かどうかはパターンの好みではない**（線種は破線で固定）。
-  const patterns = useMemo(
-    () => (network === null ? [] : network.def.patterns.filter((pattern) => !pattern.isDeadhead)),
-    [network],
-  );
+  /*
+   * **回送も並べる**（#179、2026-08-05 改め）。
+   *
+   * 当初は「回送かどうかはパターンの好みではない」として外していた。**その線を
+   * どう見分けたいかはその人の目の話**であり、営業パターンと変わらない。運用で
+   * 着色すると回送は元の便と同じ色になり、太さの違いだけが手掛かりになる。
+   */
+  const patterns = useMemo(() => network?.def.patterns ?? [], [network]);
   const styles = useMemo(
     () => (network === null ? null : patternStyles(network.def.patterns, choices)),
     [network, choices],
