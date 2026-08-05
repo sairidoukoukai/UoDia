@@ -33,6 +33,7 @@ const SCENE: DiagramScene = {
   stops: [stop('a', 0), stop('b', 20)],
   trips: [],
   blockLinks: [],
+  focus: null,
   selectedTripIds: new Set(),
   selectionRect: null,
   tripShift: null,

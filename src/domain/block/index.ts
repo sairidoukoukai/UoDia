@@ -21,6 +21,8 @@ export {
 
 export { blockDistance, blockDistances, type BlockDistance } from './distance';
 
+export { distanceInRange, tripDistanceInRange, type TimeRange } from './focus';
+
 export { blockNeighbors, neighborsOf, type BlockNeighbors } from './neighbors';
 
 export { nextBlockId, suggestBlockId, withSuggestedBlockId } from './suggest';

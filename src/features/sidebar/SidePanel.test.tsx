@@ -287,6 +287,87 @@ describe('運用の色', () => {
   });
 });
 
+describe('計算の節（#161・#162・#166）', () => {
+  const focus = (): { enabled: boolean; from: number; to: number } | undefined =>
+    selectView(useAppStore.getState())?.focus;
+
+  function check(label: string): HTMLInputElement {
+    const found = [...container.querySelectorAll('label')].find((element) =>
+      element.textContent.includes(label),
+    );
+    const input = found?.querySelector('input');
+    if (input === null || input === undefined) throw new Error(`「${label}」が見つかりません`);
+    return input;
+  }
+
+  it('距離と輸送力を出す', () => {
+    const text = container.textContent;
+
+    expect(text).toContain('走行距離');
+    expect(text).toContain('営業距離');
+    expect(text).toContain('延べ輸送力');
+  });
+
+  it('**既定では絞らない**（合計が合わない理由を探させない）', () => {
+    expect(focus()?.enabled).toBe(false);
+    expect(container.textContent).not.toContain('だけを数えています');
+  });
+
+  it('**範囲を絞ると、絞っていることが画面から分かる**', () => {
+    act(() => {
+      check('時間範囲を絞る').click();
+    });
+
+    expect(focus()?.enabled).toBe(true);
+    expect(container.textContent).toContain('だけを数えています');
+  });
+
+  it('**絞ると数が変わる**', () => {
+    const before = container.textContent;
+    act(() => {
+      check('時間範囲を絞る').click();
+    });
+    // 既定は 7:00〜22:00。8:00 と 9:00 の便はどちらも入るため、範囲を狭める。
+    act(() => {
+      useAppStore.getState().setFocus({ from: fromHM(7, 0), to: fromHM(8, 30) });
+    });
+
+    expect(container.textContent).not.toBe(before);
+  });
+
+  it('**範囲を変えても履歴に載らず、未保存にもならない**（数える範囲は編集ではない）', () => {
+    const depth = useAppStore.getState().history.past.length;
+    act(() => {
+      check('時間範囲を絞る').click();
+    });
+
+    expect(useAppStore.getState().history.past).toHaveLength(depth);
+  });
+
+  it('**範囲を解除できる**', () => {
+    act(() => {
+      check('時間範囲を絞る').click();
+    });
+    act(() => {
+      check('時間範囲を絞る').click();
+    });
+
+    expect(focus()?.enabled).toBe(false);
+  });
+
+  it('範囲はプロジェクトに保存される（開き直すと再現する）', () => {
+    act(() => {
+      useAppStore.getState().setFocus({ enabled: true, from: fromHM(9, 0), to: fromHM(10, 0) });
+    });
+
+    expect(useAppStore.getState().project?.view.focus).toEqual({
+      enabled: true,
+      from: fromHM(9, 0),
+      to: fromHM(10, 0),
+    });
+  });
+});
+
 describe('系統ごとの乗車可能人員（#162）', () => {
   function capacityInput(patternId: string): HTMLInputElement {
     const found = container.querySelector<HTMLInputElement>(

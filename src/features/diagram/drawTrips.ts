@@ -87,6 +87,15 @@ const HANDLE_SIZE = 7;
  */
 const STOP_DOT_RADIUS = 3.5;
 
+/**
+ * フォーカス範囲の外を描くときの不透明度（#166、仕様書 v1.1 §6.4.1）。
+ *
+ * **隠さない。** 範囲の外の便を消すと、境目をまたぐ便の繋がりが読めなくなる。
+ * 薄くするのは「どこを数えているかが絵から読める」ようにするためであって、
+ * **数えていないものを無かったことにするためではない。**
+ */
+const OUT_OF_FOCUS_ALPHA = 0.3;
+
 /** 丸 1 周（ラジアン）。 */
 const FULL_CIRCLE = Math.PI * 2;
 
@@ -192,8 +201,27 @@ export function drawTrips(ctx: DrawContext, scene: DiagramScene, viewport: Viewp
   const isSelected = (entry: TripPolyline): boolean =>
     scene.selectedTripIds.has(entry.trip.sourceTripId);
 
-  for (const entry of drawn.filter((item) => !isSelected(item))) drawTrip(ctx, entry, false);
-  for (const entry of drawn.filter(isSelected)) drawTrip(ctx, entry, true);
+  /*
+   * フォーカス範囲に掛かるか（#166）。**掛かっていれば薄くしない。**
+   *
+   * 便まるごとで決める——区間ごとに濃さを変えると、1 本のスジの途中で色が
+   * 変わり、**どこが範囲なのかではなく、線が切れているように見える。**
+   */
+  const focused = (entry: TripPolyline): boolean => {
+    if (scene.focus === null) return true;
+    const times = entry.trip.points.map((point) => point.time);
+    const first = times[0];
+    const last = times.at(-1);
+    if (first === undefined || last === undefined) return true;
+    return last >= scene.focus.from && first <= scene.focus.to;
+  };
+
+  for (const entry of drawn.filter((item) => !isSelected(item))) {
+    drawTrip(ctx, entry, false, focused(entry));
+  }
+  for (const entry of drawn.filter(isSelected)) drawTrip(ctx, entry, true, focused(entry));
+
+  ctx.globalAlpha = 1;
 
   drawTripNumbers(ctx, drawn, viewport);
   drawSelectionRect(ctx, scene, viewport);
@@ -292,11 +320,12 @@ export function isTripVisible(trip: SceneTrip, viewport: Viewport): boolean {
   return first.time < viewport.startTime && last.time > viewport.startTime;
 }
 
-function drawTrip(ctx: DrawContext, entry: TripPolyline, selected: boolean): void {
+function drawTrip(ctx: DrawContext, entry: TripPolyline, selected: boolean, focused = true): void {
   const { trip, points, first, last } = entry;
 
   const width = trip.isDeadhead ? DEADHEAD_WIDTH : TRIP_WIDTH;
 
+  ctx.globalAlpha = focused ? 1 : OUT_OF_FOCUS_ALPHA;
   ctx.strokeStyle = trip.color;
   ctx.lineWidth = selected ? width * SELECTED_SCALE : width;
   ctx.setLineDash([...trip.lineDash]);
