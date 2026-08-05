@@ -197,6 +197,19 @@ export function clampSplitRatio(ratio: number): number {
 }
 
 /**
+ * 計算の対象とする時間の範囲（#166、仕様書 v1.1 §6.4）。
+ *
+ * 24 時をまたぐ範囲を許す——時刻は 24 時を超える（仕様書 §2.1）。`22:00〜25:00`
+ * と書ける。
+ */
+export const focusRangeSchema = z.object({
+  enabled: z.boolean().default(false),
+  from: secondsSchema.default(fromHM(7, 0)),
+  to: secondsSchema.default(fromHM(22, 0)),
+});
+export type FocusRange = z.infer<typeof focusRangeSchema>;
+
+/**
  * 表示設定（仕様書 §5.10）。プロジェクトに保存され、開き直しても再現される。
  *
  * すべての項目に既定値を与えている。古いファイルに項目が欠けていても、
@@ -232,6 +245,18 @@ export const viewSettingsSchema = z.object({
   showBlockLinks: z.boolean().default(true),
   /** 検証パネルを開いているか。 */
   validationPanelOpen: z.boolean().default(true),
+  /**
+   * 計算の対象とする時間の範囲（#166、仕様書 v1.1 §6.4）。
+   *
+   * **フォーカスは視野ではない。** 視野（`diagram`）は「画面のどこを見ているか」
+   * を決め、絵が動いても数は変わらない。フォーカスは「どこを数えるか」を決め、
+   * **数が変わっても絵は動かない。** 視野に連動させると、拡大しただけで輸送力の
+   * 数が変わる——**画面を送るたびに数が動く表は読めない。**
+   *
+   * 既定は無効（1 日全部）。**何も指定していない状態で数が絞られていると、
+   * 合計が合わない理由を探すことになる。**
+   */
+  focus: focusRangeSchema.default({}),
   /**
    * 運用ごとに選んだ色（#148）。選んだものだけを入れる。
    *

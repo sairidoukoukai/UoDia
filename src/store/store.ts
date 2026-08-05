@@ -26,6 +26,7 @@ import {
   clampSplitRatio,
   diagramViewSchema,
   type DiagramView,
+  type FocusRange,
   type DirectionId,
   type NetworkDef,
   type Project,
@@ -191,6 +192,18 @@ export interface AppActions {
    * 履歴に載るが、パネルの開閉はそれには当たらない。
    */
   readonly setValidationPanelOpen: (open: boolean) => void;
+
+  /**
+   * 計算の対象とする時間の範囲を変える（#166、仕様書 v1.1 §6.4.3）。
+   *
+   * **履歴に載せず、未保存にもしない。** どこを数えているかは編集ではない——
+   * 視野（`setDiagramView`）と同じ扱いである。プロジェクトには保存されるため、
+   * 開き直せば同じ範囲を見られる。
+   *
+   * **絵は動かない。** フォーカスが決めるのは数える範囲であって、触れる範囲でも
+   * 見える範囲でもない（範囲の外の便も選べる・動かせる・消せる）。
+   */
+  readonly setFocus: (next: Partial<FocusRange>) => void;
 
   /**
    * 時刻表の方向タブを切り替える（仕様書 §6.1.1、T-38）。
@@ -466,6 +479,21 @@ export function createAppStore(): AppStoreHook {
         const { project } = get();
         if (project === null || project.view.validationPanelOpen === open) return;
         setView({ ...project.view, validationPanelOpen: open });
+      },
+
+      setFocus: (next): void => {
+        const { project } = get();
+        if (project === null) return;
+        const focus = { ...project.view.focus, ...next };
+        // 変わっていなければ触らない。**参照が変われば購読が動く。**
+        if (
+          focus.enabled === project.view.focus.enabled &&
+          focus.from === project.view.focus.from &&
+          focus.to === project.view.focus.to
+        ) {
+          return;
+        }
+        setView({ ...project.view, focus });
       },
 
       setMaximizedPane: (maximized): void => {

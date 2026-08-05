@@ -21,6 +21,8 @@ export interface RecordedSegment {
   readonly y2: number;
   readonly strokeStyle: string;
   readonly lineWidth: number;
+  /** 不透明度（#166）。フォーカス範囲の外は薄く描かれる。 */
+  readonly alpha: number;
   readonly dash: readonly number[];
 }
 
@@ -57,6 +59,7 @@ export class Recorder implements DrawContext {
   fillStyle = '';
   strokeStyle = '';
   lineWidth = 1;
+  globalAlpha = 1;
   font = '';
   textAlign: CanvasTextAlign = 'start';
   textBaseline: CanvasTextBaseline = 'alphabetic';
@@ -134,6 +137,7 @@ export class Recorder implements DrawContext {
           y2: to.y,
           strokeStyle: this.strokeStyle,
           lineWidth: this.lineWidth,
+          alpha: this.globalAlpha,
           dash: this.#dash,
         });
       }

@@ -45,6 +45,7 @@ export {
   serviceSchema,
   SPLIT_RATIO_LIMITS,
   tripSchema,
+  focusRangeSchema,
   viewSettingsSchema,
   type Anchor,
   type ColorMode,
@@ -55,6 +56,7 @@ export {
   type ProjectInput,
   type Service,
   type Trip,
+  type FocusRange,
   type ViewSettings,
 } from './project';
 
