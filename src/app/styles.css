@@ -670,6 +670,36 @@ body {
   padding: 0.1rem 0;
 }
 
+/*
+ * 2 段に組む行（運用の一覧。#185）。
+ *
+ * **1 行に詰め込まない。** サイドパネルの幅は決まっており、項目を増やすほど
+ * 右端から押し出される。距離は次の行へ落とす。
+ *
+ * **この一覧だけに効かせる。** ダイヤ・パターンの一覧は 1 行のままでよい——
+ * 出す項目が少なく、押し出されていない。
+ */
+.panel__row--stacked {
+  flex-wrap: wrap;
+}
+
+/*
+ * 走行距離と営業距離（#161・#185）。
+ *
+ * `flex-basis: 100%` で行を独り占めし、上の行から改まる。左の余白は
+ * チェックボックスと色見本のぶんだけ空け、**運用番号の下に数が来る**ように
+ * 見せる（px ではなく `rem` で持つ——揃えたいのは字の位置である）。
+ */
+.panel__distance {
+  display: flex;
+  flex-basis: 100%;
+  gap: 0.75rem;
+  padding-left: 2.6rem;
+  color: var(--color-fg-muted);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
 /* 編集中のダイヤ。どれを触っているのかが一目で分かるようにする。 */
 .panel__row--active {
   font-weight: 600;

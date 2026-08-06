@@ -113,7 +113,7 @@ export function BlockList(): ReactElement {
             const to = block.pullInTime ?? (block.trips.at(-1) ?? block.trips[0]).terminalTime;
 
             return (
-              <li key={block.blockId} className="panel__row">
+              <li key={block.blockId} className="panel__row panel__row--stacked">
                 <input
                   type="checkbox"
                   aria-label={`運用 ${block.blockId} を表示`}
@@ -140,16 +140,6 @@ export function BlockList(): ReactElement {
                   {formatTime(from)}–{formatTime(to)}
                 </span>
                 <span className="panel__count">{revenue} 便</span>
-                {/*
-                  **距離の分からない区間があれば数を出さない**（仕様書 v1.1 §6.1.4）。
-                  0 として足すと、入力漏れが「短い運用」に化けて気付けない。
-                */}
-                <span
-                  className="panel__note"
-                  title={`走行 ${describe(distances.get(block.blockId)?.total)}（回送込み） / 営業 ${describe(distances.get(block.blockId)?.revenue)}`}
-                >
-                  {describe(distances.get(block.blockId)?.total)}
-                </span>
                 {/* 選んだ色があるときだけ出す。押しても何も起きない印を並べない。 */}
                 {chosen[block.blockId] !== undefined && (
                   <button
@@ -164,6 +154,22 @@ export function BlockList(): ReactElement {
                     ↺
                   </button>
                 )}
+                {/*
+                  距離は**行を改めて出す**（#185）。1 行に詰め込むと、サイドパネルの
+                  幅から右端が押し出されて読めない。
+                
+                  **走行と営業を両方出す。** 以前は走行だけを出し、営業を `title` に
+                  隠していた——**読ませたいものが隠れていた。** 「（回送込み）」の
+                  注記も外す。2 つ並んでいれば、どちらが大きいかで回送が含まれて
+                  いることは読める。**注記のほうが数より長いのは、逆である。**
+                
+                  **距離の分からない区間があれば数を出さない**（仕様書 v1.1 §6.1.4）。
+                  0 として足すと、入力漏れが「短い運用」に化けて気付けない。
+                */}
+                <span className="panel__distance">
+                  <span>走行 {describe(distances.get(block.blockId)?.total)}</span>
+                  <span>営業 {describe(distances.get(block.blockId)?.revenue)}</span>
+                </span>
               </li>
             );
           })}
