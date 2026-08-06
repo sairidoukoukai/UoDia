@@ -220,6 +220,56 @@ describe('運用の一覧', () => {
     expect(text).toMatch(/\d+:\d\d–\d+:\d\d/);
   });
 
+  /** 運用 1 の行。 */
+  function blockRow(blockId: string): HTMLElement {
+    const row = [...container.querySelectorAll('.panel__row')].find((element) =>
+      element.querySelector(`[aria-label="運用 ${blockId} を表示"]`),
+    );
+    if (row === undefined) throw new Error(`運用 ${blockId} の行がありません`);
+    return row as HTMLElement;
+  }
+
+  /** 距離の行。 */
+  function distanceLine(blockId: string): HTMLElement {
+    const found = blockRow(blockId).querySelector<HTMLElement>('.panel__distance');
+    if (found === null) throw new Error(`運用 ${blockId} の距離がありません`);
+    return found;
+  }
+
+  it('**走行距離と営業距離をどちらも出す**（#185。片方を title に隠さない）', () => {
+    const text = distanceLine('1').textContent;
+
+    expect(text).toContain('走行');
+    expect(text).toContain('営業');
+    expect(text).toMatch(/\d+\.\d km/);
+  });
+
+  it('**「（回送込み）」と「/」を出さない**（注記のほうが数より長いのは逆である）', () => {
+    const text = distanceLine('1').textContent;
+
+    expect(text).not.toContain('回送込み');
+    expect(text).not.toContain('/');
+  });
+
+  it('**距離は時間・便数と別の行に出す**（1 行に詰め込むと右端が押し出される）', () => {
+    const row = blockRow('1');
+
+    // 距離の欄は行を独り占めする（`flex-basis: 100%`）。
+    expect(row.querySelector('.panel__distance')).not.toBeNull();
+    // 時間と便数は距離の欄の外にある。
+    expect(distanceLine('1').textContent).not.toMatch(/\d+:\d\d/);
+    expect(distanceLine('1').textContent).not.toContain('便');
+  });
+
+  it('**この一覧だけを 2 段にする**（ダイヤ・パターンの一覧は 1 行のまま）', () => {
+    expect(blockRow('1').className).toContain('panel__row--stacked');
+
+    const patternRow = [...container.querySelectorAll('.panel__row')].find((element) =>
+      element.querySelector('[aria-label="S1 を表示"]'),
+    );
+    expect(patternRow?.className).not.toContain('panel__row--stacked');
+  });
+
   it('回送を便数に数えない（回送は営業便から展開された線）', () => {
     // 運用 1 は S1 の 1 便だけである。出区の回送を数えると 2 便に見える。
     const row = [...container.querySelectorAll('.panel__row')].find((element) =>
