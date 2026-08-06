@@ -223,6 +223,13 @@ export const viewSettingsSchema = z.object({
   hiddenDirections: z.array(directionIdSchema).default([]),
   /** 回送便を表示するか。 */
   showDeadhead: z.boolean().default(true),
+  /**
+   * 折返しの接続線を出すか（#167、仕様書 v1.1 §5.3）。
+   *
+   * 便が増えると水平線も増えるため切れるようにする。**既定は出す**——
+   * どの便がどの便に繋がるかは、絵から読めることに意味がある。
+   */
+  showBlockLinks: z.boolean().default(true),
   /** 検証パネルを開いているか。 */
   validationPanelOpen: z.boolean().default(true),
   /**

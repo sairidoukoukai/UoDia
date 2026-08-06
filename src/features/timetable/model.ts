@@ -33,8 +33,14 @@ export type TimetableCell =
       readonly kind: 'time';
       readonly time: Seconds;
       readonly handling: Handling;
-      /** この升目が便の基準時刻か（仕様書 §6.1.1）。 */
-      readonly isAnchor: boolean;
+      /*
+       * **どの升目が基準時刻（アンカー）かは持たない**（T-60、#164、仕様書 v1.1 §5.1）。
+       *
+       * アンカー 1 点方式は**便の中で時刻が食い違わないようにするための設計**で
+       * あって、利用者が意識する概念ではない。どの升目に打っても同じように打て
+       * （打った升目がアンカーになる）、**振る舞いが同じものを見た目で分ける理由が
+       * 無い。** 基準の位置は `Trip.anchor` にそのまま残っている。
+       */
     }
   /** 経由するが時刻を出せない。 */
   | { readonly kind: 'empty'; readonly handling: Handling; readonly reason: EmptyReason }
@@ -42,7 +48,7 @@ export type TimetableCell =
   | { readonly kind: 'notServed' };
 
 /**
- * 前運用・後運用の欄（仕様書 §6.1.7）。
+ * 前運用・次運用の欄（仕様書 §6.1.7）。
  *
  * その便自身の `pullOut` / `pullIn` を第一に映し、立っていなければ同じ運用の
  * 直前・直後にある営業便の便番号を映す。**出区・入区の表示は運用番号に依存
@@ -74,7 +80,7 @@ export interface TimetableColumn {
   readonly pattern: StopPattern | null;
   /** 停留所ごとの升目。行の並びは `stops` に従う。 */
   readonly cells: readonly TimetableCell[];
-  /** 前運用・後運用の欄（仕様書 §6.1.7）。 */
+  /** 前運用・次運用の欄（仕様書 §6.1.7）。 */
   readonly links: TripLinks;
 }
 
@@ -178,7 +184,7 @@ export function columnCount(timetable: Timetable): number {
  *
  * その方向のいずれかのパターンに含まれる停留所の和集合から、`hiddenInEditor`
  * と**営業所**を除く。営業所の行を置かないのは、回送便が列でなくなった以上
- * （§6.1.7）、営業便の列では常に空欄になるからである。出入区は前運用・後運用の
+ * （§6.1.7）、営業便の列では常に空欄になるからである。出入区は前運用・次運用の
  * 欄が受け持つ。
  *
  * ## 並びは進行方向に従う
@@ -283,7 +289,7 @@ function buildColumn(
     const time = times?.get(stop.stopId);
     if (time === undefined) return { kind: 'empty', handling, reason };
 
-    return { kind: 'time', time, handling, isAnchor: trip.anchor?.stopId === stop.stopId };
+    return { kind: 'time', time, handling };
   });
 
   return { trip, pattern, cells, links };

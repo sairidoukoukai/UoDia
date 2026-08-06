@@ -11,9 +11,22 @@
  * ただし**空の名前は書き込まない**——スキーマが 1 文字以上を求めており、空で
  * 書くと保存はできても開けないファイルになる（`renameService`）。消している
  * 途中の空欄は画面の上だけに留め、離れたときに元へ戻す。
+ *
+ * ## 削除は確かめてから行う（T-59、#160）
+ *
+ * 削除は履歴に載っており取り消せる。**それでも確認を挟むのは、戻せることが
+ * 画面から読めない**ためである。消えた直後に残るのは、消えたという事実だけで
+ * あり、<kbd>Ctrl</kbd>+<kbd>Z</kbd> で戻ると知っている人にしか戻せない。
+ * `✕` は名前の欄のすぐ隣にあり、名前を直そうとして端まで動かした指が届く。
+ *
+ * **問いはここが持つ。** ファイル操作の問い（`features/file`）に相乗りすると、
+ * サイドパネルがファイル機能に依存することになる。`showModal()` は他の要素を
+ * すべて不活性にするため、**問いが重ならないことはブラウザが保証する**——
+ * 「一度に出す問いは 1 つ」（`features/file/dialogs.ts`）を、こちらで数えて
+ * 守る必要が無い。
  */
 
-import { useState, type ReactElement } from 'react';
+import { useEffect, useRef, useState, type ReactElement } from 'react';
 import type { Service } from '@/domain/model';
 import { addService, removeService, renameService } from '@/domain/service';
 import { selectActiveService, selectServices, useAppStore } from '@/store';
@@ -42,6 +55,14 @@ export function ServiceList(): ReactElement {
       project.view.activeServiceId = added.serviceId;
     });
   };
+
+  /**
+   * 消してよいか尋ねている相手。`null` なら尋ねていない。
+   *
+   * **`serviceId` ではなく `Service` を持つ。** 問いの中で名前と便数を出すため
+   * であり、一覧から引き直すと、尋ねている最中に消えた場合に何を出すか決められない。
+   */
+  const [pending, setPending] = useState<Service | null>(null);
 
   const handleRemove = (serviceId: string): void => {
     clearSelection();
@@ -101,7 +122,8 @@ export function ServiceList(): ReactElement {
               title={`${service.serviceName} を削除`}
               aria-label={`${service.serviceName} を削除`}
               onClick={() => {
-                handleRemove(service.serviceId);
+                // **押しただけでは消えない。** まず尋ねる（T-59、#160）。
+                setPending(service);
               }}
             >
               ✕
@@ -113,7 +135,98 @@ export function ServiceList(): ReactElement {
       <button type="button" onClick={handleAdd}>
         ダイヤを追加
       </button>
+
+      <ConfirmRemove
+        service={pending}
+        onCancel={() => {
+          setPending(null);
+        }}
+        onConfirm={() => {
+          const target = pending;
+          setPending(null);
+          if (target !== null) handleRemove(target.serviceId);
+        }}
+      />
     </section>
+  );
+}
+
+interface ConfirmRemoveProps {
+  /** 尋ねている相手。`null` なら閉じている。 */
+  readonly service: Service | null;
+  readonly onConfirm: () => void;
+  readonly onCancel: () => void;
+}
+
+/**
+ * 削除してよいか尋ねる窓（T-59、#160）。
+ *
+ * `<dialog>` をそのまま使う理由は `FileDialogHost` と同じである——焦点の
+ * 閉じ込め・<kbd>Esc</kbd>・背景の不活性化をブラウザに任せる（仕様書 §9.4）。
+ *
+ * **答えるまで何も起きない。** 消すかどうかを決めるまで、選択も編集中のダイヤも
+ * 履歴も動かさない。`handleRemove` を呼ぶのは「削除する」を押したときだけである。
+ */
+function ConfirmRemove({ service, onConfirm, onCancel }: ConfirmRemoveProps): ReactElement {
+  const ref = useRef<HTMLDialogElement>(null);
+
+  // 開閉は効果で行う（`FileDialogHost` / `HelpDialog` と同じ形）。描画の途中で
+  // `showModal` を呼ぶと、描き直しのたびに窓を触ることになる。
+  useEffect(() => {
+    const dialog = ref.current;
+    if (dialog === null) return;
+
+    if (service === null) {
+      if (dialog.open) dialog.close();
+      return;
+    }
+    if (!dialog.open) dialog.showModal();
+  }, [service]);
+
+  return (
+    <dialog
+      ref={ref}
+      className="file-dialog"
+      onCancel={(event) => {
+        // Esc は「キャンセル」とみなす。既定の動作に任せると、閉じたことを
+        // こちら側の状態に伝えられない。
+        event.preventDefault();
+        onCancel();
+      }}
+      onClick={(event) => {
+        // 背景を押したときもキャンセルとする。`<dialog>` 自身が押されたのは、
+        // 中身ではなく余白（＝背景）を押したときだけである。
+        if (event.target === ref.current) onCancel();
+      }}
+    >
+      {service !== null && (
+        <>
+          <h2>ダイヤを削除します</h2>
+          {/*
+            **便数を出す。** 「本当に削除しますか」だけでは、失うものの大きさが
+            分からない。0 便でも尋ねる——「空なら出ない」は覚えられず、**出ない
+            場合があると確認そのものを信用しなくなる。**
+          */}
+          <p>
+            {service.serviceName}（{service.trips.length} 便）を削除します。よろしいですか。
+          </p>
+          <div className="file-dialog__actions">
+            {/*
+              **既定の焦点はキャンセル。** <kbd>Enter</kbd> を続けて押しても
+              消えない。未保存の問い（`FileDialogHost`）で「保存する」に焦点が
+              あるのとは逆であり、**理由も逆である**——あちらは押し続けても
+              何も失わない。
+            */}
+            <button type="button" autoFocus onClick={onCancel}>
+              キャンセル
+            </button>
+            <button type="button" onClick={onConfirm}>
+              削除する
+            </button>
+          </div>
+        </>
+      )}
+    </dialog>
   );
 }
 

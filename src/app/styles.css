@@ -31,14 +31,14 @@
   --color-error: #c0392b;
   /* 警告（検証パネル、T-34）。エラーの赤と情報の灰の間に置く。 */
   --color-warning: #b26a00;
-  /* アンカーの升目。色だけに頼らず太字も併用する（仕様書 §9.4）。 */
-  --color-anchor: #fff2b8;
+  /* 注意を促す地色（非対応ブラウザの案内帯など）。 */
+  --color-attention: #fff2b8;
   --color-focus: #2f6fdb;
   --color-invalid: #ffd6d0;
   --color-rounded: #cfe8ff;
   --color-selected: #dbe9ff;
-  /* 同じ運用の列に重ねる網掛け。下の色（選択・アンカー・運用の帯）を
-     消さずに済むよう、半透明にする。 */
+  /* 同じ運用の列に重ねる網掛け。下の色（選択・運用の帯）を消さずに済むよう、
+     半透明にする。 */
   --color-same-block: rgb(0 0 0 / 8%);
 
   font-family:
@@ -65,7 +65,7 @@
     --color-grid-faint: #2a2a2a;
     --color-error: #ff7b6b;
     --color-warning: #e0a458;
-    --color-anchor: #5a4a12;
+    --color-attention: #5a4a12;
     --color-focus: #7aa8ff;
     --color-invalid: #6b2a22;
     --color-selected: #23384f;
@@ -86,7 +86,7 @@
   --color-grid-faint: #2a2a2a;
   --color-error: #ff7b6b;
   --color-warning: #e0a458;
-  --color-anchor: #5a4a12;
+  --color-attention: #5a4a12;
   --color-focus: #7aa8ff;
   --color-invalid: #6b2a22;
   --color-selected: #23384f;
@@ -170,7 +170,7 @@ body {
   gap: 0.75rem;
   padding: 0.4rem 0.75rem;
   border-bottom: 1px solid var(--color-border);
-  background: var(--color-anchor);
+  background: var(--color-attention);
   color: var(--color-fg);
   font-size: 0.8125rem;
 }
@@ -670,6 +670,36 @@ body {
   padding: 0.1rem 0;
 }
 
+/*
+ * 2 段に組む行（運用の一覧。#185）。
+ *
+ * **1 行に詰め込まない。** サイドパネルの幅は決まっており、項目を増やすほど
+ * 右端から押し出される。距離は次の行へ落とす。
+ *
+ * **この一覧だけに効かせる。** ダイヤ・パターンの一覧は 1 行のままでよい——
+ * 出す項目が少なく、押し出されていない。
+ */
+.panel__row--stacked {
+  flex-wrap: wrap;
+}
+
+/*
+ * 走行距離と営業距離（#161・#185）。
+ *
+ * `flex-basis: 100%` で行を独り占めし、上の行から改まる。左の余白は
+ * チェックボックスと色見本のぶんだけ空け、**運用番号の下に数が来る**ように
+ * 見せる（px ではなく `rem` で持つ——揃えたいのは字の位置である）。
+ */
+.panel__distance {
+  display: flex;
+  flex-basis: 100%;
+  gap: 0.75rem;
+  padding-left: 2.6rem;
+  color: var(--color-fg-muted);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
 /* 編集中のダイヤ。どれを触っているのかが一目で分かるようにする。 */
 .panel__row--active {
   font-weight: 600;
@@ -1166,10 +1196,36 @@ body {
   text-align: center;
 }
 
-/* アンカーの升目。どの時刻を基準に他が計算されているかを示す（§6.1.1）。 */
-.timetable__cell--anchor {
-  background: var(--color-anchor);
-  font-weight: 600;
+/*
+ * 検証の指摘がある列（T-61、#165、仕様書 v1.1 §5.2）。
+ *
+ * **地色を変えるのはエラーだけ。** 警告・情報は記号だけで示す——情報は白紙から
+ * 作っているあいだほぼ全列に付き、全部塗ると表が塗り絵になる。
+ *
+ * 選択の色より下に置く。選んでいる列は選択の色が勝ってよい——**選んだことは
+ * 自分の操作の結果であり、指摘は記号が示し続ける。**
+ */
+.timetable__head--issue {
+  background: var(--color-invalid);
+}
+
+/* 重大度の記号。色に頼らず記号と読み上げ名でも伝える（§9.4）。 */
+.timetable__issue {
+  margin-left: 0.15em;
+  font-size: 0.75em;
+  line-height: 1;
+}
+
+.timetable__issue--error {
+  color: var(--color-error);
+}
+
+.timetable__issue--warning {
+  color: var(--color-warning);
+}
+
+.timetable__issue--info {
+  color: var(--color-fg-muted);
 }
 
 /* 選択中の便（T-21、仕様書 §6.3.1）。列ごと色を変え、どの列を操作するのかを
@@ -1179,13 +1235,7 @@ body {
   background: var(--color-selected);
 }
 
-/* 選択の色でアンカーを塗り潰さない。選択は列の見出しでも分かるが、どの升目が
-   基準なのかはここでしか分からない（§6.1.1）。 */
-.timetable__cell--selected.timetable__cell--anchor {
-  background: var(--color-anchor);
-}
-
-/* 前運用・後運用の行（T-50、仕様書 §6.1.7）。停留所の行とは区切って見せる。 */
+/* 前運用・次運用の行（T-50、仕様書 §6.1.7）。停留所の行とは区切って見せる。 */
 .timetable__link-head,
 .timetable__link-cell {
   background: var(--color-bg-accent);

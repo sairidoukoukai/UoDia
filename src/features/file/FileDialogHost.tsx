@@ -90,16 +90,24 @@ function renderBody(request: DialogRequest, onRespond: (choice: DialogAnswer) =>
       return (
         <>
           <h2>保存していない変更があります</h2>
-          <p>{displayName(request.fileName)} の変更をどうしますか。</p>
+          {/*
+            **選択肢はこのあと何が起きるかを言わない**（T-58、仕様書 v1.1 §3.3）。
+            この問いを出す入口は 4 つあり（新規作成・開く・最近使ったファイル・
+            終了）、選択肢に「終了」と書くと 3 つで嘘になる。何が起きるかは
+            本文（`request.question`）が言う。
+          */}
+          <p>
+            {displayName(request.fileName)} の変更が保存されていません。{request.question}
+          </p>
           <div className="file-dialog__actions">
             <Answer answer="save" onRespond={onRespond} focused>
-              保存して続ける
+              保存する
             </Answer>
             <Answer answer="discard" onRespond={onRespond}>
-              破棄して続ける
+              保存しない
             </Answer>
             <Answer answer="cancel" onRespond={onRespond}>
-              やめる
+              キャンセル
             </Answer>
           </div>
         </>

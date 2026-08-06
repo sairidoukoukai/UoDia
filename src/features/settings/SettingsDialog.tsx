@@ -43,19 +43,23 @@ import {
 } from './patternStyles';
 import {
   affectedTripCount,
+  changedDistances,
+  parseDistanceKm,
+  type DistanceEdits,
   changedEdits,
   parseRunMinutes,
   segmentRows,
   type SegmentEdits,
 } from './segments';
 import { PatternsTab } from './PatternsTab';
+import { METERS_PER_KM } from '@/domain/trip';
 import { applySegmentEdits, saveNetworkDef } from './settingsService';
 
 /** タブ。 */
 type TabId = 'segments' | 'behavior' | 'display' | 'patterns';
 
 const TABS: readonly { readonly id: TabId; readonly label: string }[] = [
-  { id: 'segments', label: '区間所要時間' },
+  { id: 'segments', label: '区間' },
   { id: 'behavior', label: '動作' },
   { id: 'display', label: '表示' },
 ];
@@ -145,6 +149,8 @@ function SegmentsTab(props: SegmentsTabProps): ReactElement {
   const trips = useAppStore(selectTrips);
   /** 打たれている文字。鍵は `segmentKey`。 */
   const [texts, setTexts] = useState<ReadonlyMap<string, string>>(new Map());
+  /** 打たれている距離の文字（km）。鍵は `segmentKey`。 */
+  const [kmTexts, setKmTexts] = useState<ReadonlyMap<string, string>>(new Map());
   const [confirming, setConfirming] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -174,18 +180,44 @@ function SegmentsTab(props: SegmentsTabProps): ReactElement {
     [trips, network, edits],
   );
 
+  /** 打たれた距離のうち、読み取れたもの。 */
+  const distanceEdits = useMemo<DistanceEdits>(() => {
+    const parsed = new Map<string, number>();
+    for (const [key, text] of kmTexts) {
+      const value = parseDistanceKm(text);
+      if (value !== null) parsed.set(key, value);
+    }
+    return parsed;
+  }, [kmTexts]);
+
+  const invalidKm = useMemo(
+    () =>
+      [...kmTexts.entries()]
+        .filter(([, text]) => parseDistanceKm(text) === null)
+        .map(([key]) => key),
+    [kmTexts],
+  );
+  const changedKm = useMemo(
+    () => (network === null ? new Map<string, number>() : changedDistances(network, distanceEdits)),
+    [network, distanceEdits],
+  );
+
   const reset = (): void => {
     setTexts(new Map());
+    setKmTexts(new Map());
     setConfirming(false);
     setMessage(null);
   };
 
   const apply = (): void => {
-    const result = applySegmentEdits(useAppStore, changed);
+    const result = applySegmentEdits(useAppStore, changed, changedKm);
     setConfirming(false);
     setMessage(result.message);
     props.onNotice?.(result.message);
-    if (result.ok) setTexts(new Map());
+    if (result.ok) {
+      setTexts(new Map());
+      setKmTexts(new Map());
+    }
   };
 
   const save = (): void => {
@@ -211,12 +243,19 @@ function SegmentsTab(props: SegmentsTabProps): ReactElement {
           <tr>
             <th scope="col">区間</th>
             <th scope="col">所要時間</th>
+            <th scope="col">距離</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((row) => {
             const text = texts.get(row.key) ?? String(row.runMinutes);
             const bad = parseRunMinutes(text) === null;
+            // **未設定は空欄。** 0 と見分けられないと、入力漏れが「距離 0」に
+            // 化ける（仕様書 v1.1 §6.1.4）。
+            const kmText =
+              kmTexts.get(row.key) ??
+              (row.distanceMeters === undefined ? '' : String(row.distanceMeters / METERS_PER_KM));
+            const badKm = kmText !== '' && parseDistanceKm(kmText) === null;
             return (
               <tr key={row.key} className={row.isDeadhead ? 'settings__row--deadhead' : undefined}>
                 <th scope="row">
@@ -244,6 +283,33 @@ function SegmentsTab(props: SegmentsTabProps): ReactElement {
                   />{' '}
                   分
                 </td>
+                <td>
+                  {/*
+                    **距離を変えても便の時刻は動かない**（#161、仕様書 v1.1 §6.1.3）。
+                    時刻を決めるのは所要時間だけであり、「何便に効くか」の数にも
+                    入らない。**5 の倍数の縛りも掛けない**——5 分刻みはダイヤの側の
+                    決まりであって、距離にその制約は無い。
+                  */}
+                  <input
+                    className={
+                      badKm ? 'settings__minutes settings__minutes--invalid' : 'settings__minutes'
+                    }
+                    type="number"
+                    step={0.1}
+                    min={0}
+                    inputMode="decimal"
+                    aria-label={`${row.label} の距離（km）`}
+                    aria-invalid={badKm}
+                    value={kmText}
+                    onChange={(event) => {
+                      const next = new Map(kmTexts);
+                      next.set(row.key, event.target.value);
+                      setKmTexts(next);
+                      setConfirming(false);
+                    }}
+                  />{' '}
+                  km
+                </td>
               </tr>
             );
           })}
@@ -257,11 +323,28 @@ function SegmentsTab(props: SegmentsTabProps): ReactElement {
         </p>
       )}
 
-      {/* 適用の前に、何便に効くのかを出す（§6.5.1）。 */}
+      {invalidKm.length > 0 && (
+        <p className="settings__error">
+          距離は 0 以上の数で入れてください（{invalidKm.length} 件が受け取れません）
+        </p>
+      )}
+
+      {/*
+        適用の前に、何便に効くのかを出す（§6.5.1）。
+
+        **距離は便数に数えない**（#161、仕様書 v1.1 §6.1.3）。時刻を決めるのは
+        所要時間だけであり、距離を変えても便は動かない。数に混ぜると、動かない
+        変更まで「N 便に効く」と読めてしまう。
+      */}
       {changed.size > 0 && (
         <p className="settings__affected">
-          {changed.size} 区間の変更。<strong>{affected} 便</strong>の時刻が変わります
+          所要時間 {changed.size} 区間の変更。<strong>{affected} 便</strong>の時刻が変わります
           （各便のアンカーの時刻は変わりません）
+        </p>
+      )}
+      {changedKm.size > 0 && (
+        <p className="settings__affected">
+          距離 {changedKm.size} 区間の変更。<strong>便の時刻は変わりません</strong>
         </p>
       )}
 
@@ -286,7 +369,9 @@ function SegmentsTab(props: SegmentsTabProps): ReactElement {
         ) : (
           <button
             type="button"
-            disabled={changed.size === 0 || invalid.length > 0}
+            disabled={
+              changed.size + changedKm.size === 0 || invalid.length > 0 || invalidKm.length > 0
+            }
             onClick={() => {
               setConfirming(true);
             }}
@@ -294,7 +379,7 @@ function SegmentsTab(props: SegmentsTabProps): ReactElement {
             変更を適用
           </button>
         )}
-        <button type="button" disabled={texts.size === 0} onClick={reset}>
+        <button type="button" disabled={texts.size + kmTexts.size === 0} onClick={reset}>
           入力を元に戻す
         </button>
         <button type="button" onClick={save}>
@@ -445,11 +530,14 @@ function PatternStyles(): ReactElement {
   const choices = useAppStore((state) => state.settings.patternStyles);
   const setSettings = useAppStore((state) => state.setSettings);
 
-  // 回送は並べない。**回送かどうかはパターンの好みではない**（線種は破線で固定）。
-  const patterns = useMemo(
-    () => (network === null ? [] : network.def.patterns.filter((pattern) => !pattern.isDeadhead)),
-    [network],
-  );
+  /*
+   * **回送も並べる**（#179、2026-08-05 改め）。
+   *
+   * 当初は「回送かどうかはパターンの好みではない」として外していた。**その線を
+   * どう見分けたいかはその人の目の話**であり、営業パターンと変わらない。運用で
+   * 着色すると回送は元の便と同じ色になり、太さの違いだけが手掛かりになる。
+   */
+  const patterns = useMemo(() => network?.def.patterns ?? [], [network]);
   const styles = useMemo(
     () => (network === null ? null : patternStyles(network.def.patterns, choices)),
     [network, choices],

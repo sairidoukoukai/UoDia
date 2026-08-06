@@ -11,15 +11,18 @@ import { fileURLToPath } from 'node:url';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createProject } from '@/domain/io';
 import type { Trip } from '@/domain/model';
-import { buildNetworkIndex, loadNetworkDef, type NetworkIndex } from '@/domain/network';
+import { buildNetworkIndex, loadNetworkDef, segmentKey, type NetworkIndex } from '@/domain/network';
 import { fromHM } from '@/domain/time';
 import { allTimes } from '@/domain/trip';
 import { createAppStore, selectNetwork, selectTrips, type AppStoreHook } from '@/store';
 import {
   affectedTripCount,
+  changedDistances,
   changedEdits,
+  parseDistanceKm,
   parseRunMinutes,
   segmentRows,
+  withDistances,
   withRunMinutes,
 } from './segments';
 import { applySegmentEdits } from './settingsService';
@@ -202,5 +205,58 @@ describe('適用したあとの時刻（受入条件）', () => {
 
     expect(current?.runMinutes('1_0', '2_0')).toBe(30);
     expect(buildNetworkIndex(current!.def).runMinutes('1_0', '2_0')).toBe(30);
+  });
+});
+
+describe('parseDistanceKm（#161）', () => {
+  it('km を打つとメートルで返る', () => {
+    expect(parseDistanceKm('8.5')).toBe(8500);
+    expect(parseDistanceKm('0')).toBe(0);
+  });
+
+  it('全角も受け取る', () => {
+    expect(parseDistanceKm('６．４')).toBe(6400);
+  });
+
+  it('**5 の倍数の縛りは掛けない**（5 分刻みはダイヤの側の決まりである）', () => {
+    expect(parseDistanceKm('1.3')).toBe(1300);
+    expect(parseDistanceKm('7')).toBe(7000);
+  });
+
+  it('100m 未満は近いほうへ丸める', () => {
+    expect(parseDistanceKm('1.25')).toBe(1250);
+  });
+
+  it('数でなければ受け取らない', () => {
+    for (const text of ['', 'あ', '-1', '1.2.3', '1 km']) {
+      expect(parseDistanceKm(text)).toBeNull();
+    }
+  });
+});
+
+describe('changedDistances / withDistances（#161）', () => {
+  it('今の値と違うものだけを残す', () => {
+    const same = new Map([[TOYONAKA_TO_MINOH, 6400]]);
+    expect(changedDistances(network, same).size).toBe(0);
+
+    const changed = new Map([[TOYONAKA_TO_MINOH, 6500]]);
+    expect(changedDistances(network, changed).get(TOYONAKA_TO_MINOH)).toBe(6500);
+  });
+
+  it('**距離を変えても所要時間は動かない**（時刻を決めるのは所要時間だけ）', () => {
+    const next = withDistances(network.def, new Map([[TOYONAKA_TO_MINOH, 9999]]));
+    const segment = next.segments.find(
+      (s) => segmentKey(s.fromStopId, s.toStopId) === TOYONAKA_TO_MINOH,
+    );
+
+    expect(segment?.distanceMeters).toBe(9999);
+    expect(segment?.runMinutes).toBe(20);
+  });
+
+  it('元の定義は変えない', () => {
+    const before = network.def.segments.map((s) => s.distanceMeters);
+    withDistances(network.def, new Map([[TOYONAKA_TO_MINOH, 1]]));
+
+    expect(network.def.segments.map((s) => s.distanceMeters)).toEqual(before);
   });
 });

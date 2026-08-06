@@ -26,6 +26,7 @@ function stop(stopId: string, shortName: string, axisPosition: number): SceneSto
 const SCENE: DiagramScene = {
   stops: [stop('toyonaka', '豊中', 0), stop('minoh', '箕面', 40)],
   trips: [],
+  blockLinks: [],
   selectedTripIds: new Set(),
   selectionRect: null,
   tripShift: null,

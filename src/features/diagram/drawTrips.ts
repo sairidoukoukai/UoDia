@@ -33,6 +33,27 @@ const TRIP_WIDTH = 1.5;
 const DEADHEAD_WIDTH = 1;
 
 /**
+ * 折返しの接続線（#167、T-62、仕様書 v1.1 §5.3）。
+ *
+ * **実線で引く。** 破線にすると、停留所線・格子・回送のヒゲと刻みが混ざって
+ * 読みにくい。回送のヒゲと見分けるのは**太さと位置**である——ヒゲは停留所線の
+ * 上から伸び、接続線は段のぶんだけ離れた場所を水平に走る。
+ */
+const LINK_WIDTH = 1.5;
+
+/**
+ * 段 1 つぶんのずらし幅（px）。
+ *
+ * **拡大率によらない。** 回送のヒゲと同じく、これは絵の記号の大きさであって
+ * 距離でも時間でもない。軸の単位でずらすと、縦に拡げるたびに段の間隔が開き、
+ * 離れた停留所の線に見える。
+ *
+ * 停車点の丸（半径 3.5px）と線幅を跨いで離れる幅にする。**近すぎると、
+ * 何段あるのかも、どれが停留所線なのかも読めない。**
+ */
+const LINK_LEVEL_OFFSET = 7;
+
+/**
  * 営業所側へ伸ばす「ヒゲ」の長さ（px。#118、仕様書 §6.2.2）。
  *
  * **軸の単位ではなく画面の量で持つ。** 軸の単位で決めると、縦に拡げるたびに
@@ -41,8 +62,12 @@ const DEADHEAD_WIDTH = 1;
  *
  * 伸ばす向きは下と決める。営業所は縦軸の外——一番下の停留所線より先にあるものと
  * して描いていた（v4.15 の営業所レーン）読み方をそのまま引き継ぐ。
+ *
+ * **15px から 30px に改めた**（#179、2026-08-05）。出入区の有無を絵から読み取る
+ * ための記号でありながら、停車点の丸（半径 3.5px）や選択のつまみ（7px）と同じ
+ * 桁では、**線が少し飛び出しただけに見えていた。**
  */
-export const STUB_LENGTH = 15;
+export const STUB_LENGTH = 30;
 
 /** 選択されたスジの太さ（仕様書 §6.2.2）。細い回送も同じ比で太くする。 */
 const SELECTED_SCALE = 2;
@@ -64,6 +89,51 @@ const STOP_DOT_RADIUS = 3.5;
 
 /** 丸 1 周（ラジアン）。 */
 const FULL_CIRCLE = Math.PI * 2;
+
+/**
+ * 折返しの接続線を引く（#167、T-62）。
+ *
+ * **スジより先に引く。** 便そのものの線が上に来るようにするためであり、
+ * 繋がりは便を読むための手掛かりであって、便より目立ってはならない。
+ */
+function drawBlockLinks(ctx: DrawContext, scene: DiagramScene, viewport: Viewport): void {
+  if (scene.blockLinks.length === 0) return;
+
+  ctx.save();
+  ctx.lineWidth = LINK_WIDTH;
+
+  for (const link of scene.blockLinks) {
+    const onStop = axisToY(axisOf(link.stopId, scene), viewport);
+    const offset = link.level * LINK_LEVEL_OFFSET * link.direction;
+    const left = timeToX(link.from, viewport);
+    const right = timeToX(link.to, viewport);
+
+    /*
+     * **停留所の点まで繋ぐ**（#167）。段のぶんだけ離した水平線だけを引くと、
+     * 便の端点と接続線のあいだが空いて、**どの便から続いているのかが読めない。**
+     *
+     * 斜めに降りる幅は段のずらし幅と同じにする——45 度になるため、どの段でも
+     * 同じ角度で降りる。滞泊が短くて幅が足りないときは半分ずつに詰め、
+     * **水平部分が無くなっても三角形として繋がる。**
+     */
+    const slant = Math.min(Math.abs(offset), (right - left) / 2);
+
+    ctx.strokeStyle = link.color;
+    ctx.beginPath();
+    ctx.moveTo(left, onStop);
+    ctx.lineTo(left + slant, onStop + offset);
+    ctx.lineTo(right - slant, onStop + offset);
+    ctx.lineTo(right, onStop);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+/** 停留所の軸位置。縦軸に無い停留所は 0 とする（接続線は引かれない）。 */
+function axisOf(stopId: string, scene: DiagramScene): number {
+  return scene.stops.find((stop) => stop.stopId === stopId)?.axisPosition ?? 0;
+}
 
 /** 便番号ラベル。 */
 const LABEL_FONT = '11px system-ui, sans-serif';
@@ -114,6 +184,8 @@ export function drawTrips(ctx: DrawContext, scene: DiagramScene, viewport: Viewp
     viewport.height - viewport.originY,
   );
   ctx.clip();
+
+  drawBlockLinks(ctx, scene, viewport);
 
   const drawn = tripPolylines(scene, viewport);
 

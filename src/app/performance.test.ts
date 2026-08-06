@@ -96,6 +96,7 @@ function makeProject(): Project {
       hiddenBlockIds: [],
       hiddenDirections: [],
       showDeadhead: true,
+      showBlockLinks: true,
       validationPanelOpen: true,
       blockColors: {},
     },

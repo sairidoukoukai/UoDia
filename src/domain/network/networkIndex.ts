@@ -60,6 +60,14 @@ export interface NetworkIndex {
   readonly patternIndexes: readonly PatternIndex[];
   /** 有向区間の所要時間（分）。区間表に無ければ `undefined`。 */
   runMinutes(fromStopId: string, toStopId: string): number | undefined;
+  /**
+   * 区間距離（メートル。#161）。
+   *
+   * **区間が無いときと、距離が入っていないときを区別しない。** どちらも
+   * `undefined` を返す——呼ぶ側にとっては「その区間の距離が分からない」で
+   * あり、合計を出せないことに変わりが無い（仕様書 v1.1 §6.1.4）。
+   */
+  distanceMeters(fromStopId: string, toStopId: string): number | undefined;
   patternIndex(patternId: string): PatternIndex | undefined;
 }
 
@@ -79,6 +87,15 @@ export function buildNetworkIndex(def: NetworkDef): NetworkIndex {
   const runMinutes = (fromStopId: string, toStopId: string): number | undefined =>
     runMinutesByKey.get(segmentKey(fromStopId, toStopId));
 
+  const distanceByKey = new Map(
+    def.segments
+      .filter((s) => s.distanceMeters !== undefined)
+      .map((s) => [segmentKey(s.fromStopId, s.toStopId), s.distanceMeters]),
+  );
+
+  const distanceMeters = (fromStopId: string, toStopId: string): number | undefined =>
+    distanceByKey.get(segmentKey(fromStopId, toStopId));
+
   const patternIndexes = new Map(
     def.patterns.map((p) => [p.patternId, buildPatternIndex(p, runMinutes)]),
   );
@@ -88,6 +105,7 @@ export function buildNetworkIndex(def: NetworkDef): NetworkIndex {
     findStop: (stopId) => stops.get(stopId),
     findPattern: (patternId) => patterns.get(patternId),
     runMinutes,
+    distanceMeters,
     patternIndex: (patternId) => patternIndexes.get(patternId),
     patternIndexes: [...patternIndexes.values()],
   };

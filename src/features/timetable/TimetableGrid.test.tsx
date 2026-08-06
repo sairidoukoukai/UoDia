@@ -16,6 +16,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import routeJson from '../../../data/route.json?raw';
 import type { Trip } from '@/domain/model';
 import { loadNetworkDef, type NetworkIndex } from '@/domain/network';
+import type { TripMark } from '@/features/validation';
 import { fromHM, type Seconds } from '@/domain/time';
 import { allTimes, numberTrips } from '@/domain/trip';
 import type { CellPosition } from './editing';
@@ -90,6 +91,8 @@ interface RenderExtras {
   readonly onTogglePullOut?: (tripId: string) => void;
   readonly onTogglePullIn?: (tripId: string) => void;
   readonly onChangePattern?: (tripId: string, patternId: string) => void;
+  /** 便ごとの検証の印（T-61、#165）。既定は印なし。 */
+  readonly issueMarks?: ReadonlyMap<string, TripMark>;
   readonly onClearTime?: (tripId: string) => void;
   /**
    * 便の右に並べる空の列の数（T-52）。
@@ -126,6 +129,7 @@ function render(
         timetable={timetable}
         onCommit={onCommit}
         selectedTripIds={extras.selectedTripIds ?? []}
+        issueMarks={extras.issueMarks ?? new Map<string, TripMark>()}
         onSelectTrip={extras.onSelectTrip ?? (() => undefined)}
         onRemoveSelection={extras.onRemoveSelection ?? (() => undefined)}
         blockColors={blockColorsOf(trips)}
@@ -152,7 +156,7 @@ function headTexts(): (string | null)[] {
   });
 }
 
-/** 停留所の行の見出し。前運用・後運用の行（T-50）は除く。 */
+/** 停留所の行の見出し。前運用・次運用の行（T-50）は除く。 */
 function stopHeadings(): (string | null)[] {
   return [...container.querySelectorAll('tbody .timetable__stop')].map((th) => th.textContent);
 }
@@ -288,7 +292,7 @@ describe('見出し', () => {
     expect(blockField(0).placeholder).toBe('―');
   });
 
-  it('**列になるのは営業便だけ**（回送は前運用・後運用の欄に出る。T-51）', () => {
+  it('**列になるのは営業便だけ**（回送は前運用・次運用の欄に出る。T-51）', () => {
     render([makeTrip('S1', 8, 0, { pullOut: true }), makeTrip('S1', 9, 0)]);
     expect(columnHeaders()).toEqual(['便番号', 'E1', 'E2']);
   });
@@ -310,12 +314,78 @@ describe('升目（受入条件）', () => {
     expect(rowOf('箕面')).toEqual(['−', '8:50']);
   });
 
-  it('**アンカーの升目が目印で分かる**', () => {
+  /*
+   * 検証の印（T-61、#165、仕様書 v1.1 §5.2）。
+   *
+   * 検証の指摘は検証パネルにしか出ていなかった。**時刻表を見ているあいだ、
+   * どの列に問題があるのかが分からない。**
+   */
+  describe('検証の印（T-61、#165）', () => {
+    const mark = (severity: 'error' | 'warning' | 'info', count = 1): TripMark => ({
+      severity,
+      message: `${severity} の説明`,
+      count,
+    });
+
+    /** 便 1 本を出し、その列に印を付けた表を描く。 */
+    function withMark(m: TripMark): HTMLElement {
+      const trips = [makeTrip('S1', 8, 0)];
+      render(trips, undefined, { issueMarks: new Map([[trips[0]?.tripId ?? '', m]]) });
+      const head = container.querySelector<HTMLElement>('th[data-trip-id]');
+      if (head === null) throw new Error('列見出しがありません');
+      return head;
+    }
+
+    it('**エラーの列は地色が変わる**', () => {
+      expect(withMark(mark('error')).className).toContain('timetable__head--issue');
+    });
+
+    it('**警告・情報では地色を変えない**（全部塗ると表が塗り絵になる）', () => {
+      expect(withMark(mark('warning')).className).not.toContain('timetable__head--issue');
+      expect(withMark(mark('info')).className).not.toContain('timetable__head--issue');
+    });
+
+    it('記号・言葉・色の 3 つで示す（§9.4）', () => {
+      const head = withMark(mark('warning'));
+      const icon = head.querySelector('.timetable__issue');
+
+      expect(icon?.textContent).toBe('▲');
+      expect(icon?.getAttribute('aria-label')).toContain('警告');
+      expect(icon?.className).toContain('timetable__issue--warning');
+    });
+
+    it('指摘の文面をそのまま添える', () => {
+      expect(
+        withMark(mark('error')).querySelector('.timetable__issue')?.getAttribute('title'),
+      ).toBe('エラー: error の説明');
+    });
+
+    it('**2 件以上あるときは件数を添える**（印は最も重い 1 つだけ）', () => {
+      const icon = withMark(mark('error', 3)).querySelector('.timetable__issue');
+
+      expect(icon?.getAttribute('title')).toContain('ほか 2 件');
+      // 印そのものは 1 つ。並べると列が広がる（列の幅を決めるのは時刻である）。
+      expect(withMark(mark('error', 3)).querySelectorAll('.timetable__issue')).toHaveLength(1);
+    });
+
+    it('指摘の無い列には印を出さない', () => {
+      render([makeTrip('S1', 8, 0)]);
+      expect(container.querySelectorAll('.timetable__issue')).toHaveLength(0);
+    });
+
+    it('**升目には出さない**（悪いのは便の位置であって特定の停留所の時刻ではない）', () => {
+      const head = withMark(mark('error'));
+      expect(head.tagName).toBe('TH');
+      expect(container.querySelectorAll('td .timetable__issue')).toHaveLength(0);
+    });
+  });
+
+  it('**アンカーの升目に印を付けない**（T-60、#164）', () => {
     render([makeTrip('S1', 8, 0)]);
 
-    const anchors = [...container.querySelectorAll('.timetable__cell--anchor')];
-    expect(anchors).toHaveLength(1);
-    expect(anchors[0]?.textContent).toBe('8:00');
+    // どの升目に打っても同じように打てる（打った升目が基準になる）。
+    // **振る舞いが同じものを見た目で分ける理由が無い。**
+    expect(container.querySelectorAll('.timetable__cell--anchor')).toHaveLength(0);
   });
 
   it('**取扱区分の記号は出さない**（T-54、仕様書 §6.1.1）', () => {
@@ -795,19 +865,19 @@ describe('時刻を消す（T-52、仕様書 §6.1.2）', () => {
   });
 });
 
-describe('前運用・後運用（T-51、仕様書 §6.1.7）', () => {
-  /** 前運用・後運用の欄。 */
+describe('前運用・次運用（T-51、仕様書 §6.1.7）', () => {
+  /** 前運用・次運用の欄。 */
   function linkCells(title: string): (string | null)[] {
     return [...container.querySelectorAll<HTMLElement>(`[aria-label$="の${title}"]`)].map(
       (button) => button.textContent,
     );
   }
 
-  it('**上端が前運用、下端が後運用**', () => {
+  it('**上端が前運用、下端が次運用**', () => {
     render([makeTrip('S1', 8, 0)]);
     const headings = [...container.querySelectorAll('tbody th')].map((th) => th.textContent);
     expect(headings[0]).toBe('前運用');
-    expect(headings.at(-1)).toBe('後運用');
+    expect(headings.at(-1)).toBe('次運用');
   });
 
   it('**出区・入区が付いていれば車庫側の時刻を出す**', () => {
@@ -815,7 +885,7 @@ describe('前運用・後運用（T-51、仕様書 §6.1.7）', () => {
     render([makeTrip('S1', 8, 0, { pullOut: true, pullIn: true })]);
 
     expect(linkCells('前運用')).toEqual(['7:40']);
-    expect(linkCells('後運用')).toEqual(['8:50']);
+    expect(linkCells('次運用')).toEqual(['8:50']);
   });
 
   it('**運用番号が空欄でも時刻が出る**（出区の表示は運用に依らない。T-51）', () => {
@@ -841,15 +911,15 @@ describe('前運用・後運用（T-51、仕様書 §6.1.7）', () => {
     const westbound = makeTrip('T1', 8, 40, { blockId: 'A' });
     render([trip], undefined, { allTrips: [trip, westbound] });
 
-    // 表に出るのは吹田方面の便だけ。その後運用に豊中方面の便番号が出る。
-    expect(linkCells('後運用')).toEqual(['W1']);
+    // 表に出るのは吹田方面の便だけ。その次運用に豊中方面の便番号が出る。
+    expect(linkCells('次運用')).toEqual(['W1']);
     expect(linkCells('前運用')).toEqual(['']);
   });
 
   it('繋がっていなければ空欄', () => {
     render([makeTrip('S1', 8, 0)]);
     expect(linkCells('前運用')).toEqual(['']);
-    expect(linkCells('後運用')).toEqual(['']);
+    expect(linkCells('次運用')).toEqual(['']);
   });
 
   it('**押すと出区・入区を切り替える**', () => {
@@ -865,7 +935,7 @@ describe('前運用・後運用（T-51、仕様書 §6.1.7）', () => {
       });
     };
     press('前運用');
-    press('後運用');
+    press('次運用');
 
     expect(onTogglePullOut).toHaveBeenCalledWith(trips[0]?.tripId);
     expect(onTogglePullIn).toHaveBeenCalledWith(trips[0]?.tripId);
@@ -875,7 +945,7 @@ describe('前運用・後運用（T-51、仕様書 §6.1.7）', () => {
     render([makeTrip('S1', 8, 0, { pullOut: true })]);
 
     const before = container.querySelector('[aria-label$="の前運用"]');
-    const after = container.querySelector('[aria-label$="の後運用"]');
+    const after = container.querySelector('[aria-label$="の次運用"]');
     expect(before?.getAttribute('aria-pressed')).toBe('true');
     expect(after?.getAttribute('aria-pressed')).toBe('false');
   });
@@ -886,7 +956,7 @@ describe('前運用・後運用（T-51、仕様書 §6.1.7）', () => {
     const westbound = makeTrip('T1', 8, 40, { blockId: 'A' });
     render([trip], undefined, { allTrips: [trip, westbound], onTogglePullIn });
 
-    const after = container.querySelector<HTMLButtonElement>('[aria-label$="の後運用"]');
+    const after = container.querySelector<HTMLButtonElement>('[aria-label$="の次運用"]');
     expect(after?.disabled).toBe(false);
     act(() => {
       after?.dispatchEvent(new MouseEvent('click', { bubbles: true }));

@@ -37,6 +37,7 @@ import {
   type TripShift,
 } from '@/store';
 import { readableOn } from './color';
+import { buildBlockLinks, type BlockLinkEntry, type SceneBlockLink } from './blockLinks';
 import { patternStyles, SOLID } from './tripStyle';
 
 /** 縦軸に並ぶ停留所。 */
@@ -127,6 +128,8 @@ export interface SceneTheme {
 export interface DiagramScene {
   readonly stops: readonly SceneStop[];
   readonly trips: readonly SceneTrip[];
+  /** 折返しの接続線（#167、仕様書 v1.1 §5.3）。 */
+  readonly blockLinks: readonly SceneBlockLink[];
   /** 選択されている**保存されている便**の ID（`SceneTrip.sourceTripId` と照合する）。 */
   readonly selectedTripIds: ReadonlySet<string>;
   /** 引きずっている最中の選択の枠（仕様書 §6.3.1、T-28）。掴んでいなければ `null`。 */
@@ -142,6 +145,8 @@ interface SceneFilter {
   readonly blocks: ReadonlySet<string>;
   readonly directions: ReadonlySet<DirectionId>;
   readonly showDeadhead: boolean;
+  /** 折返しの接続線を出すか（#167）。 */
+  readonly showBlockLinks: boolean;
 }
 
 const NO_STOPS: readonly SceneStop[] = [];
@@ -201,13 +206,36 @@ const filterOf = memoizeByIdentity(
     hiddenBlockIds: readonly string[],
     hiddenDirections: readonly DirectionId[],
     showDeadhead: boolean,
+    showBlockLinks: boolean,
   ): SceneFilter => ({
     patterns: new Set(hiddenPatternIds),
     blocks: new Set(hiddenBlockIds),
     directions: new Set(hiddenDirections),
     showDeadhead,
+    showBlockLinks,
   }),
 );
+
+/**
+ * スジ 1 本の色（§6.2.4、§9.4）。
+ *
+ * **接続線（#167）も同じ関数を通る。** 別々に決めると、前便と接続線が違う色に
+ * なる——接続線はそこから続く線である。
+ */
+function colorOfTrip(
+  blockColors: ReadonlyMap<string, string> | null,
+  styles: ReturnType<typeof stylesOf>,
+  trip: Trip,
+  patternColor: string,
+  background: string,
+): string {
+  // **持っている色は 1 つ。** 暗い配色では明るさだけを調えて出す（`readableOn`）。
+  // route.json の値は書き換えない。
+  return readableOn(
+    blockColors?.get(trip.blockId) ?? styles.get(trip.patternId)?.color ?? patternColor,
+    background,
+  );
+}
 
 const tripsOf = memoizeByIdentity(
   (
@@ -269,14 +297,7 @@ const tripsOf = memoizeByIdentity(
         tripId: trip.tripId,
         sourceTripId: source,
         patternId: trip.patternId,
-        // **持っている色は 1 つ。** 暗い配色では明るさだけを調えて出す
-        // （`readableOn`）。route.json の値は書き換えない。
-        color: readableOn(
-          blockColors?.get(trip.blockId) ??
-            styles.get(trip.patternId)?.color ??
-            pattern.pattern.color,
-          background,
-        ),
+        color: colorOfTrip(blockColors, styles, trip, pattern.pattern.color, background),
         lineDash: styles.get(trip.patternId)?.lineDash ?? SOLID,
         directionId: pattern.pattern.directionId,
         isDeadhead: pattern.pattern.isDeadhead,
@@ -307,10 +328,76 @@ function shownTrips(
   });
 }
 
+const NO_LINKS: readonly SceneBlockLink[] = [];
+
+/**
+ * 折返しの接続線（#167、T-62）。
+ *
+ * **回送便を落とす前に組む。** 出入区を隠していても、車庫へ帰る運用に線を
+ * 引いてはならない——隠したのは見え方の話であって、そこで待っていなかった
+ * という事実は変わらない。
+ */
+const linksOf = memoizeByIdentity(
+  (
+    trips: readonly Trip[],
+    network: NetworkIndex,
+    stops: readonly SceneStop[],
+    visible: ReadonlySet<string>,
+    filter: SceneFilter,
+    colorMode: ColorMode,
+    background: string,
+    patternChoices: Readonly<Record<string, PatternStyleChoice>>,
+    blockChoices: Readonly<Record<string, string>>,
+  ): readonly SceneBlockLink[] => {
+    if (!filter.showBlockLinks) return NO_LINKS;
+
+    const styles = stylesOf(network, patternChoices);
+    const blockColors =
+      colorMode === 'block'
+        ? assignBlockColors(
+            trips.map((trip) => trip.blockId).filter((blockId) => blockId !== ''),
+            undefined,
+            blockChoices,
+          )
+        : null;
+
+    const entries: BlockLinkEntry[] = [];
+    for (const trip of expandDeadheads(shownTrips(trips, network, filter), network)) {
+      const pattern = network.patternIndex(trip.patternId);
+      if (pattern === undefined) continue;
+
+      const times = allTimes(trip, network);
+      const originTime = times.get(pattern.originStopId);
+      const terminalTime = times.get(pattern.terminalStopId);
+      if (originTime === undefined || terminalTime === undefined) continue;
+
+      entries.push({
+        blockId: trip.blockId,
+        color: colorOfTrip(blockColors, styles, trip, pattern.pattern.color, background),
+        originStopId: pattern.originStopId,
+        originTime,
+        terminalStopId: pattern.terminalStopId,
+        terminalTime,
+        onAxis: visible.has(pattern.originStopId) && visible.has(pattern.terminalStopId),
+      });
+    }
+
+    const positions = new Map(stops.map((stop) => [stop.stopId, stop.axisPosition]));
+    const values = [...positions.values()];
+    const midpoint = values.length === 0 ? 0 : (Math.min(...values) + Math.max(...values)) / 2;
+
+    return buildBlockLinks(entries, {
+      of: (stopId: string) => positions.get(stopId),
+      midpoint,
+    });
+  },
+);
+
 const sceneOf = memoizeByIdentity(
   (
     stops: readonly SceneStop[],
     trips: readonly SceneTrip[],
+    blockLinks: readonly SceneBlockLink[],
     selectedTripIds: readonly string[],
     selectionRect: SelectionRect | null,
     tripShift: TripShift | null,
@@ -318,6 +405,7 @@ const sceneOf = memoizeByIdentity(
   ): DiagramScene => ({
     stops,
     trips,
+    blockLinks,
     selectedTripIds: new Set(selectedTripIds),
     selectionRect,
     tripShift,
@@ -344,6 +432,7 @@ export function selectDiagramScene(state: AppState, theme: SceneTheme): DiagramS
     view?.hiddenBlockIds ?? NO_IDS,
     view?.hiddenDirections ?? NO_DIRECTIONS,
     view?.showDeadhead ?? true,
+    view?.showBlockLinks ?? true,
   );
 
   return sceneOf(
@@ -357,6 +446,19 @@ export function selectDiagramScene(state: AppState, theme: SceneTheme): DiagramS
           filter,
           view?.colorMode ?? 'pattern',
           selectTripNumbers(state),
+          theme.background,
+          state.settings.patternStyles,
+          view?.blockColors ?? NO_BLOCK_COLORS,
+        ),
+    network === null
+      ? NO_LINKS
+      : linksOf(
+          selectTrips(state),
+          network,
+          stops,
+          visibleIdsOf(stops),
+          filter,
+          view?.colorMode ?? 'pattern',
           theme.background,
           state.settings.patternStyles,
           view?.blockColors ?? NO_BLOCK_COLORS,

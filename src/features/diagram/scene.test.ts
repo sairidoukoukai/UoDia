@@ -193,9 +193,17 @@ describe('スジの色と線種', () => {
     expect(tripOf('t1')?.color).toBe(network.findPattern('S1')?.color);
   });
 
-  it('**回送の線種は上書きされない**（回送かどうかは好みではない）', () => {
+  it('**回送の線種も上書きできる**（#179）', () => {
+    // その線をどう見分けたいかはその人の目の話であり、営業パターンと変わらない。
     setTrips([makeTrip('t1', 'S1', [8, 0], { pullOut: true })]);
     store.getState().setSettings({ patternStyles: { 'DT-out': { dash: 'solid' } } });
+
+    const deadhead = selectDiagramScene(state(), theme).trips.find((trip) => trip.isDeadhead);
+    expect(deadhead?.lineDash).toEqual([]);
+  });
+
+  it('上書きしていない回送は route.json のまま（破線）', () => {
+    setTrips([makeTrip('t1', 'S1', [8, 0], { pullOut: true })]);
 
     const deadhead = selectDiagramScene(state(), theme).trips.find((trip) => trip.isDeadhead);
     expect(deadhead?.lineDash).toEqual([5, 4]);

@@ -226,7 +226,11 @@ describe('loadProject — 失敗する段階を区別する', () => {
 
 describe('loadProject — 警告（仕様書 §7.3）', () => {
   it('W-01: route.json の版数が違えば警告する', () => {
-    const json = serializeProject(makeProject()).replace('"routeVersion": 1', '"routeVersion": 9');
+    // 版数そのものは何でもよい。**食い違っていること**だけが要る。
+    const json = serializeProject(makeProject()).replace(
+      /"routeVersion": \d+/,
+      '"routeVersion": 9',
+    );
     const { warnings } = loadOrThrow(json);
     expect(warnings.map((w) => w.id)).toContain('W-01');
   });

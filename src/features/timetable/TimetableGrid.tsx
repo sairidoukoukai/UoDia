@@ -15,6 +15,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
 import type { StopPattern } from '@/domain/model';
 import { formatTime } from '@/domain/time';
+import { SEVERITY_LABEL, SEVERITY_MARK, type TripMark } from '@/features/validation';
 import {
   initialEditText,
   movePosition,
@@ -47,6 +48,14 @@ export interface TimetableGridProps {
   readonly onCommit: (at: CellPosition, text: string) => CommitResult;
   /** 選択中の便（仕様書 §6.3.1）。列見出しと升目の色に出す。 */
   readonly selectedTripIds: readonly string[];
+  /**
+   * 便ごとの検証の印（T-61、#165、仕様書 v1.1 §5.2）。
+   *
+   * **列見出しに出す。升目には出さない。** 指摘は便に対して出るものであり、
+   * 升目に塗ると「この時刻が悪い」と読めるが、悪いのは便の位置であって
+   * 特定の停留所の時刻ではない。
+   */
+  readonly issueMarks: ReadonlyMap<string, TripMark>;
   /**
    * 列見出しが押された。`additive` は <kbd>Ctrl</kbd> 等を伴う押下。
    *
@@ -96,7 +105,7 @@ export interface TimetableGridProps {
    */
   readonly tripNumbers: ReadonlyMap<string, string>;
   /**
-   * 前運用・後運用の欄が押された（仕様書 §6.1.7）。
+   * 前運用・次運用の欄が押された（仕様書 §6.1.7）。
    *
    * 押すと出区・入区が付き、もう一度押すと外れる。**時刻も経路も決めるものが
    * 無い**ため、切り替えだけで足りる（0 分折返し）。
@@ -164,6 +173,7 @@ export function TimetableGrid(props: TimetableGridProps): ReactElement {
     selected: column !== null && selected.has(column.trip.tripId),
     sameBlock:
       column !== null && highlightedBlockId !== '' && column.trip.blockId === highlightedBlockId,
+    issue: column === null ? null : (props.issueMarks.get(column.trip.tripId) ?? null),
   });
 
   const [focus, setFocus] = useState<CellPosition | null>(null);
@@ -300,46 +310,50 @@ export function TimetableGrid(props: TimetableGridProps): ReactElement {
           <tr>
             {/*
               左の列は**行の名前**を並べる列である（便番号・パターン・運用・
-              前運用・停留所名・後運用）。停留所名の列ではないため「停留所」とは
+              前運用・停留所名・次運用）。停留所名の列ではないため「停留所」とは
               名乗らない。停留所名の升目そのものが行見出しであり（`scope="row"`）、
               この列に列見出しは要らない。
             */}
             <th scope="row">便番号</th>
-            {slots.map((column, index) => (
-              <th
-                key={column?.trip.tripId ?? `empty-${String(index)}`}
-                scope="col"
-                className={columnClass(column?.pattern ?? null, marks(column))}
-                // 選ばれた便の列を探すための目印（T-34）。
-                data-trip-id={column?.trip.tripId}
-              >
-                {/*
+            {slots.map((column, index) => {
+              const columnMarks = marks(column);
+              return (
+                <th
+                  key={column?.trip.tripId ?? `empty-${String(index)}`}
+                  scope="col"
+                  className={columnClass(column?.pattern ?? null, columnMarks)}
+                  // 選ばれた便の列を探すための目印（T-34）。
+                  data-trip-id={column?.trip.tripId}
+                >
+                  {/*
                   列見出しは押しボタンにする。便を選ぶ手立てがここしか無く、
                   <th> のままではキーボードで辿り着けない（仕様書 §9.4）。
                   空の列は便ではないため、選べない。
                 */}
-                {column !== null && (
-                  <button
-                    type="button"
-                    className="timetable__column"
-                    aria-pressed={selected.has(column.trip.tripId)}
-                    onClick={(event) => {
-                      props.onSelectTrip(
-                        column.trip.tripId,
-                        event.ctrlKey || event.metaKey || event.shiftKey,
-                      );
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key !== 'Delete' && event.key !== 'Backspace') return;
-                      event.preventDefault();
-                      props.onRemoveSelection();
-                    }}
-                  >
-                    {tripNumbers.get(column.trip.tripId) ?? BLANK}
-                  </button>
-                )}
-              </th>
-            ))}
+                  {column !== null && (
+                    <button
+                      type="button"
+                      className="timetable__column"
+                      aria-pressed={selected.has(column.trip.tripId)}
+                      onClick={(event) => {
+                        props.onSelectTrip(
+                          column.trip.tripId,
+                          event.ctrlKey || event.metaKey || event.shiftKey,
+                        );
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key !== 'Delete' && event.key !== 'Backspace') return;
+                        event.preventDefault();
+                        props.onRemoveSelection();
+                      }}
+                    >
+                      {tripNumbers.get(column.trip.tripId) ?? BLANK}
+                    </button>
+                  )}
+                  {columnMarks.issue !== null && <IssueMark mark={columnMarks.issue} />}
+                </th>
+              );
+            })}
           </tr>
           <tr>
             <th scope="row">パターン</th>
@@ -434,7 +448,7 @@ export function TimetableGrid(props: TimetableGridProps): ReactElement {
         </thead>
         <tbody>
           {/*
-            前運用・後運用の行（仕様書 §6.1.7）。回送便を列にせず、ここに畳み込む。
+            前運用・次運用の行（仕様書 §6.1.7）。回送便を列にせず、ここに畳み込む。
             **前は必ず上端、後は必ず下端**にある。豊中方面では停留所の並びが逆に
             なるが（T-48）、時刻が上から下へ進むことは変わらないため、この位置は
             どちらのタブでも「手前」「その先」を指す。
@@ -495,7 +509,7 @@ export function TimetableGrid(props: TimetableGridProps): ReactElement {
             </tr>
           ))}
           <LinkRow
-            title="後運用"
+            title="次運用"
             action="入区"
             columns={slots}
             cellOf={(column) => column.links.next}
@@ -521,7 +535,7 @@ interface LinkRowProps {
   readonly onToggle: (tripId: string) => void;
 }
 
-/** 前運用・後運用の行（仕様書 §6.1.7）。 */
+/** 前運用・次運用の行（仕様書 §6.1.7）。 */
 function LinkRow(props: LinkRowProps): ReactElement {
   return (
     <tr>
@@ -567,7 +581,7 @@ function LinkRow(props: LinkRowProps): ReactElement {
   );
 }
 
-/** 前運用・後運用の欄に出す文字。 */
+/** 前運用・次運用の欄に出す文字。 */
 function linkText(cell: LinkCell): string {
   if (cell.kind === 'depot') return formatTime(cell.time);
   // 時刻を出せないまま空欄にすると「押しても何も起きない」に見える。
@@ -610,7 +624,6 @@ function Cell(props: CellProps): ReactElement {
   if (editing?.failure != null) classes.push('timetable__cell--invalid');
   if (cell.kind === 'notServed') classes.push('timetable__cell--notServed');
   if (cell.kind === 'empty') classes.push('timetable__cell--empty');
-  if (cell.kind === 'time' && cell.isAnchor) classes.push('timetable__cell--anchor');
 
   return (
     <td
@@ -695,6 +708,8 @@ interface ColumnMarks {
   readonly selected: boolean;
   /** 今照らしている運用番号と同じ便か（仕様書 §6.1.3）。 */
   readonly sameBlock: boolean;
+  /** 検証の指摘（T-61、#165）。無ければ `null`。 */
+  readonly issue: TripMark | null;
 }
 
 /**
@@ -705,7 +720,37 @@ interface ColumnMarks {
 function columnClass(pattern: StopPattern | null, marks: ColumnMarks): string {
   const classes = ['timetable__head'];
   if (pattern === null) classes.push('timetable__head--broken');
+  /*
+   * **地色を変えるのはエラーだけ**（仕様書 v1.1 §5.2.2、§9.3）。
+   *
+   * 情報（V-07 運用番号が空欄・V-08 時刻が未入力）は、白紙から作っているあいだ
+   * ほぼ全列に付く。**全部塗ると表が塗り絵になり、塗ってあることが情報でなくなる。**
+   * 警告・情報は記号だけで示す。
+   */
+  if (marks.issue?.severity === 'error') classes.push('timetable__head--issue');
   if (marks.sameBlock) classes.push('timetable__head--sameBlock');
   if (marks.selected) classes.push('timetable__head--selected');
   return classes.join(' ');
+}
+
+/**
+ * 列見出しに出す検証の印（T-61、#165）。
+ *
+ * **記号・言葉・色の 3 つで示す**（仕様書 §9.4）。色が見分けられなくても、
+ * 記号と読み上げ名で重大度が分かる。2 件以上あるときは件数を添える——印は
+ * 最も重い 1 つだけを出すため、**添えないと残りが数から消える。**
+ */
+function IssueMark({ mark }: { readonly mark: TripMark }): ReactElement {
+  const label = SEVERITY_LABEL[mark.severity];
+  const suffix = mark.count > 1 ? `ほか ${String(mark.count - 1)} 件` : '';
+  return (
+    <span
+      className={`timetable__issue timetable__issue--${mark.severity}`}
+      title={`${label}: ${mark.message}${suffix === '' ? '' : `（${suffix}）`}`}
+      aria-label={`${label}。${mark.message}${suffix === '' ? '' : `。${suffix}`}`}
+      role="img"
+    >
+      {SEVERITY_MARK[mark.severity]}
+    </span>
+  );
 }

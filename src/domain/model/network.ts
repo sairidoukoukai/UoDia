@@ -65,6 +65,22 @@ export const segmentSchema = z.object({
   fromStopId: idSchema,
   toStopId: idSchema,
   runMinutes: runMinutesSchema,
+  /**
+   * 区間距離（メートル。#161、仕様書 v1.1 §6.1）。
+   *
+   * **メートルの整数で持つ。** km の小数で足し合わせると丸め誤差が乗り、
+   * 10 区間を足して `12.299999999999999 km` と出る。ダイヤの検討に使う数として
+   * 信用されない。画面には km で小数第 1 位まで出す。
+   *
+   * **5 の倍数のような刻みは設けない。** 所要時間が 5 分刻みなのはダイヤ全体が
+   * 5 分刻みだからであり（仕様書 §2.1）、距離にその制約は無い。
+   *
+   * **省略できる。** 版数 1 の `route.json` は距離を持たないことが正しい状態で
+   * あり、読めなくすると古い定義で起動できなくなる。**未設定は「不明」であって
+   * 0 ではない**——0 に倒すと合計が静かに小さく出る。版数 2 以上で全区間に
+   * 入っていることは R-13 が検証する。
+   */
+  distanceMeters: z.number().int().min(0).optional(),
 });
 export type Segment = z.infer<typeof segmentSchema>;
 

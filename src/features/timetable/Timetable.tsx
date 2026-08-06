@@ -53,6 +53,7 @@ import {
   selectView,
   useAppStore,
 } from '@/store';
+import { tripMarks, useValidationIssues } from '@/features/validation';
 import { commitCellInput, type CellPosition } from './editing';
 import {
   DIRECTION_LABEL,
@@ -152,7 +153,18 @@ export function Timetable(): ReactElement {
     [serviceTrips, chosenBlockColors],
   );
 
-  // 前運用・後運用はダイヤの全便から決まる。運用は方向をまたぐため、表示中の
+  /*
+   * 検証の指摘から、便ごとの印を作る（T-61、#165）。
+   *
+   * **検証をここでも走らせる。** 検証パネル（`ValidationPanel`）も同じ hook を
+   * 使っており、計算は 2 回走る。`App` から両方へ配る形にもできるが、100 便で
+   * 数 ms の計算のために画面の組み立てを 1 段深くすることになる。**どちらも
+   * 同じ結果に落ち着くため、見え方が食い違うことは無い。**
+   */
+  const issues = useValidationIssues();
+  const issueMarks = useMemo(() => tripMarks(issues), [issues]);
+
+  // 前運用・次運用はダイヤの全便から決まる。運用は方向をまたぐため、表示中の
   // 方向だけを見ると繋がりの半分を見失う（仕様書 §6.1.7）。
   const links = useMemo<ReadonlyMap<string, TripLinks>>(
     () =>
@@ -498,6 +510,7 @@ export function Timetable(): ReactElement {
               onTogglePullIn={(tripId) => {
                 toggleDepotLink(tripId, 'pullIn', '入区の切り替え');
               }}
+              issueMarks={issueMarks}
             />
           </section>
         ))

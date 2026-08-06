@@ -18,6 +18,7 @@ import { clampDiagramView, diagramViewSchema, type DiagramView } from '@/domain/
 import { SECONDS_PER_MINUTE } from '@/domain/time';
 import type { DiagramScene } from './scene';
 import {
+  AXIS_EDGE_MARGIN,
   DIAGRAM_END_TIME,
   DIAGRAM_START_TIME,
   viewportOf,
@@ -93,7 +94,13 @@ export function scrollRanges(
 ): ScrollRanges {
   const visibleSeconds =
     ((viewport.width - viewport.originX) / view.pxPerMinute) * SECONDS_PER_MINUTE;
-  const visibleAxis = (viewport.height - viewport.originY) / view.pxPerAxisUnit;
+  /*
+   * **上下に余白を残す**（#171）。軸の写像（`axisToY`）が上の余白を空けており、
+   * 下も同じだけ残すために 2 つぶん引く。引かないと、一番下まで送ったときに
+   * 最後の停留所線が縁に張り付き、停車点の丸が切れる。
+   */
+  const visibleAxis =
+    (viewport.height - viewport.originY - AXIS_EDGE_MARGIN * 2) / view.pxPerAxisUnit;
 
   return {
     time: {
@@ -219,7 +226,14 @@ function zoomAxis(
   });
 
   return clampScroll(
-    { ...zoomed, scrollAxis: anchorAxis - (input.y - viewport.originY) / zoomed.pxPerAxisUnit },
+    {
+      ...zoomed,
+      // **`axisToY` の逆を解く。** 軸の写像は原点に余白を挟んでいるため
+      // （`AXIS_EDGE_MARGIN`、#171）、ここでも同じだけ引かないとカーソルの
+      // 下の停留所がずれる。
+      scrollAxis:
+        anchorAxis - (input.y - viewport.originY - AXIS_EDGE_MARGIN) / zoomed.pxPerAxisUnit,
+    },
     viewport,
     bounds,
   );

@@ -113,11 +113,21 @@ export function patternStyles(
     const choice = choices[pattern.patternId];
     styles.set(pattern.patternId, {
       color: choice?.color ?? pattern.color,
-      // **回送の線種は上書きさせない。** 回送かどうかはパターンの好みではない。
+      /*
+       * **回送の線種も上書きできる**（#179、2026-08-05 改め）。
+       *
+       * 当初は「回送かどうかはパターンの好みではない」として選ばせなかった。
+       * **その理由は色に当てはまらず、線種にも当てはまらなかった。** 回送が
+       * 回送であることは `isDeadhead` が決めているが、**その線をどう見分けたいか
+       * はその人の目の話**である。運用で着色すると回送は元の便と同じ色になり
+       * （§6.2.4）、太さの違いだけが手掛かりになる——そこを補えるようにする。
+       *
+       * 既定は変わらない（回送は破線、営業は種別から決まる）。
+       */
       lineDash:
-        choice?.dash !== undefined && !pattern.isDeadhead
-          ? DASH_BY_KIND[choice.dash]
-          : (dashes.get(pattern.patternId) ?? SOLID),
+        choice?.dash === undefined
+          ? (dashes.get(pattern.patternId) ?? SOLID)
+          : DASH_BY_KIND[choice.dash],
     });
   }
 

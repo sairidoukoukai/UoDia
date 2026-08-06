@@ -10,7 +10,14 @@ import { fromHM, type Seconds } from '@/domain/time';
 import { STUB_LENGTH, drawTrips, isTripVisible, tripPolyline } from './drawTrips';
 import { Recorder } from './recorder.test-utils';
 import type { DiagramScene, SceneStop, SceneTrip } from './scene';
-import { AXIS_LABEL_WIDTH, axisToY, timeToX, viewportOf, type Viewport } from './viewport';
+import {
+  AXIS_EDGE_MARGIN,
+  AXIS_LABEL_WIDTH,
+  axisToY,
+  timeToX,
+  viewportOf,
+  type Viewport,
+} from './viewport';
 
 const theme = {
   background: '#ffffff',
@@ -97,7 +104,15 @@ function sceneOf(
   selectionRect: DiagramScene['selectionRect'] = null,
   tripShift: DiagramScene['tripShift'] = null,
 ): DiagramScene {
-  return { stops, trips, selectedTripIds: new Set(selected), selectionRect, tripShift, theme };
+  return {
+    stops,
+    trips,
+    blockLinks: [],
+    selectedTripIds: new Set(selected),
+    selectionRect,
+    tripShift,
+    theme,
+  };
 }
 
 const viewport: Viewport = viewportOf(
@@ -247,6 +262,12 @@ describe('回送スジ', () => {
   it('**停留所線を横切らない**（一番近い線までの隔たりより短い）', () => {
     // 既定の拡大率で隣の停留所線（箕面、軸 20）は 120px 先にある。
     expect(STUB_LENGTH).toBeLessThan(axisToY(20, viewport) - axisToY(0, viewport));
+  });
+
+  it('**一番下の停留所から伸ばしても切れない**（#179）', () => {
+    // ヒゲは下へしか伸びない。端の余白がヒゲより短いと、一番下まで送ったときに
+    // 先が描画領域の外に出る。
+    expect(AXIS_EDGE_MARGIN).toBeGreaterThanOrEqual(STUB_LENGTH);
   });
 
   it('縦軸に乗る点が 1 つも無ければ線にならない（伸ばす元が無い）', () => {
@@ -455,6 +476,97 @@ describe('カリング（仕様書 §6.2.2）', () => {
   });
 });
 
+/*
+ * 折返しの接続線（T-62、#167）。
+ *
+ * 場面（`blockLinks`）が段まで決めているため、ここで確かめるのは**渡された
+ * とおりに引いているか**だけである。
+ */
+describe('折返しの接続線（T-62、#167）', () => {
+  const link = (over: Partial<DiagramScene['blockLinks'][number]> = {}) => ({
+    blockId: 'A',
+    stopId: '1_0',
+    from: fromHM(8, 0),
+    to: fromHM(8, 30),
+    color: '#123456',
+    level: 0,
+    direction: -1 as const,
+    ...over,
+  });
+
+  /** 接続線だけを描いた結果の線分。 */
+  function linkSegments(links: DiagramScene['blockLinks']) {
+    const ctx = new Recorder();
+    drawTrips(ctx, { ...sceneOf([], []), blockLinks: links }, viewport);
+    return ctx.segments;
+  }
+
+  it('**台形に引く**（停留所の点から出て、水平に走り、点へ戻る）', () => {
+    const segments = linkSegments([link({ level: 1 })]);
+    const onStop = axisToY(0, viewport);
+
+    expect(segments).toHaveLength(3);
+    // 出るのも戻るのも停留所の点そのもの。**間が空くと、どの便から続いて
+    // いるのかが読めない。**
+    expect(segments[0]?.x1).toBe(timeToX(fromHM(8, 0), viewport));
+    expect(segments[0]?.y1).toBe(onStop);
+    expect(segments[2]?.x2).toBe(timeToX(fromHM(8, 30), viewport));
+    expect(segments[2]?.y2).toBe(onStop);
+    // 真ん中は水平（折返しのあいだバスは動いていない）。
+    expect(segments[1]?.y1).toBe(segments[1]?.y2);
+  });
+
+  it('**斜めは 45 度**（どの段でも同じ角度で降りる）', () => {
+    const [slant] = linkSegments([link({ level: 2 })]);
+
+    expect(Math.abs((slant?.x2 ?? 0) - (slant?.x1 ?? 0))).toBe(
+      Math.abs((slant?.y2 ?? 0) - (slant?.y1 ?? 0)),
+    );
+  });
+
+  it('滞泊が短ければ水平部分が無くなり、三角形になる', () => {
+    const segments = linkSegments([link({ level: 3, to: fromHM(8, 5) })]);
+    const middle = segments[1];
+
+    expect(middle?.x1).toBe(middle?.x2);
+  });
+
+  it('運用の色で引く', () => {
+    expect(linkSegments([link()])[0]?.strokeStyle).toBe('#123456');
+  });
+
+  it('**実線で引く**（格子や回送のヒゲと刻みが混ざらない）', () => {
+    expect(linkSegments([link()]).every((s) => s.dash.length === 0)).toBe(true);
+  });
+
+  it('**段のぶんだけ px でずらす**（拡大率によらない）', () => {
+    // 水平部分（2 本目）の高さで見る。
+    const first = linkSegments([link({ level: 1 })])[1];
+    const third = linkSegments([link({ level: 3 })])[1];
+
+    // 上へ 2 段ぶん（direction: -1）。
+    expect((first?.y1 ?? 0) - (third?.y1 ?? 0)).toBe(14);
+  });
+
+  it('**1 段目から停留所の線を離れる**（重なると線そのものが読めない）', () => {
+    const middle = linkSegments([link({ level: 1, direction: 1 })])[1];
+    const onStop = axisToY(0, viewport);
+
+    expect((middle?.y1 ?? 0) - onStop).toBe(7);
+  });
+
+  it('向きが下なら下へ積む', () => {
+    const first = linkSegments([link({ level: 1, direction: 1 })])[1];
+    const second = linkSegments([link({ level: 2, direction: 1 })])[1];
+
+    expect((second?.y1 ?? 0) - (first?.y1 ?? 0)).toBe(7);
+  });
+
+  it('接続線が無ければ何も引かない', () => {
+    expect(linkSegments([])).toEqual([]);
+  });
+});
+
 describe('描画領域から出さない', () => {
   it('**表示範囲に切り取ってから描く**（停留所名の欄を汚さない）', () => {
     const [clip] = draw([through()]).clips;
@@ -465,6 +577,14 @@ describe('描画領域から出さない', () => {
       width: 1000 - AXIS_LABEL_WIDTH,
       height: 420 - viewport.originY,
     });
+  });
+
+  it('**軸の先頭にある停留所の停車点が欠けない**（#171）', () => {
+    const [clip] = draw([through()]).clips;
+    // 豊中学舎（軸位置 0）は余白のぶん内側に描かれる。停車点の丸は半径 3.5px。
+    const dotTop = axisToY(0, viewport) - 3.5;
+    expect(clip?.y).toBeLessThanOrEqual(dotTop);
+    expect(AXIS_EDGE_MARGIN).toBeGreaterThanOrEqual(3.5);
   });
 
   it('表示範囲が視野の外なら何も描かない', () => {

@@ -31,6 +31,7 @@ export function DisplayFilters(): ReactElement {
     (state) => selectView(state)?.hiddenDirections ?? NO_DIRECTIONS,
   );
   const showDeadhead = useAppStore((state) => selectView(state)?.showDeadhead ?? true);
+  const showBlockLinks = useAppStore((state) => selectView(state)?.showBlockLinks ?? true);
   const editProject = useAppStore((state) => state.editProject);
 
   if (!hasView) return <section className="panel__section" />;
@@ -87,6 +88,24 @@ export function DisplayFilters(): ReactElement {
           }}
         />{' '}
         回送便
+      </label>
+
+      {/*
+        折返しの接続線（#167）。便が増えると水平線も増えるため切れるようにする。
+        **既定は出す**——どの便がどの便に繋がるかは、絵から読めることに意味がある。
+      */}
+      <label className="panel__field">
+        <input
+          type="checkbox"
+          checked={showBlockLinks}
+          onChange={(event) => {
+            const showBlockLinks = event.target.checked;
+            editProject('折返しの接続線の表示の変更', (project) => {
+              project.view.showBlockLinks = showBlockLinks;
+            });
+          }}
+        />{' '}
+        折返しの接続
       </label>
     </section>
   );

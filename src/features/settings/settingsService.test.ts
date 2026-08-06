@@ -114,6 +114,8 @@ describe('書き戻し（§6.5.1、§6.5.5）', () => {
       fromStopId: '1_0',
       toStopId: '2_0',
       runMinutes: 25,
+      // 距離は所要時間と独立であり、**所要時間を直しても動かない**（#161）。
+      distanceMeters: 6400,
     });
     // 末尾に改行を 1 つ置く（仕様書 §7.1 と同じ扱い）。
     expect(written.endsWith('\n')).toBe(true);

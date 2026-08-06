@@ -11,30 +11,57 @@
  */
 
 import { useMemo, type ReactElement } from 'react';
+import { blockDistances, type Block } from '@/domain/block';
 import { formatTime } from '@/domain/time';
+import { formatKm } from '@/domain/trip';
 import { blockColorsOf } from '@/features/timetable';
-import { selectBlocks, selectTrips, selectView, useAppStore } from '@/store';
+import { selectBlocks, selectNetwork, selectTrips, selectView, useAppStore } from '@/store';
 import { withHidden } from './filters';
 
 /** 空の一覧。**毎回作らない**——参照が変わると購読が動く。 */
 const NO_IDS: readonly string[] = [];
 
+/** 運用が 1 つも無い状態。**毎回作らない。** */
+const NO_BLOCKS: readonly Block[] = [];
+
 /** 色を 1 つも選んでいない状態。 */
 const NO_COLORS: Readonly<Record<string, string>> = Object.freeze({});
+
+/** 距離を言葉にする。**分からないときは数を出さない。** */
+function describe(meters: number | null | undefined): string {
+  return meters === null || meters === undefined ? '— km' : formatKm(meters);
+}
 
 export function BlockList(): ReactElement {
   const derivation = useAppStore(selectBlocks);
   const trips = useAppStore(selectTrips);
   // 必要な項目だけを購読する（T-40）。送りのたびに描き直さないためである。
+  const network = useAppStore(selectNetwork);
   const hidden = useAppStore((state) => selectView(state)?.hiddenBlockIds ?? NO_IDS);
   const chosen = useAppStore((state) => selectView(state)?.blockColors ?? NO_COLORS);
   const editProject = useAppStore((state) => state.editProject);
 
-  const blocks = derivation?.blocks ?? [];
+  // **同じ参照を保つ。** 毎回新しい配列を作ると、距離の計算（下の useMemo）が
+  // 送りのたびに走り直す。
+  const blocks = useMemo(() => derivation?.blocks ?? NO_BLOCKS, [derivation]);
 
   // 運用番号 → 色。**時刻表・ダイヤグラムと同じ道具で割り当てる**（`blockColorsOf`）。
   // ここで数え直すと、同じ規則を 3 か所に書くことになり、いつか食い違う。
   const colors = useMemo(() => blockColorsOf(trips, chosen), [trips, chosen]);
+
+  /**
+   * 運用ごとの走行距離（#161）。**回送込みと回送抜きの 2 つ**を出す。
+   *
+   * 片方だけでは答えられない問いがそれぞれにある——**車がその日に何 km 走ったか**
+   * は回送を含み、**客を運ぶために走ったか**は含まない（仕様書 v1.1 §6.1.2）。
+   */
+  const distances = useMemo(
+    () =>
+      network === null
+        ? new Map<string, ReturnType<typeof blockDistances>[number]>()
+        : new Map(blockDistances(blocks, network).map((d) => [d.blockId, d])),
+    [blocks, network],
+  );
 
   const toggle = (blockId: string, show: boolean): void => {
     editProject('運用の表示の変更', (project) => {
@@ -86,7 +113,7 @@ export function BlockList(): ReactElement {
             const to = block.pullInTime ?? (block.trips.at(-1) ?? block.trips[0]).terminalTime;
 
             return (
-              <li key={block.blockId} className="panel__row">
+              <li key={block.blockId} className="panel__row panel__row--stacked">
                 <input
                   type="checkbox"
                   aria-label={`運用 ${block.blockId} を表示`}
@@ -127,6 +154,22 @@ export function BlockList(): ReactElement {
                     ↺
                   </button>
                 )}
+                {/*
+                  距離は**行を改めて出す**（#185）。1 行に詰め込むと、サイドパネルの
+                  幅から右端が押し出されて読めない。
+                
+                  **走行と営業を両方出す。** 以前は走行だけを出し、営業を `title` に
+                  隠していた——**読ませたいものが隠れていた。** 「（回送込み）」の
+                  注記も外す。2 つ並んでいれば、どちらが大きいかで回送が含まれて
+                  いることは読める。**注記のほうが数より長いのは、逆である。**
+                
+                  **距離の分からない区間があれば数を出さない**（仕様書 v1.1 §6.1.4）。
+                  0 として足すと、入力漏れが「短い運用」に化けて気付けない。
+                */}
+                <span className="panel__distance">
+                  <span>走行 {describe(distances.get(block.blockId)?.total)}</span>
+                  <span>営業 {describe(distances.get(block.blockId)?.revenue)}</span>
+                </span>
               </li>
             );
           })}

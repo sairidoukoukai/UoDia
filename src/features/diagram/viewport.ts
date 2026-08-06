@@ -61,6 +61,42 @@ export const AXIS_LABEL_WIDTH = 56;
 /** 横軸ラベル（時刻目盛）に割く高さ。 */
 export const TIME_LABEL_HEIGHT = 24;
 
+/**
+ * 縦軸の端に空ける余白（px。#171）。
+ *
+ * **端の停留所線を描画領域の縁に張り付かせない。** 縁に来ると、その線の上に
+ * 描くものが半分に切れる——停車点の丸（半径 3.5px）・選択のつまみ（一辺 7px を
+ * 中心合わせ）・便番号の文字。豊中学舎は `axisPosition: 0` であり、**一番上まで
+ * 送ると線がちょうど `originY` に来るため、既定の配置で必ず起きていた。**
+ *
+ * **px で持つ。** 線幅や点の半径と同じ**絵の記号の大きさ**であって、距離でも
+ * 時間でもない。軸の単位で持つと、縦に拡げるたびに余白が広がる。
+ *
+ * **送りの範囲ではなく軸の写像に入れる。** 範囲の端をずらす形にすると、保存
+ * されている `scrollAxis: 0`（既定）が範囲の外になり、**一度動かすまで直らない。**
+ * `originY` をずらす形にすると、枠・クリップ・格子の範囲まで一緒に動く——
+ * **動かしたいのは停留所線の位置だけである。**
+ *
+ * **幅はそこに何が積まれるかで決まる。** 端の外側に出るものを数え、最も遠い
+ * ものに合わせる。
+ *
+ * | 積まれるもの | はみ出し |
+ * | --- | --- |
+ * | 選択のつまみ（一辺 7px を中心合わせ） | 3.5px |
+ * | 停車点の丸 | 3.5px |
+ * | 折返しの接続線（#167）。7px × 3 段 | 21px |
+ * | **回送のヒゲ**（#179。`STUB_LENGTH`） | **30px** |
+ *
+ * **32px はヒゲに合わせた値である。** ヒゲは下へしか伸びず、接続線は上下の
+ * 両方へ積まれるが、**余白を上下で違えると `scrollRanges` の引き算が 2 通りに
+ * なる**——1 つの値で足りるなら 1 つにする。
+ *
+ * **接続線が 4 段以上になると一番外の線は切れる。** 切れたことは絵から読める
+ * ため、起きたときに広げればよい——起きるかどうか分からない段数ぶんを、いま
+ * 画面から削る理由が無い。
+ */
+export const AXIS_EDGE_MARGIN = 32;
+
 /** ダイヤグラムの表示範囲（仕様書 §6.2.1）。 */
 export const DIAGRAM_START_TIME = fromHM(7, 0);
 export const DIAGRAM_END_TIME = fromHM(22, 0);
@@ -91,12 +127,16 @@ export function xToTime(x: number, viewport: Viewport): number {
 
 /** 軸位置 → y 座標。 */
 export function axisToY(axisPosition: number, viewport: Viewport): number {
-  return viewport.originY + (axisPosition - viewport.startAxis) * viewport.pxPerAxisUnit;
+  return (
+    viewport.originY +
+    AXIS_EDGE_MARGIN +
+    (axisPosition - viewport.startAxis) * viewport.pxPerAxisUnit
+  );
 }
 
 /** y 座標 → 軸位置。 */
 export function yToAxis(y: number, viewport: Viewport): number {
-  return viewport.startAxis + (y - viewport.originY) / viewport.pxPerAxisUnit;
+  return viewport.startAxis + (y - viewport.originY - AXIS_EDGE_MARGIN) / viewport.pxPerAxisUnit;
 }
 
 /** 描画領域の右端が指す時刻（秒）。表せる範囲を超えないよう頭を押さえる。 */

@@ -20,15 +20,55 @@ import type { ProjectWarning } from '@/domain/io';
  */
 export type DialogAnswer = 'save' | 'discard' | 'cancel' | 'recover';
 
+/**
+ * 未保存の問いの本文（T-58、仕様書 v1.1 §3.3）。
+ *
+ * **選択肢ではなく本文がこのあと起きることを言う。** `ensureSaved()` を呼ぶのは
+ * 新規作成・開く・最近使ったファイル・終了の 4 つであり、**選択肢に「終了」と
+ * 書くと 3 つで嘘になる。**
+ *
+ * 表にして 1 か所へ置くのは、呼び出し元がそれぞれ文字列を書くと**同じことを
+ * 違う言い方で言い始める**ためである。`open` と `openRecent` を分けないのは、
+ * **利用者から見て起きることが同じ**であり、言い方を分ける理由が無いため。
+ *
+ * 型（`DiscardIntent` のようなもの）にしないのは、これが**文言でしかない**
+ * からである。手順は 4 か所とも同じであり、分岐させるものが無い。
+ */
+export const DISCARD_QUESTIONS = {
+  close: '保存せずに終了しますか。',
+  open: '保存せずに別のファイルを開きますか。',
+  new: '保存せずに新規作成しますか。',
+} as const;
+
+/**
+ * 出してよい本文。**この 3 つ以外は渡せない。**
+ *
+ * `string` のままにすると、入口と文言の対応がずれても誰も止めない——「開く」から
+ * `close` を渡して「終了しますか」と出す類の誤りであり、**#168 が直そうとしたのと
+ * 同じ種類の間違いである。** 対応をテストだけに委ねず、型で表現できなくする。
+ *
+ * これは `DiscardIntent`（v1.1 §3.3 で採らないと決めたもの）ではない。**呼び出し
+ * 元が何をしようとしているかは表さず、出してよい文言の集合を狭めるだけ**であり、
+ * 手順の分岐は 1 つも増えない。
+ */
+export type DiscardQuestion = (typeof DISCARD_QUESTIONS)[keyof typeof DISCARD_QUESTIONS];
+
 export interface FileDialogs {
   /**
-   * 未保存の変更があることを伝え、どうするかを尋ねる。
+   * 未保存の変更があることを伝え、保存するかを尋ねる（T-58、仕様書 v1.1 §3.3）。
    *
-   * 「保存して続ける」(`save`)・「破棄して続ける」(`discard`)・「やめる」
-   * (`cancel`) の 3 択とする。2 択にすると、続ける気が無いときにも保存か
-   * 破棄かを選ばされる。
+   * 「保存する」(`save`)・「保存しない」(`discard`)・「キャンセル」(`cancel`)
+   * の 3 択とする。2 択にすると、続ける気が無いときにも保存か破棄かを選ばされる。
+   *
+   * **選択肢はこのあと何が起きるかを言わない。** この問いが決めるのは「保存するか」
+   * の 1 点だけであり、そのあと何をするかは呼び出し元が既に決めている。**問いが
+   * 決めていないことを選択肢に書くと、4 つの呼び出し元のうち 3 つで嘘になる**
+   * （「保存して終了」と出しても、開くときも新規作成のときも終了しない）。
+   *
+   * @param question このあと何が起きるかを伝える一文。**呼び出し元が渡す。**
+   *   選択肢が言わなくなったぶんをここが担う（{@link DISCARD_QUESTIONS}）
    */
-  confirmDiscard(fileName: string): Promise<DialogAnswer>;
+  confirmDiscard(fileName: string, question: DiscardQuestion): Promise<DialogAnswer>;
   /** 読込時の警告を伝える（仕様書 §7.4.1）。 */
   showWarnings(warnings: readonly ProjectWarning[]): Promise<void>;
   /** 失敗を伝える。 */

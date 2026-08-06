@@ -11,13 +11,15 @@
 
 import { useCallback, useMemo, useRef, useState } from 'react';
 import type { ProjectWarning } from '@/domain/io';
-import type { BackupDialogs, DialogAnswer, FileDialogs } from './prompts';
+import type { BackupDialogs, DialogAnswer, DiscardQuestion, FileDialogs } from './prompts';
 
-/** 未保存の変更があることを伝え、どうするかを尋ねる。 */
+/** 未保存の変更があることを伝え、保存するかを尋ねる。 */
 export interface DiscardRequest {
   readonly kind: 'discard';
   /** 保存先の名前。まだ保存していなければ空文字。 */
   readonly fileName: string;
+  /** このあと何が起きるかを伝える一文（T-58。`DISCARD_QUESTIONS`）。 */
+  readonly question: DiscardQuestion;
 }
 
 /** 前回の編集内容が残っていることを伝え、復元するかを尋ねる。 */
@@ -81,7 +83,7 @@ export function useFileDialogs(): FileDialogController {
 
   const dialogs = useMemo<FileDialogs & BackupDialogs>(
     () => ({
-      confirmDiscard: (fileName) => ask({ kind: 'discard', fileName }),
+      confirmDiscard: (fileName, question) => ask({ kind: 'discard', fileName, question }),
       confirmRecover: async (fileName, savedAt) =>
         (await ask({ kind: 'recover', fileName, savedAt })) === 'recover',
       showWarnings: async (warnings) => {

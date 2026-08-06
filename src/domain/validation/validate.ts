@@ -92,6 +92,38 @@ function issue(id: ValidationId, message: string, target: ValidationTarget): Val
 }
 
 /**
+ * 2 便の関係が問題である指摘を、**両側から 1 件ずつ**出す（T-61、#165）。
+ *
+ * 時刻表では、指摘のある便の列に印を付ける（仕様書 v1.1 §5.2）。片方だけを
+ * 指すと、**どちらが悪いのかを探すことになる。**
+ *
+ * **1 件に 2 便を持たせる形は採らない。** そうすると文面を片方の視点でしか
+ * 書けず、前の便の列に「前の便の終着より前に発車します」と出る——**その便は
+ * 早発していないのに、その便の説明として読める。** 件数は倍になるが、
+ * どちらの列から見ても意味の通る文が出るほうを採る。
+ *
+ * **同じ便を 2 度指すことは起こらない。** 展開した回送便は保存されている便へ
+ * 戻されるため（`sourceTripId`）、便とその出入区が対になれば同じ列を 2 度指す
+ * ことになるが、**その対が指摘されることはない**——出入区は `createPullOut` /
+ * `createPullIn` が作るものであり、接続する停留所は必ず一致し（V-01 が出ない）、
+ * 折返しは 0 分である（V-02 が出ない）。V-03 が見る「1 つ以上離れた便」で
+ * 出区と入区が重なるには、便の終着が始発より前になる必要がある。
+ * **起こり得ない場合のために分岐を書かない。**
+ */
+function pairIssue(
+  id: ValidationId,
+  earlier: { readonly tripId: string; readonly message: string },
+  later: { readonly tripId: string; readonly message: string },
+  blockId?: string,
+): ValidationIssue[] {
+  const base = blockId === undefined ? {} : { blockId };
+  return [
+    issue(id, earlier.message, { ...base, tripId: earlier.tripId }),
+    issue(id, later.message, { ...base, tripId: later.tripId }),
+  ];
+}
+
+/**
  * V-04: 出区・入区の車庫側の時刻が表せる範囲を外れていないこと（仕様書 §6.1.7）。
  *
  * 0:10 発の便に出区を付けると車庫発は前日 23:50 となり、表せない。回送便は
@@ -132,20 +164,38 @@ function checkBlockConnection(block: Block, network: NetworkIndex): ValidationIs
 
   for (const [previous, current] of adjacentPairs(block.trips)) {
     if (previous.terminalStopId !== current.originStopId) {
+      const from = stopLabelOf(previous.terminalStopId, network);
+      const to = stopLabelOf(current.originStopId, network);
       issues.push(
-        issue(
+        ...pairIssue(
           'V-01',
-          `前の便は ${stopLabelOf(previous.terminalStopId, network)} 着ですが、この便は ${stopLabelOf(current.originStopId, network)} 発です`,
-          { blockId: block.blockId, tripId: current.trip.tripId },
+          {
+            tripId: previous.trip.tripId,
+            message: `この便は ${from} 着ですが、次の便は ${to} 発です`,
+          },
+          {
+            tripId: current.trip.tripId,
+            message: `前の便は ${from} 着ですが、この便は ${to} 発です`,
+          },
+          block.blockId,
         ),
       );
     }
     if (current.layoverMinutes !== null && current.layoverMinutes < 0) {
+      const terminal = formatTime(previous.terminalTime);
+      const origin = formatTime(current.originTime);
       issues.push(
-        issue(
+        ...pairIssue(
           'V-02',
-          `前の便の終着 ${formatTime(previous.terminalTime)} より前に発車します（${formatTime(current.originTime)}）`,
-          { blockId: block.blockId, tripId: current.trip.tripId },
+          {
+            tripId: previous.trip.tripId,
+            message: `次の便がこの便の終着 ${terminal} より前に発車します（${origin}）`,
+          },
+          {
+            tripId: current.trip.tripId,
+            message: `前の便の終着 ${terminal} より前に発車します（${origin}）`,
+          },
+          block.blockId,
         ),
       );
     }
@@ -170,11 +220,20 @@ function checkBlockOverlap(block: Block): ValidationIssue[] {
     // もとで undefined を含み、到達し得ない分岐を書く羽目になるため。
     for (const later of block.trips.slice(index + 2)) {
       if (later.originTime < earlier.terminalTime) {
+        const span = (t: typeof earlier): string =>
+          `${formatTime(t.originTime)}〜${formatTime(t.terminalTime)}`;
         issues.push(
-          issue(
+          ...pairIssue(
             'V-03',
-            `${formatTime(earlier.originTime)}〜${formatTime(earlier.terminalTime)} の便と運行時間帯が重複しています`,
-            { blockId: block.blockId, tripId: later.trip.tripId },
+            {
+              tripId: earlier.trip.tripId,
+              message: `${span(later)} の便と運行時間帯が重複しています`,
+            },
+            {
+              tripId: later.trip.tripId,
+              message: `${span(earlier)} の便と運行時間帯が重複しています`,
+            },
+            block.blockId,
           ),
         );
       }
@@ -267,23 +326,19 @@ function checkHeadway(
 
     for (const [previous, current] of adjacentPairs(sorted)) {
       const gap = diffMinutes(current.time, previous.time);
-      if (gap < thresholds.minHeadwayMinutes) {
+      const where = stopLabelOf(stopId, network);
+      const how = gap < thresholds.minHeadwayMinutes ? 'しかありません' : '空いています';
+      if (gap < thresholds.minHeadwayMinutes || gap > thresholds.maxHeadwayMinutes) {
         issues.push(
-          issue(
+          ...pairIssue(
             'V-06',
-            `${stopLabelOf(stopId, network)} で前の便との間隔が ${String(gap)} 分しかありません`,
             {
-              tripId: current.tripId,
+              tripId: previous.tripId,
+              message: `${where} で次の便との間隔が ${String(gap)} 分${how}`,
             },
-          ),
-        );
-      } else if (gap > thresholds.maxHeadwayMinutes) {
-        issues.push(
-          issue(
-            'V-06',
-            `${stopLabelOf(stopId, network)} で前の便との間隔が ${String(gap)} 分空いています`,
             {
               tripId: current.tripId,
+              message: `${where} で前の便との間隔が ${String(gap)} 分${how}`,
             },
           ),
         );

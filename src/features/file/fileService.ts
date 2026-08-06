@@ -23,7 +23,7 @@ import type { Project } from '@/domain/model';
 import { formatIssues } from '@/domain/model';
 import type { FileHandle, PlatformAdapter, RecentFile } from '@/platform';
 import { selectIsDirty, selectNetwork, type AppStoreHook } from '@/store';
-import type { FileDialogs } from './prompts';
+import { DISCARD_QUESTIONS, type DiscardQuestion, type FileDialogs } from './prompts';
 import { suggestFileName } from './title';
 
 export interface FileServiceOptions {
@@ -99,14 +99,19 @@ export function createFileService(options: FileServiceOptions): FileService {
   /**
    * 続けてよいかを確かめる。未保存なら尋ね、保存を選ばれたら保存する。
    *
-   * 保存に失敗したときは続けない。「保存して続ける」を選んだ利用者にとって、
-   * 保存できていないまま進むのは最も避けたい結果である。
+   * 保存に失敗したときは続けない。「保存する」を選んだ利用者にとって、保存
+   * できていないまま進むのは最も避けたい結果である。
+   *
+   * **`question` を受け取るのは文言のためだけである**（T-58）。ここから先の
+   * 手順は 4 つの入口すべてで同じであり、分岐は 1 つも増えない。
+   *
+   * @param question このあと何が起きるかを伝える一文（`DISCARD_QUESTIONS`）
    */
-  async function ensureSaved(): Promise<boolean> {
+  async function ensureSaved(question: DiscardQuestion): Promise<boolean> {
     const state = store.getState();
     if (!selectIsDirty(state)) return true;
 
-    const choice = await dialogs.confirmDiscard(state.file.handle?.name ?? '');
+    const choice = await dialogs.confirmDiscard(state.file.handle?.name ?? '', question);
     if (choice === 'save') return service.save();
     if (choice === 'discard') return true;
     // 想定していない答えは「やめる」として扱う。黙って保存や破棄へ倒れるより、
@@ -146,7 +151,7 @@ export function createFileService(options: FileServiceOptions): FileService {
 
   const service: FileService = {
     async newProject(): Promise<boolean> {
-      if (!(await ensureSaved())) return false;
+      if (!(await ensureSaved(DISCARD_QUESTIONS.new))) return false;
 
       const network = selectNetwork(store.getState());
       if (network === null) {
@@ -163,7 +168,7 @@ export function createFileService(options: FileServiceOptions): FileService {
     },
 
     async open(): Promise<boolean> {
-      if (!(await ensureSaved())) return false;
+      if (!(await ensureSaved(DISCARD_QUESTIONS.open))) return false;
 
       let opened;
       try {
@@ -178,7 +183,7 @@ export function createFileService(options: FileServiceOptions): FileService {
     },
 
     async openRecent(handle: FileHandle): Promise<boolean> {
-      if (!(await ensureSaved())) return false;
+      if (!(await ensureSaved(DISCARD_QUESTIONS.open))) return false;
 
       let content: string;
       try {
@@ -199,7 +204,7 @@ export function createFileService(options: FileServiceOptions): FileService {
     },
 
     confirmClose(): Promise<boolean> {
-      return ensureSaved();
+      return ensureSaved(DISCARD_QUESTIONS.close);
     },
 
     async listRecent(): Promise<readonly RecentFile[]> {

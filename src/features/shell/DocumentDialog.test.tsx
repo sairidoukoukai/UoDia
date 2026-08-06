@@ -90,10 +90,10 @@ describe('文書情報', () => {
 
   it('作成者とメモも直せる', () => {
     mount();
-    type(field('作成者'), '再履同好会');
+    type(field('作成者'), '再履バス同好会');
     type(field('メモ'), '2026 年度前期');
 
-    expect(document_()?.author).toBe('再履同好会');
+    expect(document_()?.author).toBe('再履バス同好会');
     expect(document_()?.comment).toBe('2026 年度前期');
   });
 
