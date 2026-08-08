@@ -14,6 +14,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { toBase64 } from './base64';
+import { loadBundledFont } from './fonts';
 import {
   MAX_RECENT_FILES,
   foreignHandleError,
@@ -117,6 +118,17 @@ export function createTauriPlatform(): PlatformAdapter {
       if (path === null) return false;
       await invoke('save_export_file', { path, contentBase64: toBase64(content) });
       return true;
+    },
+
+    /**
+     * PDF に埋めるフォントを読む（T-77）。
+     *
+     * **Rust を通さない。** フォントは画面の資産として同梱されており
+     * （`fonts.ts`）、`route.json` のように設定ディレクトリへ複製する必要が無い
+     * ——利用者が書き換えるものではないからである。
+     */
+    loadExportFont(): Promise<Uint8Array> {
+      return loadBundledFont();
     },
 
     loadNetworkDef(): Promise<string> {

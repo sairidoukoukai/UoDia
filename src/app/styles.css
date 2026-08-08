@@ -614,6 +614,36 @@ body {
   font-size: 0.8125rem;
 }
 
+/*
+  借りているものの表（仕様書 v2 §5.4.3、T-77）。**用途の列は左に寄せる**
+  ——鍵の一覧（`.help-dialog__keys td`）は右寄せだが、ここは文であり、
+  右端が揃っても読みやすくならない。
+*/
+.help-dialog__credits {
+  margin-top: 1.25rem;
+}
+
+.help-dialog__credits td:first-of-type {
+  text-align: left;
+  white-space: normal;
+}
+
+/*
+  ライセンス本文。**折り返さずに送る。** 92 行の全文で窓を伸ばさないよう
+  高さを抑える。
+*/
+.help-dialog__license {
+  max-height: 14rem;
+  margin: 0.75rem 0 0;
+  overflow: auto;
+  padding: 0.5rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-accent);
+  color: var(--color-fg-muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
 .help-dialog__actions {
   display: flex;
   justify-content: flex-end;

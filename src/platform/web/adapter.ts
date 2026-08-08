@@ -20,6 +20,7 @@ import {
   type PlatformCapabilities,
   type RecentFile,
 } from '../types';
+import { loadBundledFont } from '../fonts';
 import type { WebEnvironment } from './environment';
 
 /** この実装が作るハンドルの識別子。 */
@@ -150,6 +151,11 @@ export function createWebPlatform(environment: WebEnvironment): PlatformAdapter 
         return true;
       }
       return fileSystem.saveBytesAs(content, suggestedName);
+    },
+
+    /** PDF に埋めるフォントを読む（T-77）。デスクトップ版と同じ道を通る。 */
+    loadExportFont(): Promise<Uint8Array> {
+      return loadBundledFont();
     },
 
     async loadNetworkDef(): Promise<string> {

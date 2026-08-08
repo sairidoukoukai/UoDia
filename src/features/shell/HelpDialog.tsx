@@ -9,8 +9,9 @@
  * 閉じ込め・<kbd>Esc</kbd>・背景の不活性化をブラウザに任せる。§9.4）。
  */
 
-import { useEffect, useRef, type ReactElement } from 'react';
+import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { COMMANDS, MENUS, commandsIn, formatAccelerator } from './commands';
+import { CREDITS, OFL_FONT } from './credits';
 import { APP_VERSION, COPYRIGHT } from './version';
 
 /** 何を出しているか。`null` なら閉じている。 */
@@ -103,6 +104,56 @@ function About(): ReactElement {
       <p className="help-dialog__note">
         大阪大学の公式なソフトウェアではありません。時刻の正しさは利用者が確かめてください。
       </p>
+      <Credits />
     </>
   );
+}
+
+/**
+ * 借りているものの表示（仕様書 v2 §5.4.3、T-77）。
+ *
+ * **OFL の本文は求められたときに読む。** 92 行の全文を初回ロードに乗せる理由が
+ * 無い——読む人は「ライセンスを確かめたい」と思ったときにしか開かない。
+ */
+function Credits(): ReactElement {
+  const [license, setLicense] = useState<string | null>(null);
+
+  return (
+    <section className="help-dialog__credits">
+      <h3>使っているもの</h3>
+      <table className="help-dialog__keys">
+        <tbody>
+          {CREDITS.map((credit) => (
+            <tr key={credit.name}>
+              <th scope="row">{credit.name}</th>
+              <td>{credit.use}</td>
+              <td>{credit.license}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="help-dialog__note">
+        {OFL_FONT} は PDF に埋めるためだけに使っています（画面には使いません）。
+      </p>
+      {license === null ? (
+        <button
+          type="button"
+          onClick={() => {
+            void loadOflText().then(setLicense, (error: unknown) => {
+              setLicense(`ライセンス本文を読めません: ${String(error)}`);
+            });
+          }}
+        >
+          {OFL_FONT} のライセンス本文
+        </button>
+      ) : (
+        <pre className="help-dialog__license">{license}</pre>
+      )}
+    </section>
+  );
+}
+
+/** OFL の本文。**押されたときに初めて読む。** */
+async function loadOflText(): Promise<string> {
+  return (await import('../../../assets/fonts/OFL.txt?raw')).default;
 }

@@ -1,6 +1,6 @@
 export { type ExportProducer, type ExportSource } from './artifacts';
 
-export { EXPORT_PRODUCERS } from './producers';
+export { exportProducers } from './producers';
 
 export { UNTITLED_EXPORT, exportFileName } from './exportName';
 
@@ -12,6 +12,13 @@ export {
   pixelSize,
   type ExportPage,
 } from './diagramExport';
+
+export {
+  DIAGRAM_PDF_NAME,
+  diagramPdfProducer,
+  renderDiagramPdf,
+  type DiagramPdfOptions,
+} from './diagramPdf';
 
 export {
   DIAGRAM_PNG_NAME,
