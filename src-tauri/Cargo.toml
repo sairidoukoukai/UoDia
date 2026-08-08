@@ -24,6 +24,10 @@ tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# 書き出し（zip）はバイト列である。コマンドの引数は JSON で渡るため、base64 で
+# 載せる（T-74、`commands::save_export_file`）。**新しく落ちてくるものは無い**
+# ——既に依存の木の中にある版を直接使うだけである。
+base64 = "0.22"
 
 [profile.release]
 codegen-units = 1

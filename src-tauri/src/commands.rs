@@ -7,6 +7,8 @@
 //! 失敗は `Result<_, String>` で返す。フロントエンドには文字列として届き、
 //! そのまま利用者に見せられる。取り消しは失敗ではないため `Option` で表す。
 
+use base64::engine::general_purpose::STANDARD as BASE64;
+use base64::Engine as _;
 use std::path::Path;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_dialog::DialogExt;
@@ -18,6 +20,10 @@ use crate::recent::{self, RecentEntry};
 /// プロジェクトファイルの拡張子（仕様書 §7.1）。
 const PROJECT_EXTENSION: &str = "uodia";
 const PROJECT_FILTER_NAME: &str = "UoDia プロジェクト";
+
+/// 書き出しの拡張子（仕様書 v2 §5.3）。**1 つの zip にまとめる。**
+const EXPORT_EXTENSION: &str = "zip";
+const EXPORT_FILTER_NAME: &str = "zip 書庫";
 
 /// `tauri.conf.json` で定義しているウィンドウのラベル。
 const MAIN_WINDOW: &str = "main";
@@ -43,6 +49,31 @@ pub async fn save_project_dialog(app: AppHandle, suggested_name: String) -> Opti
         .blocking_save_file()
         .and_then(|file| file.into_path().ok())
         .map(|path| path.to_string_lossy().into_owned())
+}
+
+/// 「書き出し」の保存先ダイアログ（仕様書 v2 §5.3、T-74）。取り消されたら `None`。
+#[tauri::command]
+pub async fn save_export_dialog(app: AppHandle, suggested_name: String) -> Option<String> {
+    app.dialog()
+        .file()
+        .add_filter(EXPORT_FILTER_NAME, &[EXPORT_EXTENSION])
+        .set_file_name(suggested_name)
+        .blocking_save_file()
+        .and_then(|file| file.into_path().ok())
+        .map(|path| path.to_string_lossy().into_owned())
+}
+
+/// 書き出したものを保存する。**アトミックに書き込む**（T-74）。
+///
+/// **base64 で受け取る。** コマンドの引数は JSON で渡ってくるため、バイト列を
+/// そのまま載せられない。数値の配列にすると 1 バイトが 3〜4 文字になり、300dpi の
+/// 画像を包んだ書庫では受け渡しだけで数十 MB になる。
+#[tauri::command]
+pub fn save_export_file(path: String, content_base64: String) -> Result<(), String> {
+    let bytes = BASE64
+        .decode(content_base64)
+        .map_err(|e| format!("書き出す内容を読み取れません: {e}"))?;
+    atomic::write_atomic_bytes(Path::new(&path), &bytes)
 }
 
 #[tauri::command]

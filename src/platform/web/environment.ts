@@ -38,6 +38,13 @@ export interface FileSystemAccess {
   save(ref: unknown, content: string): Promise<void>;
   /** 保存先を選ばせて書く。 */
   saveAs(content: string, suggestedName: string): Promise<{ ref: unknown; name: string } | null>;
+  /**
+   * 書き出した zip の保存先を選ばせて書く（T-74）。取り消されたら `false`。
+   *
+   * `saveAs` と分けるのは、**選ばせる種類が違う**ためである（`.uodia` ではなく
+   * `.zip`）。返す参照も要らない——書き出したものを開き直すことはない。
+   */
+  saveBytesAs(bytes: Uint8Array, suggestedName: string): Promise<boolean>;
   /** 保存した参照を後から使えるか（権限が残っているか）。 */
   isUsable(ref: unknown): Promise<boolean>;
 }
@@ -51,6 +58,13 @@ export interface FileSystemAccess {
 export interface FallbackIo {
   open(): Promise<{ name: string; content: string } | null>;
   download(content: string, name: string): void;
+  /**
+   * バイト列をダウンロードさせる（T-74）。
+   *
+   * **取り消しを知る手立ては無い。** ブラウザはダウンロードの先も可否も教えない
+   * ため、呼んだ時点で「保存した」として扱う。
+   */
+  downloadBytes(bytes: Uint8Array, name: string): void;
 }
 
 /** Web 版が必要とする環境一式。 */

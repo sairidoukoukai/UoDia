@@ -14,6 +14,15 @@ export {
 export { migrateProjectData, MIGRATIONS, type Migration, type MigrateResult } from './migrate';
 
 export {
+  ZIP32_LIMIT,
+  buildZip,
+  crc32,
+  dosDateTime,
+  type BuildZipOptions,
+  type ZipEntry,
+} from './zip';
+
+export {
   BACKUP_FORMAT,
   backupEnvelopeSchema,
   parseBackup,

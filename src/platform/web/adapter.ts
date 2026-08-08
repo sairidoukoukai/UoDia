@@ -136,6 +136,22 @@ export function createWebPlatform(environment: WebEnvironment): PlatformAdapter 
       return saved === null ? null : toHandle('inPlace', saved.ref, saved.name);
     },
 
+    /**
+     * 書き出したものを保存する（仕様書 v2 §5.3）。
+     *
+     * File System Access API があれば保存先を尋ね、無ければダウンロードする。
+     * **どちらでも「書き出せた」と答える**——ダウンロードの可否をブラウザは
+     * 教えないため、そこで嘘をつくくらいなら区別しない。取り消しが分かるのは
+     * 保存先を尋ねられた場合だけである。
+     */
+    async saveExport(content: Uint8Array, suggestedName: string): Promise<boolean> {
+      if (fileSystem === null) {
+        fallback.downloadBytes(content, suggestedName);
+        return true;
+      }
+      return fileSystem.saveBytesAs(content, suggestedName);
+    },
+
     async loadNetworkDef(): Promise<string> {
       // 編集分があればそれを使う。無ければ同梱のものを読む。
       const edited = await store.get<string>(NETWORK_DEF_KEY);
