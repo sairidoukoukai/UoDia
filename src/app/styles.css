@@ -1067,6 +1067,12 @@ body {
  */
 .timetable__bar {
   display: flex;
+  /*
+    **狭いときは折り返す**（#200）。サイドパネルを広げると横幅が減り、複製が
+    右へはみ出す。折り返せば読めるまま残る——切れると押せているのかどうかが
+    分からない。
+  */
+  flex-wrap: wrap;
   align-items: flex-end;
   gap: 0.5rem;
   /* 選んでいるタブが、この線を跨いで表と繋がって見えるようにする。 */
@@ -1091,6 +1097,19 @@ body {
 
 .timetable__bar > button {
   margin-bottom: 0.25rem;
+}
+
+/*
+  別のダイヤへ複製（#200）。**並べ替えの右**に置く。写し先が無ければ、この
+  部分だけが出ない——行そのものは残るため、**出ても消えても表の高さは動かない。**
+*/
+.timetable__copy {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-bottom: 0.25rem;
+  white-space: nowrap;
+  font-size: 0.875rem;
 }
 
 .timetable__tab {
@@ -1367,27 +1386,8 @@ body {
 
 /* 便の操作（T-21、仕様書 §6.1.4）。本来の位置はメニューであり（T-37）、
    ここに置くのは操作を実際に触れるようにするためである。 */
-.timetable__toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
-  font-size: 0.875rem;
-}
-
-.timetable__toolbar-group {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-
 .timetable__minutes {
   width: 4rem;
-}
-
-.timetable__toolbar-status {
-  color: var(--color-fg-muted);
 }
 
 .timetable__empty {
