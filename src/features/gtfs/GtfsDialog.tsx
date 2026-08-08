@@ -42,6 +42,7 @@ import {
 import { applyGtfsEdits } from './gtfsService';
 import { CalendarTab } from './CalendarTab';
 import { ExportTab } from './ExportTab';
+import { exportGtfs } from './gtfsExport';
 
 /** タブ（仕様書 v2 §3.2）。 */
 type TabId = 'agency' | 'stops' | 'calendar' | 'export';
@@ -111,7 +112,26 @@ export function GtfsDialog(props: GtfsDialogProps): ReactElement {
         <NetworkTab tab={tab} platform={props.platform} onNotice={props.onNotice} />
       )}
       {props.open && tab === 'calendar' && <CalendarTab />}
-      {props.open && tab === 'export' && <ExportTab onGoTo={setTab} />}
+      {props.open && tab === 'export' && (
+        <ExportTab
+          onGoTo={setTab}
+          onExport={async () => {
+            const done = await exportGtfs({
+              platform: props.platform,
+              store: useAppStore,
+              // **窓を重ねない。** GTFS 画面は既にモーダルであり、その上に
+              // もう 1 枚出すと、閉じる順を利用者が組み立てることになる。
+              dialogs: {
+                showError: (message) => {
+                  props.onNotice?.(message);
+                  return Promise.resolve();
+                },
+              },
+            });
+            if (done) props.onNotice?.('GTFS を書き出しました');
+          }}
+        />
+      )}
 
       <div className="settings__actions">
         <button type="button" onClick={props.onClose}>

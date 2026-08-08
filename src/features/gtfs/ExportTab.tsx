@@ -98,7 +98,7 @@ export function ExportTab(props: ExportTabProps): ReactElement {
 }
 
 /**
- * 実例と違える 5 点（仕様書 v2 §6.7）。
+ * 実例と違えるところ（仕様書 v2 §6.7）。
  *
  * **畳んでおく。** 普段の書き出しでは読む必要が無く、開いたままだと足りないものの
  * 一覧が下へ押し出される。
@@ -106,7 +106,7 @@ export function ExportTab(props: ExportTabProps): ReactElement {
 function Deviations(): ReactElement {
   return (
     <details className="gtfs__deviations">
-      <summary>既存の GTFS と違えているところ（5 点）</summary>
+      <summary>既存の GTFS と違えているところ（{DEVIATIONS.length} 点）</summary>
       <table>
         <thead>
           <tr>
