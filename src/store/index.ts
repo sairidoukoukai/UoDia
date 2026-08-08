@@ -25,6 +25,7 @@ export {
 
 export {
   APP_STATE_KEYS,
+  type AppSettings,
   type AppState,
   type DiagramTool,
   type DocumentState,

@@ -32,9 +32,12 @@ function createMemoryStore(): KeyValueStore & { readonly data: Map<string, unkno
 /** File System Access API の代役。取り消しや権限拒否を仕込める。 */
 function createFakeFileSystem() {
   const files = new Map<string, string>();
+  const exports = new Map<string, Uint8Array>();
   const state = {
     openTarget: null as string | null,
     saveAsTarget: null as string | null,
+    /** 書き出しの保存先を選ばせるか。`false` なら取り消し（T-74）。 */
+    exportAccepted: true,
     /** 権限を拒否する参照。 */
     denied: new Set<string>(),
     /** 権限を失った参照。 */
@@ -73,26 +76,36 @@ function createFakeFileSystem() {
       files.set(name, content);
       return Promise.resolve({ ref: name, name });
     },
+    saveBytesAs(bytes, suggestedName) {
+      if (!state.exportAccepted) return Promise.resolve(false);
+      exports.set(suggestedName, bytes);
+      return Promise.resolve(true);
+    },
     isUsable(ref) {
       return Promise.resolve(!state.unusable.has(ref as string));
     },
   };
 
-  return { api, files, state };
+  return { api, files, exports, state };
 }
 
 function createFakeFallback(): FallbackIo & {
   readonly downloads: { content: string; name: string }[];
+  readonly byteDownloads: { bytes: Uint8Array; name: string }[];
   opened: { name: string; content: string } | null;
 } {
   const fallback = {
     downloads: [] as { content: string; name: string }[],
+    byteDownloads: [] as { bytes: Uint8Array; name: string }[],
     opened: null as { name: string; content: string } | null,
     open(): Promise<{ name: string; content: string } | null> {
       return Promise.resolve(fallback.opened);
     },
     download(content: string, name: string): void {
       fallback.downloads.push({ content, name });
+    },
+    downloadBytes(bytes: Uint8Array, name: string): void {
+      fallback.byteDownloads.push({ bytes, name });
     },
   };
   return fallback;
@@ -260,6 +273,39 @@ describe('saveProjectAs', () => {
 
     await platform.saveProject(handle, '2 回目');
     expect(fallback.downloads.map((d) => d.content)).toEqual(['1 回目', '2 回目']);
+  });
+});
+
+describe('saveExport（T-74、仕様書 v2 §5.3）', () => {
+  const ZIP = new Uint8Array([0x50, 0x4b, 0x05, 0x06]);
+
+  it('保存先を選ばせて書く', async () => {
+    const { platform, fileSystem } = makeEnvironment(true);
+
+    expect(await platform.saveExport(ZIP, '2026年度_20260809.zip')).toBe(true);
+    expect(fileSystem.exports.get('2026年度_20260809.zip')).toEqual(ZIP);
+  });
+
+  it('**保存先を選ばずに閉じたら何も起きない**（受入条件）', async () => {
+    const { platform, fileSystem } = makeEnvironment(true);
+    fileSystem.state.exportAccepted = false;
+
+    expect(await platform.saveExport(ZIP, 'a.zip')).toBe(false);
+    expect(fileSystem.exports.size).toBe(0);
+  });
+
+  it('**File System Access API が無ければダウンロードする**', async () => {
+    const { platform, fallback } = makeEnvironment(false);
+
+    expect(await platform.saveExport(ZIP, 'a.zip')).toBe(true);
+    expect(fallback.byteDownloads).toEqual([{ bytes: ZIP, name: 'a.zip' }]);
+  });
+
+  it('**プロジェクトのダウンロードとは別の口を通る**（zip は文字列ではない）', async () => {
+    const { platform, fallback } = makeEnvironment(false);
+    await platform.saveExport(ZIP, 'a.zip');
+
+    expect(fallback.downloads).toEqual([]);
   });
 });
 
