@@ -63,3 +63,10 @@ export {
 } from './readiness';
 
 export { ExportTab, type ExportTabProps } from './ExportTab';
+
+export {
+  GTFS_ZIP_NAME,
+  exportGtfs,
+  type GtfsExportDialogs,
+  type GtfsExportOptions,
+} from './gtfsExport';

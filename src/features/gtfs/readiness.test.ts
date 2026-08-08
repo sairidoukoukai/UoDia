@@ -151,9 +151,9 @@ describe('揃っていないとき', () => {
   });
 });
 
-describe('実例と違える 5 点（§6.7）', () => {
-  it('**5 つある**', () => {
-    expect(DEVIATIONS).toHaveLength(5);
+describe('実例と違えるところ（§6.7）', () => {
+  it('**7 つある**（仕様書は 5 点。あと 2 つは T-82 で見つけた）', () => {
+    expect(DEVIATIONS).toHaveLength(7);
   });
 
   it('どれも「何を・既存は・本ソフトは・なぜ」を持つ', () => {
@@ -172,6 +172,8 @@ describe('実例と違える 5 点（§6.7）', () => {
       '微生物研究所前',
       'agency_id',
       'route_text_color',
+      '改行',
+      '車庫の location_type',
     ]);
   });
 });

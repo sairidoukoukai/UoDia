@@ -1,4 +1,5 @@
 import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { csvField, encodeCsv, toCsv } from './csv';
@@ -67,13 +68,28 @@ describe('encodeCsv', () => {
 
 describe('置き場所（実装計画書 v2 §3.5）', () => {
   const here = fileURLToPath(new URL('.', import.meta.url));
-  const sources = readdirSync(here).filter((name) => !name.endsWith('.test.ts'));
+
+  /** この下にある実装。**入れ子も辿る**（`gtfs/` が増えた。T-82）。 */
+  function sourcesUnder(directory: string): string[] {
+    const found: string[] = [];
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) {
+        found.push(...sourcesUnder(path));
+      } else if (entry.name.endsWith('.ts') && !/\.(test|test-utils)\.ts$/.test(entry.name)) {
+        found.push(path);
+      }
+    }
+    return found;
+  }
+
+  const sources = sourcesUnder(here);
 
   it('**React を import していない**（受入条件）', () => {
     // 「px も canvas も出てこない」から `domain` に置いた（§3.5）。画面のものを
     // 1 つでも引き込んだ時点で、その理由が崩れる。
-    const offenders = sources.filter((name) => {
-      const source = readFileSync(new URL(name, import.meta.url), 'utf8');
+    const offenders = sources.filter((path) => {
+      const source = readFileSync(path, 'utf8');
       return source.includes("from 'react") || source.includes("from '@/features");
     });
 
@@ -81,6 +97,8 @@ describe('置き場所（実装計画書 v2 §3.5）', () => {
   });
 
   it('中身を数え間違えていない（走査が空振りしていない）', () => {
-    expect(sources).toContain('csv.ts');
+    const names = sources.map((path) => path.slice(here.length));
+    expect(names).toContain('csv.ts');
+    expect(names).toContain('gtfs/build.ts');
   });
 });
