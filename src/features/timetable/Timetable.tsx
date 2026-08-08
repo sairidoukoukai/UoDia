@@ -66,7 +66,7 @@ import {
 } from './model';
 import { directionToShow } from './sync';
 import { TimetableGrid, type CommitResult } from './TimetableGrid';
-import { TimetableToolbar } from './TimetableToolbar';
+import { CopyToService } from './CopyToService';
 
 /** 運用の色を 1 つも選んでいない状態。**同じ参照を返す**（購読が無駄に動かない）。 */
 const NO_COLORS: Readonly<Record<string, string>> = Object.freeze({});
@@ -455,13 +455,17 @@ export function Timetable(): ReactElement {
         <button type="button" onClick={handleSort}>
           始発時刻順に並べ替え
         </button>
-      </div>
 
-      <TimetableToolbar
-        selectedCount={selectedTripIds.length}
-        otherServices={services.filter((service) => service.serviceId !== activeServiceId)}
-        onCopyTo={handleCopyTo}
-      />
+        {/*
+          複製は並べ替えの右に置く。**並べ替えはこの表の中の操作、複製は外へ
+          出す操作**であり、内から外の順に並ぶ（#200）。
+        */}
+        <CopyToService
+          selectedCount={selectedTripIds.length}
+          otherServices={services.filter((service) => service.serviceId !== activeServiceId)}
+          onCopyTo={handleCopyTo}
+        />
+      </div>
 
       {tables === null ? (
         <p className="timetable__empty">ネットワーク定義を読み込んでいます…</p>
