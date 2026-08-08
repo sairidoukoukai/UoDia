@@ -85,6 +85,7 @@ export {
 } from './viewportControls';
 
 export {
+  LIGHT_THEME,
   selectDiagramScene,
   type DiagramScene,
   type ScenePoint,
