@@ -21,6 +21,16 @@ export {
 } from './diagramPng';
 
 export {
+  DEPOT_LABEL,
+  ROW_LABELS,
+  exportTimetable,
+  renderTimetableCsv,
+  timetableCsvName,
+  timetableCsvProducer,
+  timetableRows,
+} from './timetableCsv';
+
+export {
   createExportService,
   formatProgress,
   type ExportDialogs,
