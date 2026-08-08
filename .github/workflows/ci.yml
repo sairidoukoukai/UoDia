@@ -34,6 +34,13 @@ jobs:
           node-version: 20
           cache: npm
 
+      # 書き出した zip と PDF は**外の実装に開かせて**確かめる（T-74・T-77）。
+      # 自前の解析器で読み返しても、同じ誤解を 2 度するだけである。**無ければ
+      # 検証そのものが飛ばされる**ため、道具の有無を見るテストを置いてあり、
+      # ここを消すとそれが落ちる。
+      - name: PDF を読む道具
+        run: sudo apt-get install -y --no-install-recommends poppler-utils
+
       - name: 依存のインストール
         run: npm ci
 
