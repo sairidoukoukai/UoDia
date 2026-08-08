@@ -142,12 +142,11 @@ describe('一斉出力に入る形', () => {
   });
 
   it('表に並ぶ', () => {
-    expect(exportProducers(platform).map((producer) => producer.fileName)).toEqual([
-      'ダイヤグラム.png',
-      'ダイヤグラム.pdf',
-      '時刻表_豊中方面.csv',
-      '時刻表_吹田方面.csv',
-    ]);
+    // 表全体の並びは `blockChartPdf.test.ts` が見る（そちらが最後の 1 つを
+    // 足した）。ここで見るのは**このファイルが表に入っていること**である。
+    expect(exportProducers(platform).map((producer) => producer.fileName)).toContain(
+      DIAGRAM_PDF_NAME,
+    );
   });
 
   it('**名前が重なっていない**（zip に包める）', () => {

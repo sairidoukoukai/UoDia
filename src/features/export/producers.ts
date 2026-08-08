@@ -11,6 +11,7 @@
 
 import type { PlatformAdapter } from '@/platform';
 import type { ExportProducer } from './artifacts';
+import { blockChartPdfProducer } from './blockChartPdf';
 import { diagramPdfProducer } from './diagramPdf';
 import { diagramPngProducer } from './diagramPng';
 import { timetableCsvProducer } from './timetableCsv';
@@ -22,8 +23,8 @@ import { timetableCsvProducer } from './timetableCsv';
  * | --- | --- | --- |
  * | ○ | ダイヤグラム.png | T-75 |
  * | ○ | ダイヤグラム.pdf | T-78 |
+ * | ○ | 箱ダイヤ.pdf | T-80 |
  * | ○ | 時刻表_豊中方面.csv・時刻表_吹田方面.csv | T-76 |
- * | | 箱ダイヤ.pdf | T-80 |
  *
  * GTFS は入らない（仕様書 v2 §5.7）。GTFS 画面の書き出しタブから出す。
  *
@@ -36,6 +37,7 @@ export function exportProducers(
   return [
     diagramPngProducer,
     diagramPdfProducer(platform),
+    blockChartPdfProducer(platform),
     timetableCsvProducer(1),
     timetableCsvProducer(0),
   ];
