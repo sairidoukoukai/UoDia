@@ -24,6 +24,55 @@ describe('loadNetworkDef — 正常系', () => {
   });
 });
 
+describe('取扱区分（#202、T-83）', () => {
+  /*
+   * **片方向のパターンにしか現れない停留所は、乗降のどちらかしか起きない。**
+   *
+   * | 停留所 | 出るパターン | 取扱区分 |
+   * | --- | --- | --- |
+   * | コンベンションセンター前 | S1・S2・S3（すべて吹田方面） | **降車専用** |
+   * | 人間科学部前 | T1・T3・M4（すべて豊中方面） | **乗車専用** |
+   *
+   * ここが `stop` のままだと、**乗れない停留所が乗れるものとして GTFS に
+   * 配信される**（仕様書 v2 §6.5.5）。経路検索が「コンベンションセンター前から
+   * 吹田方面へ乗る」という案内を出しうる。
+   */
+  function handlingOf(patternId: string, stopId: string): string | undefined {
+    const result = loadNetworkDef(validJson);
+    if (!result.ok) throw new Error('route.json を読み込めません');
+    const pattern = result.network.def.patterns.find((entry) => entry.patternId === patternId);
+    return pattern?.stopSequence.find((stop) => stop.stopId === stopId)?.handling;
+  }
+
+  it('**コンベンションセンター前は降車専用**', () => {
+    for (const patternId of ['S1', 'S2', 'S3']) {
+      expect(handlingOf(patternId, '3_0'), patternId).toBe('alightOnly');
+    }
+  });
+
+  it('**人間科学部前は乗車専用**', () => {
+    for (const patternId of ['T1', 'T3', 'M4']) {
+      expect(handlingOf(patternId, '5_0'), patternId).toBe('boardOnly');
+    }
+  });
+
+  it('微生物研究所前は降車専用のまま（もともと正しかった）', () => {
+    expect(handlingOf('S3', '6_0')).toBe('alightOnly');
+  });
+
+  it('**両方向に出る停留所は乗降とも**（直した先を広げすぎていない）', () => {
+    expect(handlingOf('S3', '2_0')).toBe('stop');
+    expect(handlingOf('T3', '2_0')).toBe('stop');
+  });
+
+  it('**版数は上げていない**（形は変わらず、値の訂正である）', () => {
+    const result = loadNetworkDef(validJson);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.network.def.version).toBe(3);
+  });
+});
+
 describe('loadNetworkDef — 失敗した段階を区別する', () => {
   it('JSON として壊れていれば stage: json', () => {
     const result = loadNetworkDef('{ これは JSON ではない');

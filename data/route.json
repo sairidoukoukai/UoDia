@@ -219,7 +219,7 @@
         },
         {
           "stopId": "3_0",
-          "handling": "stop"
+          "handling": "alightOnly"
         },
         {
           "stopId": "6_0",
@@ -251,7 +251,7 @@
         },
         {
           "stopId": "3_0",
-          "handling": "stop"
+          "handling": "alightOnly"
         },
         {
           "stopId": "6_0",
@@ -279,7 +279,7 @@
         },
         {
           "stopId": "3_0",
-          "handling": "stop"
+          "handling": "alightOnly"
         },
         {
           "stopId": "6_0",
@@ -327,7 +327,7 @@
         },
         {
           "stopId": "5_0",
-          "handling": "stop"
+          "handling": "boardOnly"
         },
         {
           "stopId": "1_0",
@@ -351,7 +351,7 @@
         },
         {
           "stopId": "5_0",
-          "handling": "stop"
+          "handling": "boardOnly"
         },
         {
           "stopId": "2_0",
@@ -399,7 +399,7 @@
         },
         {
           "stopId": "5_0",
-          "handling": "stop"
+          "handling": "boardOnly"
         },
         {
           "stopId": "2_0",
