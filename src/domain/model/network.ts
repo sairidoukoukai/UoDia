@@ -11,7 +11,15 @@
 
 import { z } from 'zod';
 import { GRAIN_SECONDS } from '@/domain/time';
-import { directionIdSchema, hexColorSchema, idSchema, runMinutesSchema } from './primitives';
+import {
+  directionIdSchema,
+  gtfsColorSchema,
+  hexColorSchema,
+  idSchema,
+  latitudeSchema,
+  longitudeSchema,
+  runMinutesSchema,
+} from './primitives';
 
 /** ダイヤグラムの停留所線の描き方。 */
 export const gridStyleSchema = z.enum(['bold', 'normal', 'dashed']);
@@ -50,8 +58,34 @@ export const stopSchema = z.object({
   gridStyle: gridStyleSchema,
   /** true の停留所は時刻表・ダイヤグラムに表示しない。内部データとしてのみ保持する。 */
   hiddenInEditor: z.boolean(),
-  /** true の停留所は営業所。GTFS 出力から除外される。 */
+  /**
+   * true の停留所は営業所。
+   *
+   * **`stops.txt` からは除外しない**（仕様書 v2 §6.5.2、版数 3.0 で改めた）。
+   * 回送便の `stop_times` が車庫を指すため、出さなければ参照先が無くなる。
+   * `location_type: 1` として出す。
+   */
   isDepot: z.boolean(),
+
+  /**
+   * 緯度・経度（GTFS `stop_lat` / `stop_lon`。#198、仕様書 v2 §3.4）。
+   *
+   * **省略できる。** 版数 2 以前の `route.json` は持たないことが正しい状態で
+   * あり、読めなくすると古い定義で起動できなくなる。版数 3 以上で全停留所に
+   * 入っていることは R-15 が検証する。
+   */
+  lat: latitudeSchema.optional(),
+  lon: longitudeSchema.optional(),
+
+  /**
+   * よみがな・英語名（GTFS `translations.txt`。仕様書 v2 §6.5.6）。
+   *
+   * **画面には出さない。** 書き出すときにだけ使う。画面に出す名前は
+   * `stopName` と `shortName` の 2 つで足りており、3 つめを画面へ持ち込むと
+   * 「どれを出すか」の判断が描画のたびに要る。
+   */
+  nameKana: z.string().min(1).optional(),
+  nameEn: z.string().min(1).optional(),
 });
 export type Stop = z.infer<typeof stopSchema>;
 
@@ -136,6 +170,58 @@ export const stopPatternSchema = z.object({
 });
 export type StopPattern = z.infer<typeof stopPatternSchema>;
 
+/**
+ * 事業者（GTFS `agency.txt`。#198、仕様書 v2 §6.5.1）。
+ *
+ * **バスを走らせている主体であり、この配信を作っている主体ではない。**
+ * 後者は `feed_info.txt` の発行者（再履バス同好会）であり、書き出し側が
+ * 固定値として持つ。**GTFS はこの 2 つを別の欄で分けている。**
+ */
+export const agencySchema = z.object({
+  /** GTFS `agency_id`。法人番号。**こちらで採番し直さない**（外と突き合わせる ID）。 */
+  agencyId: idSchema,
+  agencyName: z.string().min(1),
+  agencyUrl: z.string().min(1),
+  /** 例: `Asia/Tokyo` */
+  agencyTimezone: z.string().min(1),
+  /** 例: `ja` */
+  agencyLang: z.string().min(1),
+  /** 空でよい。 */
+  agencyPhone: z.string().optional(),
+  /** よみがな・英語名（`translations.txt`）。 */
+  nameKana: z.string().min(1).optional(),
+  nameEn: z.string().min(1).optional(),
+});
+export type Agency = z.infer<typeof agencySchema>;
+
+/**
+ * 系統（GTFS `routes.txt` の色と訳語。#198、仕様書 v2 §6.5.3）。
+ *
+ * **キーは `StopPattern.routeName`** である。パターンごとではない——豊中吹田線の
+ * 往復 2 パターンは同じ色を持つ。
+ */
+export const routeInfoSchema = z.object({
+  /** `StopPattern.routeName` と一致する。 */
+  routeName: z.string().min(1),
+  /**
+   * GTFS `route_long_name` に出す名前。**省略時は `routeName` をそのまま使う。**
+   *
+   * **方向でひっくり返さないため**にある（仕様書 v2 §6.5.3）。`route.json` は
+   * 往きを `豊中吹田線`、復りを `吹田豊中線` と持つが、GTFS ではどちらも
+   * `豊中吹田線` である——**同じ線の往復に 2 つの名前があると、読む側には別の
+   * 系統に見える。** 方向は `route_short_name` で分かれる。
+   */
+  longName: z.string().min(1).optional(),
+  /** GTFS `route_color`。**画面のスジ色（`StopPattern.color`）とは別物。** */
+  color: gtfsColorSchema,
+  /** GTFS `route_text_color`。 */
+  textColor: gtfsColorSchema,
+  /** よみがな・英語名（`translations.txt`）。回送はよみがなを持たない。 */
+  kana: z.string().min(1).optional(),
+  en: z.string().min(1).optional(),
+});
+export type RouteInfo = z.infer<typeof routeInfoSchema>;
+
 /** ネットワーク定義（仕様書 §5.1）。`route.json` の中身。 */
 export const networkDefSchema = z.object({
   /** 本ファイルの版数。プロジェクトの `meta.routeVersion` との整合性検査に使う。 */
@@ -143,8 +229,19 @@ export const networkDefSchema = z.object({
   name: z.string().min(1),
   /** 時刻の刻み（秒）。仕様書 §2.1 より 300 固定。 */
   timeGrain: z.literal(GRAIN_SECONDS),
+  /**
+   * 事業者（版数 3。#198）。**省略できる**——版数 2 以前は持たないことが正しい。
+   * 版数 3 以上で入っていることは R-14 が検証する。
+   */
+  agency: agencySchema.optional(),
   stops: z.array(stopSchema),
   segments: z.array(segmentSchema),
   patterns: z.array(stopPatternSchema),
+  /**
+   * 系統ごとの色と訳語（版数 3。#198）。**省略できる**（同上）。
+   *
+   * 書き出しにしか使わないため、**画面はこの配列を見ない。**
+   */
+  routes: z.array(routeInfoSchema).optional(),
 });
 export type NetworkDef = z.infer<typeof networkDefSchema>;
