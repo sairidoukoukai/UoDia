@@ -369,7 +369,7 @@ describe('ダイヤ間コピー', () => {
     it('**並べ替えの右にある**（内から外の順に並ぶ）', () => {
       mount(twoServices());
       const children = [...bar().children];
-      const sort = children.findIndex((child) => child.textContent?.includes('並べ替え') === true);
+      const sort = children.findIndex((child) => child.textContent.includes('並べ替え'));
       const copy = children.findIndex(
         (child) => child.querySelector('[aria-label="複製先のダイヤ"]') !== null,
       );
