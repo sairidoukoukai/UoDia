@@ -44,6 +44,37 @@ export const hexColorSchema = z
   .string()
   .regex(/^#[0-9a-fA-F]{6}$/, { message: '色は #RRGGBB 形式で指定してください' });
 
+/**
+ * GTFS の色（`RRGGBB`。**`#` を付けない**）。
+ *
+ * **画面用の {@link hexColorSchema} と別に持つ**（仕様書 v2 §6.8）。書式が違う
+ * だけではなく、**用途が違う**——画面の色はスジを描くための濃い色、GTFS の色は
+ * 一覧や地図の地色として使う淡い色である。片方から計算すると、どちらの用途にも
+ * 合わない色が出る。
+ */
+export const gtfsColorSchema = z
+  .string()
+  .regex(/^[0-9a-fA-F]{6}$/, { message: 'GTFS の色は RRGGBB 形式（# なし）で指定してください' });
+
+/**
+ * 緯度（度）。GTFS `stop_lat`。
+ *
+ * **範囲だけを見る。** 日本の範囲に縛らない——縛れば「正しい値を弾かない」ことを
+ * 確かめる手立てが要り、その手立ては地理の知識になる。
+ */
+export const latitudeSchema = z
+  .number()
+  .finite()
+  .min(-90, { message: '緯度は -90 以上でなければなりません' })
+  .max(90, { message: '緯度は 90 以下でなければなりません' });
+
+/** 経度（度）。GTFS `stop_lon`。 */
+export const longitudeSchema = z
+  .number()
+  .finite()
+  .min(-180, { message: '経度は -180 以上でなければなりません' })
+  .max(180, { message: '経度は 180 以下でなければなりません' });
+
 /** 方向。0 = 吹田方面 / 1 = 豊中方面（仕様書 §2）。 */
 export const directionIdSchema = z.union([z.literal(0), z.literal(1)]);
 export type DirectionId = z.infer<typeof directionIdSchema>;

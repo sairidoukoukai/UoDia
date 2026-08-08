@@ -26,7 +26,9 @@ export type NetworkRule =
   | 'R-10'
   | 'R-11'
   | 'R-12'
-  | 'R-13';
+  | 'R-13'
+  | 'R-14'
+  | 'R-15';
 
 /** 問題のある要素への参照。 */
 export type NetworkIssueTarget =
@@ -34,7 +36,9 @@ export type NetworkIssueTarget =
   | { readonly kind: 'segment'; readonly fromStopId: string; readonly toStopId: string }
   | { readonly kind: 'pattern'; readonly patternId: string }
   | { readonly kind: 'patternStop'; readonly patternId: string; readonly index: number }
-  | { readonly kind: 'direction'; readonly directionId: DirectionId };
+  | { readonly kind: 'direction'; readonly directionId: DirectionId }
+  /** 定義に 1 つしかないもの。停留所やパターンのように指す先を持たない。 */
+  | { readonly kind: 'agency' };
 
 export interface NetworkIssue {
   readonly rule: NetworkRule;
@@ -68,6 +72,8 @@ export function validateNetwork(network: NetworkDef): NetworkIssue[] {
     ...checkConnectingDeadheads(network),
     ...checkServiceTypes(network),
     ...checkDistances(network),
+    ...checkAgency(network),
+    ...checkCoordinates(network),
   ];
 }
 
@@ -379,6 +385,55 @@ function checkDistances(network: NetworkDef): NetworkIssue[] {
         fromStopId: segment.fromStopId,
         toStopId: segment.toStopId,
       },
+    }));
+}
+
+/**
+ * GTFS に要る静的データを必須とする `route.json` の版数（#198、仕様書 v2 §7.1）。
+ *
+ * これより古い定義は事業者も緯度経度も持たないことが正しい。**距離のとき
+ * （{@link DISTANCE_VERSION}）と同じ作りにする**——版数で切らないと、古い定義が
+ * 読めなくなる。
+ */
+export const GTFS_VERSION = 3;
+
+/**
+ * R-14: 事業者の情報が入っていること（#198）。**版数 3 以上にのみ適用する。**
+ *
+ * 欠けたまま GTFS を出すと `agency.txt` が空になり、**フィード全体が読めなく
+ * なる**——`routes.txt` の `agency_id` が指す先が無くなるためである。
+ */
+function checkAgency(network: NetworkDef): NetworkIssue[] {
+  if (network.version < GTFS_VERSION) return [];
+
+  if (network.agency === undefined) {
+    return [{ rule: 'R-14', message: 'agency がありません', target: { kind: 'agency' } }];
+  }
+
+  // **空文字はスキーマが弾く。** ここで見るのは「項目そのものが無い」ことだけで
+  // あり、二重に検査しない。
+  return [];
+}
+
+/**
+ * R-15: すべての停留所が緯度経度を持つこと（#198）。**版数 3 以上にのみ適用する。**
+ *
+ * **車庫も対象にする。** 車庫は `stops.txt` に出す（仕様書 v2 §6.5.2）——回送便の
+ * `stop_times` が指すためであり、出す以上は座標が要る。実例（`docs/gtfs_example/`）
+ * も千里営業所の緯度経度を持っている。
+ *
+ * **1 つでも欠けると、その停留所を通る便の経路が地図に描けない。** 出してから
+ * 気づくのでは遅いため、読み込みの段階で弾く。
+ */
+function checkCoordinates(network: NetworkDef): NetworkIssue[] {
+  if (network.version < GTFS_VERSION) return [];
+
+  return network.stops
+    .filter((stop) => stop.lat === undefined || stop.lon === undefined)
+    .map((stop) => ({
+      rule: 'R-15' as const,
+      message: `停留所 ${stop.stopId}（${stop.stopName}）に緯度経度がありません`,
+      target: { kind: 'stop' as const, stopId: stop.stopId },
     }));
 }
 
