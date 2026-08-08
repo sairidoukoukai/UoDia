@@ -116,3 +116,18 @@ describe('鍵の綴り', () => {
     expect(formatAccelerator({ key: ',' })).toBe('Ctrl+,');
   });
 });
+
+describe('GTFS 画面（T-72、#163）', () => {
+  it('ファイルメニューにある', () => {
+    expect(commandsIn('file').map((c) => c.id)).toContain('file.gtfs');
+  });
+
+  it('**ショートカットを割り当てない**（作図中に繰り返す操作ではない）', () => {
+    const gtfs = COMMANDS.find((c) => c.id === 'file.gtfs');
+    expect(gtfs?.accelerator).toBeUndefined();
+  });
+
+  it('設定とは別の操作である', () => {
+    expect(commandsIn('settings').map((c) => c.id)).not.toContain('file.gtfs');
+  });
+});
