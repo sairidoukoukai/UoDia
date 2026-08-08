@@ -1,4 +1,28 @@
+export { CalendarTab, type CalendarTabProps } from './CalendarTab';
+
 export { GtfsDialog, type GtfsDialogProps } from './GtfsDialog';
+
+export {
+  addClosedRange,
+  defaultCalendar,
+  formatRange,
+  removeClosedRange,
+  replaceClosedRange,
+  setPeriod,
+  toggleWeekday,
+} from './calendarEdits';
+
+export {
+  clampMonth,
+  dayKindOf,
+  monthGrid,
+  monthOf,
+  shiftMonth,
+  WEEKDAY_LABEL,
+  type DayCell,
+  type DayKind,
+  type MonthGrid,
+} from './monthGrid';
 
 export {
   AGENCY_DEFAULTS,

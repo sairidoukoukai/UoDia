@@ -106,11 +106,12 @@ describe('GtfsDialog', () => {
   });
 
   it('**まだ作っていないタブは、何が入るかを書いておく**', () => {
+    // 空白を出すと、作り忘れなのか空なのかが分からない。
     mount();
     act(() => {
-      button('カレンダー').click();
+      button('書き出し').click();
     });
-    expect(container.textContent).toContain('T-73');
+    expect(container.textContent).toContain('T-81');
   });
 });
 
