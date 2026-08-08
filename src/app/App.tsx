@@ -55,6 +55,7 @@ import {
   loadSettings,
   watchSettings,
 } from '@/features/settings';
+import { GtfsDialog } from '@/features/gtfs';
 import { SidePanel } from '@/features/sidebar';
 import { Timetable, copySelection, cutSelection, pasteClipboard } from '@/features/timetable';
 import { ValidationPanel } from '@/features/validation';
@@ -73,6 +74,7 @@ export function App(): ReactElement {
   const [cursor, setCursor] = useState<DiagramCursor | null>(null);
   const [help, setHelp] = useState<HelpTopic | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [gtfsOpen, setGtfsOpen] = useState(false);
   const [documentOpen, setDocumentOpen] = useState(false);
   /** 直前の操作が伝えたいこと（写した便の数など）。次の操作で置き換わる。 */
   const [notice, setNotice] = useState<string | null>(null);
@@ -236,6 +238,10 @@ export function App(): ReactElement {
         state.setDiagramView(state.settings.defaultDiagramView);
       },
 
+      'file.gtfs': (): void => {
+        setGtfsOpen(true);
+      },
+
       'settings.open': (): void => {
         setSettingsOpen(true);
       },
@@ -370,6 +376,14 @@ export function App(): ReactElement {
         onNotice={setNotice}
         onClose={() => {
           setSettingsOpen(false);
+        }}
+      />
+      <GtfsDialog
+        open={gtfsOpen}
+        platform={platform}
+        onNotice={setNotice}
+        onClose={() => {
+          setGtfsOpen(false);
         }}
       />
     </div>

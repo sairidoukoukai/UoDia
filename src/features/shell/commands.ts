@@ -45,6 +45,7 @@ export type CommandId =
   | 'file.saveAs'
   | 'file.backupNow'
   | 'file.documentInfo'
+  | 'file.gtfs'
   | 'edit.undo'
   | 'edit.redo'
   | 'edit.copy'
@@ -115,6 +116,11 @@ export const COMMANDS: readonly Command[] = [
     separatorBefore: true,
   },
   { id: 'file.backupNow', menu: 'file', label: '今すぐバックアップ' },
+  /*
+   * GTFS 画面（#163・#198、仕様書 v2 §3.2）。**ショートカットは割り当てない**
+   * ——作図中に繰り返す操作ではない。
+   */
+  { id: 'file.gtfs', menu: 'file', label: 'GTFS…', separatorBefore: true },
 
   {
     id: 'edit.undo',

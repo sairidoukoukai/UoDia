@@ -1544,3 +1544,76 @@ body {
   /* 焦点の枠を出す。キーボードで操作できることが見て分かる（§9.4）。 */
   outline-offset: -2px;
 }
+
+/* ---------------------------------------------------------------------------
+   GTFS 画面（#163・#198、仕様書 v2 §3、T-72）
+
+   枠・タブ・面・操作は設定ダイアログ（`.settings`）のものをそのまま使う。
+   **同じ形のものを 2 つ書かない。** ここに置くのは、設定に無い 2 つだけである
+   ——事業者の欄（横に長い文字列を入れる）と、停留所の表。
+
+   `.settings__field` を使い回さないのは、あちらの input が `width: 6rem` の
+   右寄せだからである。分の数を打つ欄として作られており、URL は入らない。
+--------------------------------------------------------------------------- */
+
+.gtfs__fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.gtfs__field {
+  display: grid;
+  grid-template-columns: 8rem 1fr;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+}
+
+.gtfs__field input {
+  font: inherit;
+  min-width: 0;
+}
+
+/* 補足はラベルの下ではなく、欄の下（2 列目）へ回す。 */
+.gtfs__field small {
+  grid-column: 2;
+  color: var(--color-fg-muted);
+  font-size: 0.8125rem;
+}
+
+.gtfs__stops {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.875rem;
+}
+
+.gtfs__caption {
+  margin-bottom: 0.5rem;
+  color: var(--color-fg-muted);
+  font-size: 0.8125rem;
+  text-align: left;
+}
+
+.gtfs__stops th,
+.gtfs__stops td {
+  padding: 0.2rem 0.4rem;
+  text-align: left;
+}
+
+.gtfs__stops th[scope='row'] {
+  font-weight: normal;
+  white-space: nowrap;
+}
+
+.gtfs__stops input {
+  width: 7rem;
+  font: inherit;
+  text-align: right;
+}
+
+/* 読めない値は色だけで示さない（§9.4）。`aria-invalid` が読み上げにも出る。 */
+.gtfs__stops input[aria-invalid='true'],
+.gtfs__field input[aria-invalid='true'] {
+  background: var(--color-invalid);
+}
