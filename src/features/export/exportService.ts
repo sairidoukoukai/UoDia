@@ -23,8 +23,9 @@
 import { buildZip, type ZipEntry } from '@/domain/io';
 import type { PlatformAdapter } from '@/platform';
 import { selectActiveService, selectNetwork, type AppStoreHook } from '@/store';
-import { EXPORT_PRODUCERS, type ExportProducer, type ExportSource } from './artifacts';
+import type { ExportProducer, ExportSource } from './artifacts';
 import { exportFileName } from './exportName';
+import { EXPORT_PRODUCERS } from './producers';
 
 /** 進み具合（§5.9）。**何を作っているかを出す。** */
 export interface ExportProgress {
@@ -108,7 +109,7 @@ export function createExportService(options: ExportServiceOptions): ExportServic
         return false;
       }
 
-      const source: ExportSource = { project, network, service, settings: state.settings };
+      const source: ExportSource = { state, project, network, service };
 
       let entries: ZipEntry[];
       try {

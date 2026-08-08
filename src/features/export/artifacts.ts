@@ -1,10 +1,8 @@
 /**
- * 一斉出力に入るもの（仕様書 v2 §5.2、T-74）。
+ * 一斉出力に入るものの約束（仕様書 v2 §5.2、T-74）。**型だけを置く。**
  *
- * ## ここには中身が 1 つも無い
- *
- * T-74 が作るのは**器だけ**である。中身は後から差し込む——ダイヤグラム PNG は
- * T-75、時刻表 CSV は T-76、PDF は T-78 と T-80 が持ってくる。
+ * 何が入るかは `producers.ts` が持つ。**約束と中身を分けてある**——中身は
+ * 描画にも表計算にも触るが、約束は 2 つの型でしかない。
  *
  * ## なぜ表にするのか
  *
@@ -15,7 +13,7 @@
 
 import type { NetworkIndex } from '@/domain/network';
 import type { Project, Service } from '@/domain/model';
-import type { AppSettings } from '@/store';
+import type { AppState } from '@/store';
 
 /**
  * 中身を作るのに要るもの。
@@ -24,12 +22,19 @@ import type { AppSettings } from '@/store';
  * ダイヤがあっても、出るのは今開いているものである。
  */
 export interface ExportSource {
+  /**
+   * 画面が持っているものすべて。**表示設定もフィルタもここから読む**
+   * （仕様書 v2 §5.4.1。見えているものが出る）。
+   *
+   * **選択と引きずりは落としてある**（`diagramExportScene`）。どの便を選んで
+   * いたかは配る絵に関係が無い。
+   */
+  readonly state: AppState;
+  /** `state.project` と同じもの。**無いことが無いと分かっている。** */
   readonly project: Project;
   readonly network: NetworkIndex;
   /** 編集中のダイヤ。 */
   readonly service: Service;
-  /** 画面の表示設定。**見えているものが出る**（仕様書 v2 §5.4.1）。 */
-  readonly settings: AppSettings;
 }
 
 /** 書き出しに入る 1 つ。 */
@@ -46,17 +51,3 @@ export interface ExportProducer {
    */
   build(source: ExportSource): Promise<Uint8Array> | Uint8Array;
 }
-
-/**
- * 一斉出力に入るもの。**まだ空である。**
- *
- * | 足す先 | 中身 |
- * | --- | --- |
- * | T-75 | ダイヤグラム.png |
- * | T-76 | 時刻表_豊中方面.csv・時刻表_吹田方面.csv |
- * | T-78 | ダイヤグラム.pdf |
- * | T-80 | 箱ダイヤ.pdf |
- *
- * GTFS は入らない（仕様書 v2 §5.7）。GTFS 画面の書き出しタブから出す。
- */
-export const EXPORT_PRODUCERS: readonly ExportProducer[] = [];

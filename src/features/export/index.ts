@@ -1,6 +1,24 @@
-export { EXPORT_PRODUCERS, type ExportProducer, type ExportSource } from './artifacts';
+export { type ExportProducer, type ExportSource } from './artifacts';
+
+export { EXPORT_PRODUCERS } from './producers';
 
 export { UNTITLED_EXPORT, exportFileName } from './exportName';
+
+export {
+  A4_LANDSCAPE_300DPI,
+  diagramExportScene,
+  drawnTimeRange,
+  exportViewport,
+  pixelSize,
+  type ExportPage,
+} from './diagramExport';
+
+export {
+  DIAGRAM_PNG_NAME,
+  diagramPngProducer,
+  renderDiagramPng,
+  type DiagramPngOptions,
+} from './diagramPng';
 
 export {
   createExportService,

@@ -17,20 +17,25 @@ import { attachSelectionReveal } from './revealControls';
 import { TripContextMenu, type MenuPosition } from './TripContextMenu';
 import { attachTripControls } from './tripControls';
 import { attachViewportControls } from './viewportControls';
-import { selectDiagramScene, type SceneTheme } from './scene';
+import { LIGHT_THEME, selectDiagramScene, type SceneTheme } from './scene';
 
-/** 画面のテーマから描画に使う色を読む（仕様書 §9.4）。 */
+/**
+ * 画面のテーマから描画に使う色を読む（仕様書 §9.4）。
+ *
+ * 読めなかったときの受け皿は {@link LIGHT_THEME} である。**書き出しが使う配色と
+ * 同じものを指す**——白を 2 か所に書くと、片方だけ直したときに気づけない。
+ */
 function readTheme(element: Element): SceneTheme {
   const style = getComputedStyle(element);
   const read = (name: string, fallback: string): string =>
     style.getPropertyValue(name).trim() || fallback;
 
   return {
-    background: read('--color-bg', '#ffffff'),
-    axis: read('--color-border', '#cccccc'),
-    grid: read('--color-grid', '#e4e4e4'),
-    gridFaint: read('--color-grid-faint', '#f0f0f0'),
-    label: read('--color-fg-muted', '#666666'),
+    background: read('--color-bg', LIGHT_THEME.background),
+    axis: read('--color-border', LIGHT_THEME.axis),
+    grid: read('--color-grid', LIGHT_THEME.grid),
+    gridFaint: read('--color-grid-faint', LIGHT_THEME.gridFaint),
+    label: read('--color-fg-muted', LIGHT_THEME.label),
   };
 }
 
