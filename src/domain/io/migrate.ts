@@ -107,6 +107,23 @@ function bumpToVersion3(data: unknown): unknown {
 }
 
 /**
+ * 版数 3 → 4: 版数だけを繰り上げる。
+ *
+ * 版数 4 でダイヤが運行日カレンダーを持てるようになった（#197、仕様書 v2 §4.4）。
+ * **何も足さない。** `Service.calendar` は任意項目であり、**持たないことが正しい
+ * 状態**である——案を並べて比べているだけのダイヤは運行日を持たない。
+ *
+ * 既定値で埋めることもしない。埋めれば「利用者が決めた運行日」と「アプリが
+ * 勝手に入れた運行日」が区別できなくなり、**入力した覚えのない日付が GTFS に
+ * 出る**。
+ */
+function bumpToVersion4(data: unknown): unknown {
+  const root = asRecord(data);
+  if (root === null) return data;
+  return { ...root, meta: { ...asRecord(root.meta), formatVersion: 4 } };
+}
+
+/**
  * 版数の昇順に並んだ変換の一覧。
  *
  * 形式を変えるときは、ここに `{ from: n, to: n + 1, migrate }` を追加する。
@@ -114,6 +131,7 @@ function bumpToVersion3(data: unknown): unknown {
 export const MIGRATIONS: readonly Migration[] = [
   { from: 1, to: 2, migrate: dropTripShortName },
   { from: 2, to: 3, migrate: bumpToVersion3 },
+  { from: 3, to: 4, migrate: bumpToVersion4 },
 ];
 
 export type MigrateResult =

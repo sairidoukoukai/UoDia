@@ -433,22 +433,36 @@ describe('migrateProjectData — マイグレーションの枠組み（仕様�
 
     const trips = (result.data as { services: { trips: object[] }[] }).services[0]?.trips;
     expect(trips?.[0]).toEqual({ tripId: 't1', patternId: 'S1' });
-    // 版数 3 まで引き上げられる。
-    expect(result.applied).toEqual([2, 3]);
+    // 現在の版数まで引き上げられる。
+    expect(result.applied).toEqual([2, 3, 4]);
     // 版数の連なりに穴が無いこと。1 つでも欠けると古いファイルが開けなくなる。
     expect(MIGRATIONS.map((m) => [m.from, m.to])).toEqual([
       [1, 2],
       [2, 3],
+      [3, 4],
     ]);
   });
 
   it('**版数 2 → 3 は版数だけを繰り上げる**（回送便を畳むのは読込時。T-51）', () => {
     const v2 = { meta: { formatVersion: 2 }, services: [{ trips: [{ tripId: 't1' }] }] };
-    const result = migrateProjectData(v2, 2);
+    const result = migrateProjectData(v2, 2, MIGRATIONS, 3);
     if (!result.ok) throw new Error('変換できるはず');
 
     expect(result.data).toEqual({
       meta: { formatVersion: 3 },
+      services: [{ trips: [{ tripId: 't1' }] }],
+    });
+  });
+
+  it('**版数 3 → 4 も版数だけを繰り上げる**（カレンダーを既定値で埋めない。T-71）', () => {
+    // Service.calendar は任意項目であり、持たないことが正しい状態である。埋めれば
+    // 「利用者が決めた運行日」と「アプリが入れた運行日」が区別できなくなる。
+    const v3 = { meta: { formatVersion: 3 }, services: [{ trips: [{ tripId: 't1' }] }] };
+    const result = migrateProjectData(v3, 3);
+    if (!result.ok) throw new Error('変換できるはず');
+
+    expect(result.data).toEqual({
+      meta: { formatVersion: 4 },
       services: [{ trips: [{ tripId: 't1' }] }],
     });
   });
@@ -521,5 +535,61 @@ describe('migrateProjectData — マイグレーションの枠組み（仕様�
     const result = migrateProjectData({}, 1, migrations, 3);
     expect(!result.ok && result.reason).toBe('noPath');
     expect(!result.ok && result.formatVersion).toBe(2);
+  });
+});
+
+describe('運行日カレンダー（T-71、#197）', () => {
+  /** 版数 3 のプロジェクト（カレンダーを持たない）。 */
+  function versionThreeJson(): string {
+    const project = makeProject();
+    return JSON.stringify({
+      ...project,
+      meta: { ...project.meta, formatVersion: 3 },
+    });
+  }
+
+  it('**版数 3 のファイルがそのまま開く**', () => {
+    const { project } = loadOrThrow(versionThreeJson());
+    expect(project.services[0]?.trips).toHaveLength(1);
+  });
+
+  it('**カレンダーが無いことについての警告は出ない**（持たないことが正しい状態である）', () => {
+    // 出るのは形式変換の知らせ（W-05）だけであり、これは版数を上げれば必ず出る。
+    const { warnings } = loadOrThrow(versionThreeJson());
+    expect(warnings.map((w) => w.id)).toEqual(['W-05']);
+  });
+
+  it('カレンダーを持たないダイヤとして開く', () => {
+    const { project } = loadOrThrow(versionThreeJson());
+    expect(project.services[0]?.calendar).toBeUndefined();
+  });
+
+  it('**保存し直すと版数 4 になる**', () => {
+    const { project } = loadOrThrow(versionThreeJson());
+    expect(project.meta.formatVersion).toBe(4);
+  });
+
+  it('カレンダーを持つファイルが、往復しても変わらない', () => {
+    const project = makeProject();
+    const [service] = project.services;
+    if (service === undefined) throw new Error('ダイヤがありません');
+
+    const withCalendar: Project = {
+      ...project,
+      services: [
+        {
+          ...service,
+          calendar: {
+            startDate: '2026-04-01',
+            endDate: '2027-03-31',
+            weekdays: ['mon', 'tue', 'wed', 'thu', 'fri'],
+            closedRanges: [{ from: '2026-08-06', to: '2026-09-30', note: '夏季休業' }],
+          },
+        },
+      ],
+    };
+
+    const { project: loaded } = loadOrThrow(serializeProject(withCalendar));
+    expect(loaded.services[0]?.calendar).toEqual(withCalendar.services[0]?.calendar);
   });
 });

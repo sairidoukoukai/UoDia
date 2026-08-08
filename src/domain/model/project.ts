@@ -8,6 +8,7 @@
 import { z } from 'zod';
 import { fromHM } from '@/domain/time';
 import {
+  calendarDateSchema,
   directionIdSchema,
   hexColorSchema,
   idSchema,
@@ -16,7 +17,7 @@ import {
 } from './primitives';
 
 /** 現在のファイル形式の版数。破壊的変更のたびに繰り上げる（仕様書 §7.3）。 */
-export const CURRENT_FORMAT_VERSION = 3;
+export const CURRENT_FORMAT_VERSION = 4;
 
 /**
  * 基準時刻（仕様書 §5.6）。**便の時刻を決める唯一の入力。**
@@ -67,6 +68,72 @@ export const tripSchema = z.object({
 });
 export type Trip = z.infer<typeof tripSchema>;
 
+/** 曜日（仕様書 v2 §4.4）。GTFS `calendar.txt` の列に 1 対 1 で対応する。 */
+export const weekdaySchema = z.enum(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']);
+export type Weekday = z.infer<typeof weekdaySchema>;
+
+/** 曜日の全部。**月曜始まり**（カレンダーの並びと揃える）。 */
+export const WEEKDAYS: readonly Weekday[] = Object.freeze([
+  'mon',
+  'tue',
+  'wed',
+  'thu',
+  'fri',
+  'sat',
+  'sun',
+]);
+
+/**
+ * 運行なしの期間（#197、仕様書 v2 §4.2）。**両端を含む。**
+ *
+ * **重なっていてよい。** 重なりを禁じると「夏季休業」と「お盆」を別々に書けなく
+ * なる。**どちらも書いてある状態のほうが、後から読んで分かる。**
+ */
+export const closedRangeSchema = z
+  .object({
+    from: calendarDateSchema,
+    to: calendarDateSchema,
+    /**
+     * 「夏季休業」など。**GTFS には出ない。**
+     *
+     * それでも持つのは、半年後に自分の入力を読み返すためである。日付だけが
+     * 並んでいると、なぜその範囲なのかが分からない。
+     */
+    note: z.string().optional(),
+  })
+  .refine((r) => r.from <= r.to, {
+    message: '運行なしの期間は from が to 以前でなければなりません',
+  });
+export type ClosedRange = z.infer<typeof closedRangeSchema>;
+
+/**
+ * 運行日カレンダー（#197、仕様書 v2 §4）。
+ *
+ * **持つものを 2 段にする**（§4.3）。曜日は繰り返しであって範囲ではない——
+ * 運行なしの範囲だけで表すと、土日が 1 年で 104 個の範囲になる。
+ *
+ * | 段 | 持つもの |
+ * | --- | --- |
+ * | 1. 走る曜日 | `weekdays` |
+ * | 2. 運行なしの範囲 | `closedRanges` |
+ *
+ * **この 2 段は GTFS の作りと同じである。** `calendar.txt` が曜日と有効期間を、
+ * `calendar_dates.txt` が例外日を持つ。**変換が要らない形で持つ。**
+ */
+export const serviceCalendarSchema = z
+  .object({
+    startDate: calendarDateSchema,
+    /** **当日を含む。** */
+    endDate: calendarDateSchema,
+    /** 走る曜日。空にはできない——1 日も走らないダイヤは運行日を持つ意味が無い。 */
+    weekdays: z.array(weekdaySchema).min(1, { message: '走る曜日を 1 つ以上選んでください' }),
+    closedRanges: z.array(closedRangeSchema),
+  })
+  .refine((c) => c.startDate <= c.endDate, {
+    message: '有効期間は開始日が終了日以前でなければなりません',
+  });
+export type ServiceCalendar = z.infer<typeof serviceCalendarSchema>;
+
 /** ダイヤ（仕様書 §5.7）。運行日種別ごとの便の集合。 */
 export const serviceSchema = z.object({
   /** GTFS `service_id`。 */
@@ -75,6 +142,13 @@ export const serviceSchema = z.object({
   serviceName: z.string().min(1),
   /** 両方向の営業便。**回送便は含まない**（導出値。仕様書 §6.1.7）。 */
   trips: z.array(tripSchema),
+  /**
+   * 運行日（版数 4。#197、仕様書 v2 §4.4）。
+   *
+   * **省略できる。** 案を並べて比べているだけのダイヤ（UC-2）は運行日を持たない
+   * のが普通であり、持たないことは正しい状態である。**警告も出さない。**
+   */
+  calendar: serviceCalendarSchema.optional(),
 });
 export type Service = z.infer<typeof serviceSchema>;
 

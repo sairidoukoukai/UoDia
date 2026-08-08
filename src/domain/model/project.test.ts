@@ -7,6 +7,7 @@ import {
   DIAGRAM_ZOOM_LIMITS,
   SPLIT_RATIO_LIMITS,
   projectSchema,
+  serviceCalendarSchema,
   serviceSchema,
   tripSchema,
   viewSettingsSchema,
@@ -285,5 +286,59 @@ describe('分割比率（仕様書 §6.4、T-32）', () => {
 
   it('範囲を外れた比率のファイルは受け付けない（収めるのは書く側の仕事）', () => {
     expect(parseWithSchema(viewSettingsSchema, { splitRatio: 0.95 }).ok).toBe(false);
+  });
+});
+
+describe('serviceCalendarSchema（T-71、#197）', () => {
+  const valid = {
+    startDate: '2026-04-01',
+    endDate: '2027-03-31',
+    weekdays: ['mon', 'tue', 'wed', 'thu', 'fri'],
+    closedRanges: [{ from: '2026-08-06', to: '2026-09-30', note: '夏季休業' }],
+  };
+
+  it('揃っていれば通る', () => {
+    expect(serviceCalendarSchema.safeParse(valid).success).toBe(true);
+  });
+
+  it('**走る曜日が空なら弾く**（1 日も走らないダイヤは運行日を持つ意味が無い）', () => {
+    expect(serviceCalendarSchema.safeParse({ ...valid, weekdays: [] }).success).toBe(false);
+  });
+
+  it('**有効期間が逆順なら弾く**', () => {
+    const reversed = { ...valid, startDate: '2027-03-31', endDate: '2026-04-01' };
+    expect(serviceCalendarSchema.safeParse(reversed).success).toBe(false);
+  });
+
+  it('**運行なしの範囲が逆順なら弾く**', () => {
+    const reversed = { ...valid, closedRanges: [{ from: '2026-09-30', to: '2026-08-06' }] };
+    expect(serviceCalendarSchema.safeParse(reversed).success).toBe(false);
+  });
+
+  it('日付の形が違えば弾く', () => {
+    expect(serviceCalendarSchema.safeParse({ ...valid, startDate: '2026/04/01' }).success).toBe(
+      false,
+    );
+  });
+
+  it('**存在しない日付を弾く**（形だけでは 2026-02-30 が通る）', () => {
+    expect(serviceCalendarSchema.safeParse({ ...valid, startDate: '2026-02-30' }).success).toBe(
+      false,
+    );
+  });
+
+  it('閏日は通す', () => {
+    const leap = { ...valid, startDate: '2028-02-29', endDate: '2028-03-01' };
+    expect(serviceCalendarSchema.safeParse(leap).success).toBe(true);
+  });
+
+  it('1 日だけの運行なしを作れる（from と to が同じ日）', () => {
+    const single = { ...valid, closedRanges: [{ from: '2026-05-01', to: '2026-05-01' }] };
+    expect(serviceCalendarSchema.safeParse(single).success).toBe(true);
+  });
+
+  it('**カレンダーを持たないダイヤが通る**（省略できる）', () => {
+    const service = { serviceId: 's1', serviceName: '平日', trips: [] };
+    expect(serviceSchema.safeParse(service).success).toBe(true);
   });
 });

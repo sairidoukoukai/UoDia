@@ -61,3 +61,40 @@ export const DIRECTIONS: readonly DirectionId[] = Object.freeze([0, 1]);
 export const isoDateTimeSchema = z.string().refine((v) => !Number.isNaN(Date.parse(v)), {
   message: '日時は ISO 8601 形式で指定してください',
 });
+
+/**
+ * 暦の上の日（`YYYY-MM-DD`）。運行日カレンダー（#197、仕様書 v2 §4.4）で使う。
+ *
+ * **文字列で持つ。** `Date` を持つと、保存のたびにタイムゾーンの解釈が挟まる。
+ * 時刻ではなく暦の上の日を指しているのだから、`2026-08-06` という文字列が
+ * そのまま値である。これは時刻を秒で持っていること（{@link secondsSchema}）と
+ * 矛盾しない——**あちらは 1 日の中の位置、こちらは暦の上の日**である。
+ *
+ * **形と、実在する日付であることの両方を見る。** 形だけでは `2026-02-30` が
+ * 通ってしまい、範囲を展開したときに静かにずれる。
+ */
+export const calendarDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, { message: '日付は YYYY-MM-DD 形式で指定してください' })
+  .refine(isRealDate, { message: '存在しない日付です' });
+
+/**
+ * 暦の上の日（`YYYY-MM-DD`）。**中身はただの文字列である。**
+ *
+ * 別名を付けるのは、引数が 2 つ以上並んだときに「どちらが日付か」を型で読める
+ * ようにするためであり、`string` と区別できる型を作るためではない。
+ */
+export type CalendarDate = z.infer<typeof calendarDateSchema>;
+
+/** `YYYY-MM-DD` が実在する日を指すか。閏日と月末の桁溢れを弾く。 */
+function isRealDate(value: string): boolean {
+  const [year, month, day] = value.split('-').map(Number);
+  if (year === undefined || month === undefined || day === undefined) return false;
+
+  // **UTC で組む。** ローカル時刻で組むと、実行環境の時差によって日付が 1 日
+  // ずれ、同じファイルが環境によって通ったり弾かれたりする。
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+  );
+}

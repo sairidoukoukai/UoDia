@@ -1,4 +1,5 @@
 export {
+  calendarDateSchema,
   DIRECTIONS,
   directionIdSchema,
   hexColorSchema,
@@ -6,6 +7,7 @@ export {
   isoDateTimeSchema,
   runMinutesSchema,
   secondsSchema,
+  type CalendarDate,
   type DirectionId,
 } from './primitives';
 
@@ -33,6 +35,7 @@ export {
 export {
   anchorSchema,
   clampDiagramView,
+  closedRangeSchema,
   clampSplitRatio,
   colorModeSchema,
   CURRENT_FORMAT_VERSION,
@@ -42,11 +45,15 @@ export {
   documentInfoSchema,
   metaSchema,
   projectSchema,
+  serviceCalendarSchema,
   serviceSchema,
   SPLIT_RATIO_LIMITS,
+  weekdaySchema,
+  WEEKDAYS,
   tripSchema,
   viewSettingsSchema,
   type Anchor,
+  type ClosedRange,
   type ColorMode,
   type DiagramView,
   type DocumentInfo,
@@ -54,7 +61,9 @@ export {
   type Project,
   type ProjectInput,
   type Service,
+  type ServiceCalendar,
   type Trip,
+  type Weekday,
   type ViewSettings,
 } from './project';
 
