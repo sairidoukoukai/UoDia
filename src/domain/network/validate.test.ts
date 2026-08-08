@@ -498,3 +498,89 @@ describe('formatNetworkIssues', () => {
     expect(formatNetworkIssues([])).toBe('');
   });
 });
+
+describe('R-14・R-15: GTFS に要る静的データ（#198）', () => {
+  /** 事業者と全停留所の緯度経度を入れた版数 3 の定義。 */
+  function withGtfsData(): NetworkDef {
+    const network = makeValidNetwork();
+    return {
+      ...network,
+      version: 3,
+      agency: {
+        agencyId: '4120905002554',
+        agencyName: '国立大学法人大阪大学',
+        agencyUrl: 'https://example.invalid/',
+        agencyTimezone: 'Asia/Tokyo',
+        agencyLang: 'ja',
+      },
+      segments: network.segments.map((segment) => ({ ...segment, distanceMeters: 1000 })),
+      stops: network.stops.map((stop) => ({ ...stop, lat: 34.8, lon: 135.5 })),
+    };
+  }
+
+  it('版数 3 で揃っていれば報告しない', () => {
+    const rules = rulesOf(withGtfsData());
+    expect(rules).not.toContain('R-14');
+    expect(rules).not.toContain('R-15');
+  });
+
+  it('**版数 2 以前には適用しない**（持たないことが正しい状態である）', () => {
+    // 弾くと古い定義が読めなくなる（距離を足したときと同じ扱い。仕様書 v2 §7.1）。
+    const rules = rulesOf(makeValidNetwork());
+    expect(rules).not.toContain('R-14');
+    expect(rules).not.toContain('R-15');
+  });
+
+  it('版数 3 で agency が無ければ R-14 を報告する', () => {
+    const network = { ...withGtfsData(), agency: undefined };
+    expect(rulesOf(network)).toContain('R-14');
+  });
+
+  it('R-14 は指す先を持たない対象として報告する', () => {
+    const network = { ...withGtfsData(), agency: undefined };
+    const issue = validateNetwork(network).find((i) => i.rule === 'R-14');
+    expect(issue?.target).toEqual({ kind: 'agency' });
+  });
+
+  it('版数 3 で緯度が欠けていれば R-15 を報告する', () => {
+    const network = withGtfsData();
+    const [first, ...rest] = network.stops;
+    if (first === undefined) throw new Error('停留所がありません');
+    network.stops = [{ ...first, lat: undefined }, ...rest];
+
+    expect(rulesOf(network)).toContain('R-15');
+  });
+
+  it('経度だけが欠けていても報告する', () => {
+    const network = withGtfsData();
+    const [first, ...rest] = network.stops;
+    if (first === undefined) throw new Error('停留所がありません');
+    network.stops = [{ ...first, lon: undefined }, ...rest];
+
+    expect(rulesOf(network)).toContain('R-15');
+  });
+
+  it('**車庫も対象にする**（stops.txt に出すため、座標が要る）', () => {
+    // 回送便の stop_times が車庫を指す（仕様書 v2 §6.5.2）。出す以上は座標が要る。
+    const network = withGtfsData();
+    const depot = network.stops.find((stop) => stop.isDepot);
+    if (depot === undefined) throw new Error('車庫がありません');
+    network.stops = network.stops.map((stop) =>
+      stop.isDepot ? { ...stop, lat: undefined, lon: undefined } : stop,
+    );
+
+    const issue = validateNetwork(network).find((i) => i.rule === 'R-15');
+    expect(issue?.target).toEqual({ kind: 'stop', stopId: depot.stopId });
+  });
+
+  it('欠けている停留所を名指しする', () => {
+    const network = withGtfsData();
+    const [first, ...rest] = network.stops;
+    if (first === undefined) throw new Error('停留所がありません');
+    network.stops = [{ ...first, lat: undefined }, ...rest];
+
+    const issue = validateNetwork(network).find((i) => i.rule === 'R-15');
+    expect(issue?.message).toContain(first.stopId);
+    expect(issue?.target).toEqual({ kind: 'stop', stopId: first.stopId });
+  });
+});
