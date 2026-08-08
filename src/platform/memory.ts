@@ -29,6 +29,8 @@ export interface MemoryPlatformOptions {
   readonly canSaveNetworkDef?: boolean;
   /** 時刻。履歴の記録に使う。 */
   readonly now?: () => Date;
+  /** `loadExportFont` が返すバイト列（T-77）。 */
+  readonly exportFont?: Uint8Array;
 }
 
 /** インメモリ実装。テストから中身を覗けるように、状態を公開している。 */
@@ -48,6 +50,8 @@ export interface MemoryPlatform extends PlatformAdapter {
   saveAsTarget: string | null;
   /** 書き出されたもの。名前からバイト列への対応（T-74）。 */
   readonly exports: Map<string, Uint8Array>;
+  /** PDF に埋めるフォント（T-77）。既定は空——読み込みだけを試すため。 */
+  exportFont: Uint8Array;
   /**
    * 次の「書き出し」が保存先を選ばれるか。`false` なら取り消し。
    *
@@ -83,6 +87,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions = {}): Memor
     saveAsTarget: null,
     exports: new Map(),
     exportAccepted: true,
+    exportFont: options.exportFont ?? new Uint8Array(0),
     windowTitle: '',
     closeHandler: null,
 
@@ -123,6 +128,10 @@ export function createMemoryPlatform(options: MemoryPlatformOptions = {}): Memor
       if (!platform.exportAccepted) return Promise.resolve(false);
       platform.exports.set(suggestedName, content);
       return Promise.resolve(true);
+    },
+
+    loadExportFont(): Promise<Uint8Array> {
+      return Promise.resolve(platform.exportFont);
     },
 
     loadNetworkDef(): Promise<string> {

@@ -25,7 +25,7 @@ import type { PlatformAdapter } from '@/platform';
 import { selectActiveService, selectNetwork, type AppStoreHook } from '@/store';
 import type { ExportProducer, ExportSource } from './artifacts';
 import { exportFileName } from './exportName';
-import { EXPORT_PRODUCERS } from './producers';
+import { exportProducers } from './producers';
 
 /** 進み具合（§5.9）。**何を作っているかを出す。** */
 export interface ExportProgress {
@@ -45,7 +45,7 @@ export interface ExportServiceOptions {
   readonly platform: PlatformAdapter;
   readonly store: AppStoreHook;
   readonly dialogs: ExportDialogs;
-  /** 書き出すもの。既定は {@link EXPORT_PRODUCERS}。 */
+  /** 書き出すもの。既定は {@link exportProducers}。 */
   readonly producers?: readonly ExportProducer[];
   /** 現在時刻。テストを決定的にするために差し替えられる。 */
   readonly now?: () => Date;
@@ -82,7 +82,7 @@ function nextFrame(): Promise<void> {
 
 export function createExportService(options: ExportServiceOptions): ExportService {
   const { platform, store, dialogs } = options;
-  const producers = options.producers ?? EXPORT_PRODUCERS;
+  const producers = options.producers ?? exportProducers(platform);
   const now = options.now ?? ((): Date => new Date());
   const yieldToUi = options.yieldToUi ?? nextFrame;
 

@@ -40,7 +40,8 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "../data/route.json": "route.json"
+      "../data/route.json": "route.json",
+      "../assets/fonts/OFL.txt": "OFL.txt"
     },
     "linux": {
       "deb": {

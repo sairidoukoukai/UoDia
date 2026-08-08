@@ -93,6 +93,13 @@ export interface PlatformAdapter {
    */
   saveExport(content: Uint8Array, suggestedName: string): Promise<boolean>;
 
+  /**
+   * PDF に埋めるフォントを読む（仕様書 v2 §5.4.2、T-77）。
+   *
+   * **書き出しが押されてから呼ぶ。** 起動のたびに 4.5MB を読む理由が無い。
+   */
+  loadExportFont(): Promise<Uint8Array>;
+
   /** `route.json` を読む。 */
   loadNetworkDef(): Promise<string>;
   /**
