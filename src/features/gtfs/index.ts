@@ -49,3 +49,17 @@ export {
 } from './coordinates';
 
 export { applyGtfsEdits, currentAgency, type ApplyResult, type GtfsStore } from './gtfsService';
+
+export {
+  DEVIATIONS,
+  TAB_LABEL,
+  canExportGtfs,
+  describeMissing,
+  missingForGtfs,
+  type Deviation,
+  type MissingItem,
+  type ReadinessInput,
+  type ReadinessTab,
+} from './readiness';
+
+export { ExportTab, type ExportTabProps } from './ExportTab';
