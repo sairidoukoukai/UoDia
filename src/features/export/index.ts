@@ -14,6 +14,13 @@ export {
 } from './diagramExport';
 
 export {
+  BLOCK_CHART_PDF_NAME,
+  blockChartPdfProducer,
+  renderBlockChartPdf,
+  type BlockChartPdfOptions,
+} from './blockChartPdf';
+
+export {
   DIAGRAM_PDF_NAME,
   diagramPdfProducer,
   renderDiagramPdf,

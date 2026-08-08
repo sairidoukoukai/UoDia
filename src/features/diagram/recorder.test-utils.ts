@@ -43,6 +43,17 @@ export interface RecordedDot {
   readonly fillStyle: string;
 }
 
+/**
+ * 塗られた多角形 1 つ（箱ダイヤの出入庫マーク。T-79）。
+ *
+ * **丸（`arc`）とは別に持つ。** 丸は中心と半径で言えるが、三角は頂点でしか
+ * 言えない——「どこに、どちら向きの印が置かれたか」を確かめるのに要る。
+ */
+export interface RecordedPolygon {
+  readonly points: readonly { readonly x: number; readonly y: number }[];
+  readonly fillStyle: string;
+}
+
 /** 塗られた矩形 1 つ（帯・ハンドル）。 */
 export interface RecordedRect {
   readonly x: number;
@@ -65,6 +76,7 @@ export class Recorder implements DrawContext {
   readonly labels: RecordedLabel[] = [];
   readonly rects: RecordedRect[] = [];
   readonly dots: RecordedDot[] = [];
+  readonly polygons: RecordedPolygon[] = [];
   /** `clip` で切り取られた範囲。 */
   readonly clips: { x: number; y: number; width: number; height: number }[] = [];
 
@@ -102,6 +114,15 @@ export class Recorder implements DrawContext {
   fill(): void {
     for (const circle of this.#circles) this.dots.push({ ...circle, fillStyle: this.fillStyle });
     this.#circles = [];
+
+    // 丸でない道は多角形として覚える。**2 点以下は面にならない**ため落とす。
+    for (const subpath of this.#path) {
+      if (subpath.length < 3) continue;
+      this.polygons.push({
+        points: subpath.map((point) => ({ ...point })),
+        fillStyle: this.fillStyle,
+      });
+    }
   }
 
   moveTo(x: number, y: number): void {
