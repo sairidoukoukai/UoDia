@@ -40,6 +40,7 @@ import {
   type CoordinateEdits,
 } from './coordinates';
 import { applyGtfsEdits } from './gtfsService';
+import { CalendarTab } from './CalendarTab';
 
 /** タブ。**カレンダーと書き出しは後で入る**（T-73・T-81）。 */
 type TabId = 'agency' | 'stops' | 'calendar' | 'export';
@@ -108,7 +109,7 @@ export function GtfsDialog(props: GtfsDialogProps): ReactElement {
       {props.open && (tab === 'agency' || tab === 'stops') && (
         <NetworkTab tab={tab} platform={props.platform} onNotice={props.onNotice} />
       )}
-      {tab === 'calendar' && <NotYet what="運行日カレンダー" task="T-73" />}
+      {props.open && tab === 'calendar' && <CalendarTab />}
       {tab === 'export' && <NotYet what="GTFS の書き出し" task="T-81・T-82" />}
 
       <div className="settings__actions">
