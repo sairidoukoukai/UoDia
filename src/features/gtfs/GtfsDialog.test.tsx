@@ -105,13 +105,14 @@ describe('GtfsDialog', () => {
     expect(container.querySelector('dialog')?.getAttribute('aria-label')).toBe('GTFS');
   });
 
-  it('**まだ作っていないタブは、何が入るかを書いておく**', () => {
-    // 空白を出すと、作り忘れなのか空なのかが分からない。
+  it('**書き出しタブが開く**（T-81 で入った）', () => {
+    // 中身の振る舞いは `ExportTab.test.tsx` が見る。ここで確かめるのは
+    // **タブを押すとそれが出ること**である。
     mount();
     act(() => {
       button('書き出し').click();
     });
-    expect(container.textContent).toContain('T-81');
+    expect(container.textContent).toContain('GTFS を書き出す');
   });
 });
 

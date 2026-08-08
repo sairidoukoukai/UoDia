@@ -41,8 +41,9 @@ import {
 } from './coordinates';
 import { applyGtfsEdits } from './gtfsService';
 import { CalendarTab } from './CalendarTab';
+import { ExportTab } from './ExportTab';
 
-/** タブ。**カレンダーと書き出しは後で入る**（T-73・T-81）。 */
+/** タブ（仕様書 v2 §3.2）。 */
 type TabId = 'agency' | 'stops' | 'calendar' | 'export';
 
 const TABS: readonly { readonly id: TabId; readonly label: string }[] = [
@@ -110,7 +111,7 @@ export function GtfsDialog(props: GtfsDialogProps): ReactElement {
         <NetworkTab tab={tab} platform={props.platform} onNotice={props.onNotice} />
       )}
       {props.open && tab === 'calendar' && <CalendarTab />}
-      {tab === 'export' && <NotYet what="GTFS の書き出し" task="T-81・T-82" />}
+      {props.open && tab === 'export' && <ExportTab onGoTo={setTab} />}
 
       <div className="settings__actions">
         <button type="button" onClick={props.onClose}>
@@ -118,17 +119,6 @@ export function GtfsDialog(props: GtfsDialogProps): ReactElement {
         </button>
       </div>
     </dialog>
-  );
-}
-
-/** まだ作っていないタブ。**空白を出さず、何が入るかを書いておく。** */
-function NotYet(props: { readonly what: string; readonly task: string }): ReactElement {
-  return (
-    <section className="settings__panel">
-      <p className="settings__note">
-        {props.what}はまだ作っていません（{props.task}）。
-      </p>
-    </section>
   );
 }
 
