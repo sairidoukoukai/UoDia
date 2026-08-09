@@ -6,10 +6,12 @@ export { UNTITLED_EXPORT, exportFileName } from './exportName';
 
 export {
   A4_LANDSCAPE_300DPI,
+  A4_PORTRAIT_300DPI,
+  EXPORT_BAND_RANGES,
   diagramExportScene,
-  drawnTimeRange,
-  exportViewport,
+  exportBands,
   pixelSize,
+  type ExportBand,
   type ExportPage,
 } from './diagramExport';
 

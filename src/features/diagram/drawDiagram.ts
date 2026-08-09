@@ -35,11 +35,15 @@ export function drawDiagram(ctx: DrawContext, scene: DiagramScene, viewport: Vie
  * `clearRect` だけでは済まない。**書き出し先の canvas は透明で始まる**ため、
  * 塗らずに渡すと背景が抜けた画像になる。画面では CSS の背景が透けて同じ色に
  * 見えるので、塗り忘れに気づけない。
+ *
+ * **塗るのは割り当てられた帯だけである**（T-86）。0 から塗ると、1 枚を 3 段に
+ * 割ったときに**先に描いた段を消す**——同じ canvas に 3 回描くためである。
  */
 function drawBackground(ctx: DrawContext, scene: DiagramScene, viewport: Viewport): void {
-  ctx.clearRect(0, 0, viewport.width, viewport.height);
+  const height = viewport.height - viewport.top;
+  ctx.clearRect(0, viewport.top, viewport.width, height);
   ctx.fillStyle = scene.theme.background;
-  ctx.fillRect(0, 0, viewport.width, viewport.height);
+  ctx.fillRect(0, viewport.top, viewport.width, height);
 }
 
 /**

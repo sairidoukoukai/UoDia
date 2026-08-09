@@ -16,7 +16,7 @@ import type { ExportProducer, ExportSource } from './artifacts';
 import {
   A4_LANDSCAPE_300DPI,
   diagramExportScene,
-  exportViewport,
+  exportBands,
   pixelSize,
   type ExportPage,
 } from './diagramExport';
@@ -51,7 +51,11 @@ export async function renderDiagramPng(
   // 画面用の値のまま 3508px の紙に置かれ、絵だけが大きくなる。
   ctx.setTransform(page.scale, 0, 0, page.scale, 0, 0);
   const scene = diagramExportScene(source.state);
-  drawDiagram(ctx, scene, exportViewport(scene, page));
+  // **段の数だけ呼ぶ**（T-86）。描画関数は変えていない——視野が 3 つになった
+  // だけである。段はそれぞれ自分の帯だけを塗るため、順に描いても消し合わない。
+  for (const band of exportBands(scene, page)) {
+    drawDiagram(ctx, scene, band.viewport);
+  }
 
   return toPngBytes(canvas);
 }

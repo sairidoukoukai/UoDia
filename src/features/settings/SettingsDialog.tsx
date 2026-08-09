@@ -16,7 +16,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import { DIAGRAM_ZOOM_LIMITS } from '@/domain/model';
-import { DASH_KINDS, DASH_KIND_LABEL, patternStyles } from '@/features/diagram';
+import { DASH_KINDS, DASH_KIND_LABEL, defaultDashKindOf, patternStyles } from '@/features/diagram';
 import type { PlatformAdapter } from '@/platform';
 import {
   BACKUP_INTERVAL_LIMITS,
@@ -523,7 +523,7 @@ function DisplayTab(): ReactElement {
  * 停車パターンの色と線種（§6.5.3、#147）。
  *
  * **色と線種は独立に選ぶ。** 片方だけ変えても、もう片方は `route.json` のまま
- * である。上書きしていないパターンは路線図のままで、`route.json` は書き換わらない。
+ * である。上書きしていないパターンは既定のままで、`route.json` は書き換わらない。
  */
 function PatternStyles(): ReactElement {
   const network = useAppStore(selectNetwork);
@@ -550,7 +550,7 @@ function PatternStyles(): ReactElement {
       <legend>停車パターンの色と線種</legend>
       <p className="settings__note">
         ダイヤグラムのスジの姿です。<strong>色と線種は別々に選べます</strong>
-        。選んでいないパターンは路線図のままで、route.json は書き換わりません。
+        。選んでいないパターンは上書きされず、route.json も書き換わりません。
       </p>
 
       <table className="settings__stops">
@@ -595,8 +595,13 @@ function PatternStyles(): ReactElement {
                     });
                   }}
                 >
+                  {/*
+                    既定は**描画と同じ関数**から引く（#222）。ここで
+                    `serviceType` を読み直していたため、回送を見落として
+                    「実線」と書いていた——実際には破線が引かれる。
+                  */}
                   <option value="">
-                    路線図のまま（{pattern.serviceType === 'express' ? '破線' : '実線'}）
+                    上書きしない（{DASH_KIND_LABEL[defaultDashKindOf(pattern)]}）
                   </option>
                   {DASH_KINDS.map((kind) => (
                     <option key={kind} value={kind}>
@@ -608,7 +613,7 @@ function PatternStyles(): ReactElement {
                 {choices[pattern.patternId] !== undefined && (
                   <button
                     type="button"
-                    aria-label={`${pattern.patternId} を路線図のままに戻す`}
+                    aria-label={`${pattern.patternId} の上書きをやめる`}
                     onClick={() => {
                       setSettings({
                         patternStyles: withoutPatternStyle(choices, pattern.patternId),
@@ -635,7 +640,7 @@ function PatternStyles(): ReactElement {
             setSettings({ patternStyles: clearedPatternStyles(choices) });
           }}
         >
-          路線図のままに戻す
+          すべての上書きをやめる
         </button>
       </div>
     </fieldset>
@@ -645,7 +650,7 @@ function PatternStyles(): ReactElement {
 /**
  * 停留所の線種（§6.5.3、#133）。
  *
- * **`route.json` の値は消さない。** 選び直せるように「路線図のまま」を残し、
+ * **`route.json` の値は消さない。** 選び直せるように「上書きしない」を残し、
  * その横に元の線種を出す。上書きしているつもりが無いのに違う線で描かれる、
  * という状態を作らないためである。
  */
@@ -667,7 +672,7 @@ function StopGridStyles(): ReactElement {
     <fieldset className="settings__grid-styles">
       <legend>停留所の線種</legend>
       <p className="settings__note">
-        ダイヤグラムの横線の引き方です。<strong>選んでいない停留所は路線図のまま</strong>
+        ダイヤグラムの横線の引き方です。<strong>選んでいない停留所は上書きされません</strong>
         で、route.json は書き換わりません。
       </p>
 
@@ -690,7 +695,7 @@ function StopGridStyles(): ReactElement {
                     choose(stop.stopId, event.target.value);
                   }}
                 >
-                  <option value="">路線図のまま（{GRID_STYLE_LABEL[stop.gridStyle]}）</option>
+                  <option value="">上書きしない（{GRID_STYLE_LABEL[stop.gridStyle]}）</option>
                   {GRID_STYLES.map((style) => (
                     <option key={style} value={style}>
                       {GRID_STYLE_LABEL[style]}
@@ -714,7 +719,7 @@ function StopGridStyles(): ReactElement {
             setSettings({ stopGridStyles: clearedGridStyles(overrides) });
           }}
         >
-          路線図のままに戻す
+          すべての上書きをやめる
         </button>
       </div>
     </fieldset>

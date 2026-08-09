@@ -8,7 +8,7 @@
  *
  * ```ts
  * drawDiagram(screenCtx, scene, viewportOf(view, width, height));       // 画面
- * drawDiagram(exportCtx, diagramExportScene(state), exportViewport(…)); // 書き出し
+ * drawDiagram(exportCtx, diagramExportScene(state), band.viewport);     // 書き出し
  * ```
  *
  * ## 画面と違えるのは 3 つだけ
@@ -16,7 +16,7 @@
  * | | 画面 | 書き出し |
  * | --- | --- | --- |
  * | 配色 | テーマに従う | **明るいほうで固定**（紙に黒地は刷らない） |
- * | 視野 | 送りと拡大率 | **全便が入る範囲**（どこまで送っていたかは関係が無い） |
+ * | 視野 | 送りと拡大率 | **固定の 3 段**（どこまで送っていたかは関係が無い） |
  * | 選択 | 光る | **落とす**（どの便を選んでいたかは配る絵に関係が無い） |
  *
  * **表示設定は画面のものをそのまま使う**（色・線種・フィルタ）。見えているものが
@@ -26,15 +26,13 @@
 import {
   AXIS_EDGE_MARGIN,
   AXIS_LABEL_WIDTH,
-  DIAGRAM_END_TIME,
-  DIAGRAM_START_TIME,
   LIGHT_THEME,
   TIME_LABEL_HEIGHT,
   selectDiagramScene,
   type DiagramScene,
   type Viewport,
 } from '@/features/diagram';
-import { SECONDS_PER_MINUTE } from '@/domain/time';
+import { fromHM, SECONDS_PER_MINUTE } from '@/domain/time';
 import type { AppState } from '@/store';
 
 /**
@@ -64,6 +62,18 @@ export interface ExportPage {
 export const A4_LANDSCAPE_300DPI: ExportPage = Object.freeze({
   width: 1754,
   height: 1240,
+  scale: 2,
+});
+
+/**
+ * A4 縦 300dpi 相当（2480 × 3508px。T-87）。
+ *
+ * **箱ダイヤはこちらを使う**（仕様書 v2 §5.5.6）。1 マス 1 運用の格子に割ると、
+ * 求められるのは横幅ではなく段の数——**縦に伸びる紙のほうが素直である。**
+ */
+export const A4_PORTRAIT_300DPI: ExportPage = Object.freeze({
+  width: 1240,
+  height: 1754,
   scale: 2,
 });
 
@@ -102,49 +112,51 @@ function withoutSelection(state: AppState): AppState {
 }
 
 /**
- * 描かれる時刻の範囲。
+ * 段の時間帯（仕様書 v2 §5.4.1、#219、T-86）。**固定である。**
  *
- * **描ける範囲（7:00〜22:00）に収める。** `drawTrips` はそこで切り落としており
- * （`plotXRange`）、外へ広げても白い帯が伸びるだけである。**画面と同じ絵が出る**
- * ——画面に出ていない便は、書き出しても出ない。
+ * ## なぜ全便が入る範囲をやめたのか
  *
- * @returns 便が 1 つも無ければ表示範囲そのもの
+ * 15 時間を紙の幅（1698px）に詰めると **1 分が約 1.9px** になる。A4 横に刷ると
+ * **5 分の折返しが 0.5mm** であり、**線が縦に見える。** 折返しの長さはダイヤを
+ * 読むときに数える値であって、潰してよい部分ではない。
+ *
+ * 3 段に割れば 1 分が約 4.7px になる。**同じ紙で 2.5 倍**である。
+ *
+ * ## なぜ便に合わせないのか
+ *
+ * 段の境目が**日によって動かない**ようにするためである。合わせると、朝の便を
+ * 1 本足しただけで 3 段すべての時間帯がずれ、**前に配った紙と見比べられない。**
+ *
+ * ## 1 時間ずつ重ねる
+ *
+ * 境目をまたぐ便が、**どちらの段でも端で切れて終わる**ことを避ける。12:00 の便は
+ * 1 段目の終わりにも 2 段目の始まりにも出る。
+ *
+ * ## 22:00 以降は白紙になる
+ *
+ * 3 段目は 23:00 までだが、描ける範囲は 22:00 までである（`DIAGRAM_END_TIME`）。
+ * `plotXRange` がそこで切り落とすため、**右端の 1 時間は線も字も出ない。**
+ * 範囲を広げないのは、**画面に出ない時間帯を紙にだけ出さない**ためである。
  */
-export function drawnTimeRange(scene: DiagramScene): {
+export const EXPORT_BAND_RANGES: readonly { readonly from: number; readonly to: number }[] =
+  Object.freeze([
+    { from: fromHM(7, 0), to: fromHM(13, 0) },
+    { from: fromHM(12, 0), to: fromHM(18, 0) },
+    { from: fromHM(17, 0), to: fromHM(23, 0) },
+  ]);
+
+/** 1 段ぶん。 */
+export interface ExportBand {
+  /** 段の左端が指す時刻（秒）。 */
   readonly from: number;
+  /** 段の右端が指す時刻（秒）。 */
   readonly to: number;
-} {
-  let from = Number.POSITIVE_INFINITY;
-  let to = Number.NEGATIVE_INFINITY;
-
-  for (const trip of scene.trips) {
-    for (const point of trip.points) {
-      if (point.time < from) from = point.time;
-      if (point.time > to) to = point.time;
-    }
-  }
-
-  if (from > to) return { from: DIAGRAM_START_TIME, to: DIAGRAM_END_TIME };
-
-  return {
-    from: Math.max(DIAGRAM_START_TIME, roundDownToHour(from)),
-    to: Math.min(DIAGRAM_END_TIME, roundUpToHour(to)),
-  };
-}
-
-/** 1 時間（秒）。 */
-const HOUR = 60 * SECONDS_PER_MINUTE;
-
-function roundDownToHour(time: number): number {
-  return Math.floor(time / HOUR) * HOUR;
-}
-
-function roundUpToHour(time: number): number {
-  return Math.ceil(time / HOUR) * HOUR;
+  /** その段に描くための視野。 */
+  readonly viewport: Viewport;
 }
 
 /**
- * 書き出す視野を組み立てる。
+ * 書き出す段を組み立てる。
  *
  * **紙の大きさに合わせて拡大率を決める。** 画面は拡大率が先にあって見える範囲が
  * 決まるが、書き出しは**入れるものが先にあって拡大率が決まる。**
@@ -156,33 +168,58 @@ function roundUpToHour(time: number): number {
  *
  * **送りの位置は見ない**（受入条件）。書き出したものを見る人に「画面をどこまで
  * スクロールしていたか」は関係が無い。
+ *
+ * **段は紙を 3 等分する。** 便の多い時間帯を広く取ることはしない——段ごとに縦の
+ * 縮尺が変わると、**同じ傾きが同じ速さを表さなくなる。**
+ *
+ * **便が 1 本も無い段も出す。** 時間帯が固定である以上、出さないと段の数が日に
+ * よって変わり、紙の形が揃わない。
  */
-export function exportViewport(scene: DiagramScene, page: ExportPage): Viewport {
-  const time = drawnTimeRange(scene);
+export function exportBands(scene: DiagramScene, page: ExportPage): readonly ExportBand[] {
+  const axis = axisRange(scene);
+  const bandHeight = page.height / EXPORT_BAND_RANGES.length;
 
-  const positions = scene.stops.map((stop) => stop.axisPosition);
-  const startAxis = positions.length === 0 ? 0 : Math.min(...positions);
-  const endAxis = positions.length === 0 ? 0 : Math.max(...positions);
-
-  // 横は縦軸の欄の右から紙の端まで、縦は目盛の帯の下から紙の端まで使う。
-  // 縦は上下に `AXIS_EDGE_MARGIN` を空ける（`axisToY` が上側を足しており、
-  // 下側は端の停留所線に積まれるものが切れないために要る）。
+  // 横は縦軸の欄の右から紙の端まで使う。
   const plotWidth = page.width - AXIS_LABEL_WIDTH;
-  const plotHeight = page.height - TIME_LABEL_HEIGHT - AXIS_EDGE_MARGIN * 2;
+  // 縦は段の中の、目盛の帯の下から段の地まで。上下に `AXIS_EDGE_MARGIN` を
+  // 空ける（`axisToY` が上側を足しており、下側は端の停留所線に積まれるものが
+  // 切れないために要る）。
+  const plotHeight = bandHeight - TIME_LABEL_HEIGHT - AXIS_EDGE_MARGIN * 2;
 
-  const minutes = (time.to - time.from) / SECONDS_PER_MINUTE;
-  const axisSpan = endAxis - startAxis;
+  return EXPORT_BAND_RANGES.map((range, index) => {
+    const top = index * bandHeight;
+    const minutes = (range.to - range.from) / SECONDS_PER_MINUTE;
 
-  return {
-    startTime: time.from,
-    startAxis,
-    // **0 で割らない。** 便が 1 つしか無くても、停留所が 1 つしか無くても、
-    // 絵は出さなければならない。
-    pxPerMinute: minutes > 0 ? plotWidth / minutes : 1,
-    pxPerAxisUnit: axisSpan > 0 ? plotHeight / axisSpan : 1,
-    originX: AXIS_LABEL_WIDTH,
-    originY: TIME_LABEL_HEIGHT,
-    width: page.width,
-    height: page.height,
-  };
+    return {
+      from: range.from,
+      to: range.to,
+      viewport: {
+        startTime: range.from,
+        startAxis: axis.start,
+        // **0 で割らない。** 便が 1 つしか無くても、停留所が 1 つしか無くても、
+        // 絵は出さなければならない。
+        pxPerMinute: minutes > 0 ? plotWidth / minutes : 1,
+        pxPerAxisUnit: axis.span > 0 ? plotHeight / axis.span : 1,
+        originX: AXIS_LABEL_WIDTH,
+        originY: top + TIME_LABEL_HEIGHT,
+        top,
+        width: page.width,
+        height: top + bandHeight,
+      },
+    };
+  });
+}
+
+/**
+ * 縦軸に入れる軸位置の範囲。
+ *
+ * **全段で同じ値を使う。** 段ごとに走っている停留所だけへ詰めると、段をまたいで
+ * 同じ停留所が違う高さに来る——**縦に並べた意味が消える。**
+ */
+function axisRange(scene: DiagramScene): { readonly start: number; readonly span: number } {
+  const positions = scene.stops.map((stop) => stop.axisPosition);
+  if (positions.length === 0) return { start: 0, span: 0 };
+
+  const start = Math.min(...positions);
+  return { start, span: Math.max(...positions) - start };
 }

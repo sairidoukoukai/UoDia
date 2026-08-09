@@ -41,6 +41,7 @@ const VIEWPORT: Viewport = {
   pxPerAxisUnit: 6,
   originX: AXIS_LABEL_WIDTH,
   originY: TIME_LABEL_HEIGHT,
+  top: 0,
   width: 800,
   height: 400,
 };

@@ -20,7 +20,18 @@ export {
   blockRowOffsets,
   chartHeight,
   fitBlockChart,
+  fitRowHeight,
   rowToY,
   type BlockChartFitOptions,
   type BlockChartViewport,
 } from './viewport';
+
+export {
+  CELLS_PER_PAGE,
+  GRID_COLUMNS,
+  GRID_ROWS,
+  blockChartCells,
+  blockChartPageCount,
+  type BlockChartCell,
+  type BlockChartPageSize,
+} from './grid';

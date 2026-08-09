@@ -13,8 +13,9 @@
  *
  * ## 紙の大きさ
  *
- * A4 横（841.89 × 595.28 pt）。**描くときの座標は CSS px のまま**であり、紙に
- * 合わせる倍率は `PdfDrawContext` が積む。
+ * A4。**向きは求められた座標系から決める**（T-87）——ダイヤグラムは横、箱ダイヤは
+ * 縦である。**描くときの座標は CSS px のまま**であり、紙に合わせる倍率は
+ * `PdfDrawContext` が積む。
  */
 
 import type { PDFDocument, PDFFont, PDFPage } from 'pdf-lib';
@@ -23,6 +24,20 @@ import { PdfDrawContext } from './PdfDrawContext';
 
 /** A4 横（pt）。1pt = 1/72 インチ。 */
 export const A4_LANDSCAPE_PT = Object.freeze({ width: 841.89, height: 595.28 });
+
+/** A4 縦（pt）。**箱ダイヤが使う**（T-87）。 */
+export const A4_PORTRAIT_PT = Object.freeze({ width: 595.28, height: 841.89 });
+
+/**
+ * 求められた座標系に合う紙の向き。
+ *
+ * **向きを引数で受け取らない。** 座標系が縦長なら紙も縦であり、**2 つが食い違う
+ * 状態を作れないようにする**——食い違えば、`PdfDrawContext` が縮めて片側に
+ * 余白を作るだけで、誰も気づかない。
+ */
+export function a4For(width: number, height: number): { width: number; height: number } {
+  return height > width ? A4_PORTRAIT_PT : A4_LANDSCAPE_PT;
+}
 
 /** 組み立て中の PDF。 */
 export interface PdfBuilder {
@@ -67,7 +82,8 @@ export async function createPdfBuilder(options: PdfBuilderOptions): Promise<PdfB
 
   return {
     addPage(width: number, height: number) {
-      const page = doc.addPage([A4_LANDSCAPE_PT.width, A4_LANDSCAPE_PT.height]);
+      const paper = a4For(width, height);
+      const page = doc.addPage([paper.width, paper.height]);
       return { page, ctx: new PdfDrawContext({ page, font, width, height }) };
     },
 

@@ -20,7 +20,7 @@ export type PatternStyleChoices = Readonly<Record<string, PatternStyleChoice>>;
 /**
  * 上書きの変更。
  *
- * `null` は「路線図のまま」（上書きをやめる）。項目を渡さなければ触らない。
+ * `null` は「上書きしない」（上書きをやめる）。項目を渡さなければ触らない。
  */
 export interface PatternStylePatch {
   readonly color?: string | null;

@@ -341,7 +341,7 @@ describe('表示タブ（§6.5.3）', () => {
       openDisplayTab();
 
       // 豊中は route.json では太線。
-      expect(gridStyleField('豊中').options[0]?.textContent).toBe('路線図のまま（太線）');
+      expect(gridStyleField('豊中').options[0]?.textContent).toBe('上書きしない（太線）');
     });
 
     it('選ぶと上書きが入る', () => {
@@ -351,7 +351,7 @@ describe('表示タブ（§6.5.3）', () => {
       expect(overrides()).toEqual({ '1_0': 'dashed' });
     });
 
-    it('**「路線図のまま」を選ぶと上書きが外れる**（選び直せる）', () => {
+    it('**「上書きしない」を選ぶと上書きが外れる**（選び直せる）', () => {
       openDisplayTab();
       choose(gridStyleField('豊中'), 'dashed');
       choose(gridStyleField('豊中'), '');
@@ -364,7 +364,7 @@ describe('表示タブ（§6.5.3）', () => {
       choose(gridStyleField('豊中'), 'dashed');
       choose(gridStyleField('箕面'), 'normal');
       act(() => {
-        button('路線図のままに戻す').click();
+        button('すべての上書きをやめる').click();
       });
 
       expect(overrides()).toEqual({});
@@ -373,9 +373,9 @@ describe('表示タブ（§6.5.3）', () => {
     it('**上書きが無ければ戻す押しボタンは押せない**（押しても何も起きない操作を出さない）', () => {
       openDisplayTab();
 
-      expect(button('路線図のままに戻す').disabled).toBe(true);
+      expect(button('すべての上書きをやめる').disabled).toBe(true);
       choose(gridStyleField('豊中'), 'dashed');
-      expect(button('路線図のままに戻す').disabled).toBe(false);
+      expect(button('すべての上書きをやめる').disabled).toBe(false);
     });
 
     it('いくつ上書きしているかを言う', () => {
@@ -458,7 +458,7 @@ describe('停車パターンの色と線種', () => {
 
     const select = container.querySelector<HTMLSelectElement>('[aria-label="S1 の線種"]');
     // S1（直行吹田）は通過タイプであり、既定は破線である（#114）。
-    expect(select?.options[0]?.textContent).toBe('路線図のまま（破線）');
+    expect(select?.options[0]?.textContent).toBe('上書きしない（破線）');
   });
 
   it('線種を選ぶと上書きが入る', () => {
@@ -482,7 +482,7 @@ describe('停車パターンの色と線種', () => {
     expect(styles()).toEqual({ S1: { color: '#123456', dash: 'solid' } });
   });
 
-  it('そのパターンだけ路線図のままに戻せる', () => {
+  it('そのパターンだけ上書きをやめられる', () => {
     openDisplayTab();
     const select = container.querySelector<HTMLSelectElement>('[aria-label="S1 の線種"]');
     if (select === null) throw new Error('欄がありません');

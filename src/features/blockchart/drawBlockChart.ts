@@ -80,15 +80,20 @@ export function drawBlockChart(
  *
  * **塗らずに渡すと背景が抜けた絵になる**（書き出し先の canvas は透明で始まる）。
  * ダイヤグラムと同じ理由である。
+ *
+ * **塗るのは割り当てられたマスだけである**（T-87）。0 から塗ると、格子に割った
+ * ときに**先に描いたマスを消す**——同じ紙に 6 回描くためである。
  */
 function drawBackground(
   ctx: DrawContext,
   scene: BlockChartScene,
   viewport: BlockChartViewport,
 ): void {
-  ctx.clearRect(0, 0, viewport.width, viewport.height);
+  const width = viewport.width - viewport.left;
+  const height = viewport.height - viewport.top;
+  ctx.clearRect(viewport.left, viewport.top, width, height);
   ctx.fillStyle = scene.theme.background;
-  ctx.fillRect(0, 0, viewport.width, viewport.height);
+  ctx.fillRect(viewport.left, viewport.top, width, height);
 }
 
 /**
@@ -116,18 +121,45 @@ function drawStopAxis(
   }
   ctx.stroke();
 
+  // 見出しは帯（`top` から `originY` まで）の真ん中に置く。**0 から測らない**
+  // ——格子に割ると、下の行のマスは 0 から始まらない（T-87）。
+  const baseline = (viewport.top + viewport.originY) / 2;
+
   ctx.fillStyle = scene.theme.label;
   ctx.font = STOP_LABEL_FONT;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  for (const column of columns) {
+  for (const [index, column] of columns.entries()) {
     ctx.fillText(
       column.label,
       axisToX(column.axisPosition, viewport),
-      viewport.originY / 2,
-      viewport.pxPerAxisUnit * 12,
+      baseline,
+      labelWidth(columns, index, viewport),
     );
   }
+}
+
+/**
+ * 見出しに使ってよい幅（px）。
+ *
+ * **隣の線までの間合いで決まる**（T-87）。マスが狭くなると線と線の間隔も
+ * 狭くなり、固定の幅では隣の名前と重なる。**重なった 2 つは、どちらも読めない。**
+ * 縮めて出せば、少なくとも位置は読める。
+ */
+function labelWidth(
+  columns: readonly { readonly axisPosition: number }[],
+  index: number,
+  viewport: BlockChartViewport,
+): number {
+  const here = columns[index]?.axisPosition ?? 0;
+  const gaps = [columns[index - 1], columns[index + 1]]
+    .filter((column) => column !== undefined)
+    .map((column) => Math.abs(column.axisPosition - here) * viewport.pxPerAxisUnit);
+
+  // 隣が無ければ（列が 1 本しかない）マスの幅に任せる。
+  if (gaps.length === 0) return viewport.width - viewport.originX;
+  // 中心に置くため、間合いの半分ずつを両側から使える。
+  return Math.min(...gaps);
 }
 
 /**
@@ -354,9 +386,9 @@ function drawLayovers(
     const x = xOf(bar.originStopId);
     if (x === null) continue;
 
-    // **紙の端から内側へ置く。** 右端の停留所で折り返す運用は多く、外側へ
+    // **マスの端から内側へ置く。** 右端の停留所で折り返す運用は多く、外側へ
     // 出すと必ず切れる。
-    const inward = x > viewport.width / 2 ? -1 : 1;
+    const inward = x > (viewport.left + viewport.width) / 2 ? -1 : 1;
     ctx.textAlign = inward === 1 ? 'left' : 'right';
 
     const y =
