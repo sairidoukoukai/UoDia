@@ -215,6 +215,9 @@ function drawStopLines(
 
 function drawTimeLabels(ctx: DrawContext, theme: SceneTheme, viewport: Viewport): void {
   const step = timeLabelStepMinutes(viewport.pxPerMinute);
+  // 目盛の帯（`top` から `originY` まで）の真ん中に置く。**0 から測らない**
+  // ——3 段に割ると、2 段目以降の帯は 0 から始まらない（T-86）。
+  const baseline = (viewport.top + viewport.originY) / 2;
 
   ctx.fillStyle = theme.label;
   ctx.font = TIME_LABEL_FONT;
@@ -229,7 +232,7 @@ function drawTimeLabels(ctx: DrawContext, theme: SceneTheme, viewport: Viewport)
     ctx.fillText(
       formatTime(line.time),
       timeToX(line.time, viewport) + 3,
-      viewport.originY / 2,
+      baseline,
       MIN_TIME_LABEL_GAP,
     );
   }

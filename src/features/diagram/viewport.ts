@@ -36,11 +36,29 @@ export interface Viewport {
   readonly pxPerAxisUnit: number;
   /** 描画領域の左端（縦軸ラベルの幅）。 */
   readonly originX: number;
-  /** 描画領域の上端（横軸ラベルの高さ）。 */
+  /** 描画領域の上端。**目盛の帯の下**である。 */
   readonly originY: number;
-  /** canvas 全体の幅（CSS px）。 */
+  /**
+   * この視野に割り当てられた帯の天（CSS px。T-86）。
+   *
+   * **目盛の帯の上**である。canvas 全体を 1 つの視野で使うなら `0`。書き出しは
+   * 1 枚を 3 段に割るため、2 段目以降はここが 0 でなくなる（`exportBands`）。
+   *
+   * **`left` は無い。** 段は縦にしか割らないためであり、要るものだけを持つ。
+   */
+  readonly top: number;
+  /**
+   * 割り当てられた帯の右端（CSS px）。
+   *
+   * canvas 全体を使うなら canvas の幅そのものである。
+   */
   readonly width: number;
-  /** canvas 全体の高さ（CSS px）。 */
+  /**
+   * 割り当てられた帯の地（CSS px）。
+   *
+   * **高さではなく下端の座標である**（`top` からの差ではない）。canvas 全体を
+   * 使うなら canvas の高さと一致するため、これまで区別が要らなかった。
+   */
   readonly height: number;
 }
 
@@ -230,6 +248,8 @@ export function viewportOf(
     pxPerAxisUnit: view.pxPerAxisUnit,
     originX: AXIS_LABEL_WIDTH,
     originY: TIME_LABEL_HEIGHT,
+    // 画面は canvas 全体を 1 つの視野で使う。段に割るのは書き出しだけである。
+    top: 0,
     width,
     height,
   };

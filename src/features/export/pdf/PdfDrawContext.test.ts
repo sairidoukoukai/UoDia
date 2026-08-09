@@ -25,7 +25,7 @@ import { fromHM } from '@/domain/time';
 import { drawDiagram } from '@/features/diagram';
 import { createMemoryPlatform } from '@/platform';
 import { createAppStore } from '@/store';
-import { A4_LANDSCAPE_300DPI, diagramExportScene, exportViewport } from '../diagramExport';
+import { A4_LANDSCAPE_300DPI, diagramExportScene, exportBands } from '../diagramExport';
 import { createPdfBuilder } from './pdfDocument';
 import { fontSizeOf, toRgb } from './PdfDrawContext';
 
@@ -74,7 +74,9 @@ async function makeDiagramPdf(): Promise<Uint8Array> {
   const { ctx } = builder.addPage(A4_LANDSCAPE_300DPI.width, A4_LANDSCAPE_300DPI.height);
 
   const scene = diagramExportScene(store.getState());
-  drawDiagram(ctx, scene, exportViewport(scene, A4_LANDSCAPE_300DPI));
+  for (const band of exportBands(scene, A4_LANDSCAPE_300DPI)) {
+    drawDiagram(ctx, scene, band.viewport);
+  }
   ctx.finish();
 
   return builder.save();

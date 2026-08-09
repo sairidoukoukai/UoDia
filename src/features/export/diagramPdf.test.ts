@@ -22,7 +22,7 @@ import { Recorder } from '@/features/diagram/recorder.test-utils';
 import { createMemoryPlatform, type MemoryPlatform } from '@/platform';
 import { createAppStore, selectActiveService, selectNetwork, type AppStoreHook } from '@/store';
 import type { ExportSource } from './artifacts';
-import { A4_LANDSCAPE_300DPI, diagramExportScene, exportViewport } from './diagramExport';
+import { A4_LANDSCAPE_300DPI, diagramExportScene, exportBands } from './diagramExport';
 import { DIAGRAM_PDF_NAME, diagramPdfProducer, renderDiagramPdf } from './diagramPdf';
 import { DIAGRAM_PNG_NAME } from './diagramPng';
 import { exportProducers } from './producers';
@@ -68,12 +68,12 @@ describe('PNG と食い違わない（受入条件）', () => {
     expect(diagramExportScene(store.getState())).toBe(diagramExportScene(store.getState()));
   });
 
-  it('**同じ視野から出る**', () => {
+  it('**同じ段から出る**', () => {
     const scene = diagramExportScene(store.getState());
-    // PNG も PDF も `exportViewport(scene, page)` しか呼ばない。片方だけ別の
-    // 視野を組み立てていれば、ここが食い違う。
-    expect(exportViewport(scene, A4_LANDSCAPE_300DPI)).toEqual(
-      exportViewport(scene, A4_LANDSCAPE_300DPI),
+    // PNG も PDF も `exportBands(scene, page)` しか呼ばない。片方だけ別の段を
+    // 組み立てていれば、ここが食い違う（T-86）。
+    expect(exportBands(scene, A4_LANDSCAPE_300DPI)).toEqual(
+      exportBands(scene, A4_LANDSCAPE_300DPI),
     );
   });
 
@@ -81,12 +81,12 @@ describe('PNG と食い違わない（受入条件）', () => {
     // 器を記録役に差し替えると、PNG と PDF が同じ引数で `drawDiagram` を呼んで
     // いることが、引かれた線の並びとして見える。
     const scene = diagramExportScene(store.getState());
-    const viewport = exportViewport(scene, A4_LANDSCAPE_300DPI);
+    const bands = exportBands(scene, A4_LANDSCAPE_300DPI);
 
     const a = new Recorder();
     const b = new Recorder();
-    drawDiagram(a, scene, viewport);
-    drawDiagram(b, scene, viewport);
+    for (const band of bands) drawDiagram(a, scene, band.viewport);
+    for (const band of bands) drawDiagram(b, scene, band.viewport);
 
     expect(a.segments).toEqual(b.segments);
     expect(a.labels).toEqual(b.labels);
