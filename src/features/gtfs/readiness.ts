@@ -3,14 +3,18 @@
  *
  * ## 足りないものと、直せる場所を一緒に出す
  *
- * 「書き出せません」だけでは、利用者は**どこを直せばよいか分からない。** この
- * 画面はタブが 4 つあり、直す先はそのいずれかである。**足りないものごとに、
- * どのタブへ行けばよいかを添える。**
+ * 「書き出せません」だけでは、利用者は**どこを直せばよいか分からない。**
+ * **足りないものごとに、直す先を添える**（{@link FixLocation}）。
  *
  * ```
- * ✗ 緯度経度が入っていない停留所が 2 つあります   → 停留所タブ
  * ✗ 運行日がありません                            → カレンダータブ
+ * ✗ 緯度経度が入っていない停留所があります         → route.json
+ * ✗ 便が 1 つもありません                          → （直す先を 1 つに決められない）
  * ```
+ *
+ * **直す先は画面の中だけとは限らない**（T-85）。事業者と緯度経度の欄は外した
+ * ——変わらない値であり、打てる場所に置くと打ち間違いの入口になる（#221）。
+ * 欄が無くなっても**どこを直すかは言える**ので、`route.json` だと書く。
  *
  * ## ここでは直さない
  *
@@ -22,23 +26,43 @@ import type { NetworkDef, Service } from '@/domain/model';
 import { agencyEditsOf, missingRequired, AGENCY_FIELDS } from './agency';
 import { stopsWithoutCoordinates } from './coordinates';
 
-/** 直す先のタブ。 */
-export type ReadinessTab = 'agency' | 'stops' | 'calendar';
+/** 直す先のタブ。**画面から直せるのはカレンダーだけである**（T-85）。 */
+export type ReadinessTab = 'calendar';
 
 /** 直す先の呼び名（画面のタブと同じ言葉）。 */
 export const TAB_LABEL: Readonly<Record<ReadinessTab, string>> = {
-  agency: '事業者',
-  stops: '停留所',
   calendar: 'カレンダー',
 };
+
+/** 手で直すファイル。**画面に欄が無いものはここへ送る**（T-85）。 */
+export const NETWORK_DEF_NAME = 'route.json';
+
+/**
+ * 直す先。
+ *
+ * **移れる先と、移れないが名指しできる先を分ける。** 一緒くたにすると、押しても
+ * 何も起きない「直す」ボタンが出るか、直す先を黙ったまま断ることになる。
+ */
+export type FixLocation =
+  /** この画面のタブ。**押しボタンで移れる。** */
+  | { readonly kind: 'tab'; readonly tab: ReadinessTab }
+  /** 手で直すファイル。**移る先が無い。** */
+  | { readonly kind: 'file'; readonly file: string }
+  /** 直す先が 1 つに決まらない（便を引く、ダイヤを作る）。 */
+  | null;
 
 /** 足りないもの 1 つ。 */
 export interface MissingItem {
   /** 何が足りないか。 */
   readonly message: string;
-  /** どこで直すか。**タブが無いもの（便）は `null`。** */
-  readonly tab: ReadinessTab | null;
+  /** どこで直すか。 */
+  readonly fix: FixLocation;
 }
+
+/** タブへ送る。 */
+const inTab = (tab: ReadinessTab): FixLocation => ({ kind: 'tab', tab });
+/** `route.json` へ送る。 */
+const inNetworkDef: FixLocation = { kind: 'file', file: NETWORK_DEF_NAME };
 
 export interface ReadinessInput {
   readonly network: NetworkDef | null;
@@ -59,12 +83,12 @@ export function missingForGtfs(input: ReadinessInput): readonly MissingItem[] {
   const { network, service } = input;
 
   if (network === null) {
-    return [{ message: '路線図を読み込んでいません', tab: null }];
+    return [{ message: '路線図を読み込んでいません', fix: null }];
   }
 
   for (const field of missingRequired(agencyEditsOf(network.agency))) {
     const label = AGENCY_FIELDS.find((entry) => entry.field === field)?.label ?? field;
-    missing.push({ message: `事業者の「${label}」が空です`, tab: 'agency' });
+    missing.push({ message: `事業者の「${label}」が空です`, fix: inNetworkDef });
   }
 
   const withoutCoordinates = stopsWithoutCoordinates(network.stops);
@@ -72,23 +96,23 @@ export function missingForGtfs(input: ReadinessInput): readonly MissingItem[] {
     const names = withoutCoordinates.map((stop) => stop.shortName).join('・');
     missing.push({
       message: `緯度経度が入っていない停留所があります（${names}）`,
-      tab: 'stops',
+      fix: inNetworkDef,
     });
   }
 
   if (service === null) {
-    missing.push({ message: '書き出すダイヤがありません', tab: null });
+    missing.push({ message: '書き出すダイヤがありません', fix: null });
     return missing;
   }
 
   if (service.calendar === undefined) {
-    missing.push({ message: '運行日がありません', tab: 'calendar' });
+    missing.push({ message: '運行日がありません', fix: inTab('calendar') });
   }
 
   // **便が無ければ出す意味が無い。** 空の `trips.txt` を配っても、受け取った
   // 側には「バスが 1 本も走らない路線」としか読めない。
   if (service.trips.length === 0) {
-    missing.push({ message: '便が 1 つもありません', tab: null });
+    missing.push({ message: '便が 1 つもありません', fix: null });
   }
 
   return missing;
@@ -101,7 +125,10 @@ export function canExportGtfs(input: ReadinessInput): boolean {
 
 /** 足りないもの 1 つを、直せる場所とあわせた一文にする。 */
 export function describeMissing(item: MissingItem): string {
-  return item.tab === null ? item.message : `${item.message}（${TAB_LABEL[item.tab]}タブ）`;
+  if (item.fix === null) return item.message;
+  return item.fix.kind === 'tab'
+    ? `${item.message}（${TAB_LABEL[item.fix.tab]}タブ）`
+    : `${item.message}（${item.fix.file} を直してください）`;
 }
 
 /**

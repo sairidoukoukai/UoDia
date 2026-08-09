@@ -1,10 +1,13 @@
 /**
- * GTFS を出せる状態かの検証（T-81、仕様書 v2 §3.2）。
+ * GTFS を出せる状態かの検証（T-81・T-85、仕様書 v2 §3.2）。
  *
  * 受入条件は 2 つ。
  *
  * - **カレンダーを持たないダイヤでは「運行日がありません」と出て、押せない**
- * - **何が足りないかが、直せる場所（どのタブか）とあわせて分かる**
+ * - **何が足りないかが、直す先とあわせて分かる**
+ *
+ * 直す先は 3 通りある（T-85）——**移れるタブ**・**手で直す `route.json`**・
+ * **1 つに決まらないもの**。三者が混ざらないことをここで固定する。
  */
 
 import { readFileSync } from 'node:fs';
@@ -81,15 +84,15 @@ describe('運行日（受入条件）', () => {
       (entry) => entry.message === '運行日がありません',
     );
 
-    expect(item?.tab).toBe('calendar');
-    expect(describeMissing(item ?? { message: '', tab: null })).toBe(
+    expect(item?.fix).toEqual({ kind: 'tab', tab: 'calendar' });
+    expect(describeMissing(item ?? { message: '', fix: null })).toBe(
       '運行日がありません（カレンダータブ）',
     );
   });
 });
 
 describe('直せる場所を添える（受入条件）', () => {
-  it('**緯度経度は停留所タブ**', () => {
+  it('**緯度経度は route.json**（画面に欄が無い。T-85）', () => {
     const def: NetworkDef = {
       ...network.def,
       stops: network.def.stops.map((stop, index) =>
@@ -98,28 +101,37 @@ describe('直せる場所を添える（受入条件）', () => {
     };
 
     const item = missingForGtfs({ network: def, service: readyService() })[0];
-    expect(item?.tab).toBe('stops');
+    expect(item?.fix).toEqual({ kind: 'file', file: 'route.json' });
     expect(item?.message).toContain('緯度経度');
     // **どの停留所かを名指しする。** 「どこかが空です」では探すことになる。
     expect(item?.message).toContain(network.def.stops[0]?.shortName ?? '');
   });
 
-  it('**事業者は事業者タブ**（欄の名前で言う）', () => {
+  it('**事業者も route.json**（欄の名前で言う。T-85）', () => {
     const def: NetworkDef = { ...network.def, agency: undefined };
     const missing = missingForGtfs({ network: def, service: readyService() });
 
-    expect(missing.every((item) => item.tab === 'agency')).toBe(true);
+    expect(missing.every((item) => item.fix?.kind === 'file')).toBe(true);
     expect(messagesOf(missing)).toContain('事業者の「事業者名」が空です');
   });
 
-  it('**タブの無いものには添えない**（便・ダイヤ）', () => {
+  it('**route.json のものは「どこを直すか」まで言う**（移れなくても黙らない）', () => {
+    const def: NetworkDef = { ...network.def, agency: undefined };
+    const item = missingForGtfs({ network: def, service: readyService() })[0];
+
+    expect(describeMissing(item ?? { message: '', fix: null })).toBe(
+      '事業者の「事業者名」が空です（route.json を直してください）',
+    );
+  });
+
+  it('**直す先が決まらないものには添えない**（便・ダイヤ）', () => {
     const service = { ...readyService(), trips: [] };
     const item = missingForGtfs({ network: network.def, service }).find(
       (entry) => entry.message === '便が 1 つもありません',
     );
 
-    expect(item?.tab).toBeNull();
-    expect(describeMissing(item ?? { message: '', tab: null })).toBe('便が 1 つもありません');
+    expect(item?.fix).toBeNull();
+    expect(describeMissing(item ?? { message: '', fix: null })).toBe('便が 1 つもありません');
   });
 });
 
@@ -137,7 +149,7 @@ describe('揃っていないとき', () => {
   it('路線図を読み込んでいなければ、それだけを言う', () => {
     // ほかの検査は路線図を前提にしている。**先に読み込みを促す。**
     expect(missingForGtfs({ network: null, service: null })).toEqual([
-      { message: '路線図を読み込んでいません', tab: null },
+      { message: '路線図を読み込んでいません', fix: null },
     ]);
   });
 

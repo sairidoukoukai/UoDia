@@ -4,7 +4,11 @@
  * ## 押せないなら、押せない理由を出す
  *
  * **押してから断らない。** 足りないものがあるうちは押しボタンを薄くし、**何が
- * 足りないか**と**どのタブで直すか**を並べる（`readiness.ts`）。
+ * 足りないか**と**どこで直すか**を並べる（`readiness.ts`）。
+ *
+ * **「直す」ボタンが付くのは、この画面に直す先があるものだけ**である（T-85）。
+ * `route.json` を直すものにも**直す先は書く**——移れないことと、どこを直せば
+ * よいか分からないことは別である。
  *
  * ## 実例と違えるところを書いておく
  *
@@ -54,15 +58,15 @@ export function ExportTab(props: ExportTabProps): ReactElement {
             {missing.map((item) => {
               // **押しボタンの中で絞り込まない。** 閉じ込めた値のほうが、
               // 何を渡しているかがその場で読める。
-              const tab = item.tab;
+              const fix = item.fix;
               return (
                 <li key={item.message}>
                   <span>{describeMissing(item)}</span>
-                  {tab !== null && (
+                  {fix?.kind === 'tab' && (
                     <button
                       type="button"
                       onClick={() => {
-                        props.onGoTo(tab);
+                        props.onGoTo(fix.tab);
                       }}
                     >
                       直す
