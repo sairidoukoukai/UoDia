@@ -7,11 +7,13 @@
  * である。**
  *
  * ```ts
- * drawDiagram(canvasCtx, scene, viewport);   // ダイヤグラム.png
- * drawDiagram(pdfCtx,    scene, viewport);   // ダイヤグラム.pdf
+ * for (const band of exportBands(scene, page)) drawDiagram(canvasCtx, scene, band.viewport);
+ * for (const band of exportBands(scene, page)) drawDiagram(pdfCtx,    scene, band.viewport);
  * ```
  *
- * **片方だけを直して見た目がずれることが、構造上起きない。**
+ * **片方だけを直して見た目がずれることが、構造上起きない。** 段に割ったあとも
+ * 同じである（T-86）——段を作るのは `exportBands` 1 つだけであり、PNG と PDF は
+ * どちらもそれを呼ぶ。
  *
  * ## 重いものは押されてから読む
  *
@@ -25,7 +27,7 @@ import type { ExportProducer, ExportSource } from './artifacts';
 import {
   A4_LANDSCAPE_300DPI,
   diagramExportScene,
-  exportViewport,
+  exportBands,
   type ExportPage,
 } from './diagramExport';
 
@@ -36,7 +38,7 @@ export interface DiagramPdfOptions {
   readonly page?: ExportPage;
 }
 
-/** ダイヤグラムを描いた PDF のバイト列を作る。**A4 横 1 ページ。** */
+/** ダイヤグラムを描いた PDF のバイト列を作る。**A4 横 1 ページ・3 段。** */
 export async function renderDiagramPdf(
   source: ExportSource,
   platform: Pick<PlatformAdapter, 'loadExportFont'>,
@@ -49,7 +51,10 @@ export async function renderDiagramPdf(
 
   const { ctx } = builder.addPage(page.width, page.height);
   const scene = diagramExportScene(source.state);
-  drawDiagram(ctx, scene, exportViewport(scene, page));
+  // **段の数だけ呼ぶ**（T-86）。紙は 1 枚のままである。
+  for (const band of exportBands(scene, page)) {
+    drawDiagram(ctx, scene, band.viewport);
+  }
   // 積んだ変換を降ろす。降ろさないと、次に足したページが前の変換を引き継ぐ。
   ctx.finish();
 
