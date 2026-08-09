@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 
 /**
- * 書き出しタブの検証（T-81、仕様書 v2 §3.2）。
+ * 書き出しタブの検証（T-81・T-85、仕様書 v2 §3.2）。
  *
  * 何が足りないかの判断は `readiness.test.ts` が見る。ここで確かめるのは**画面の
- * 振る舞い**である——**押せないこと**と、**直す先へ移れること**。
+ * 振る舞い**である——**押せないこと**、**移れる先へ移れること**、そして
+ * **移れない先は名前で伝えること**（T-85）。
  */
 
 import { act } from 'react';
@@ -114,6 +115,25 @@ describe('揃っていないとき（受入条件）', () => {
     expect(
       [...container.querySelectorAll('button')].filter((b) => b.textContent === '直す'),
     ).toHaveLength(1);
+  });
+
+  it('**route.json を直すものには「直す」を出さない**（移る先が無い。T-85）', () => {
+    boot({ calendar: false });
+    useAppStore.getState().setNetworkDef({ ...network.def, agency: undefined });
+    render({ onGoTo: () => undefined });
+
+    // 事業者の必須 2 項目が欠けても、押せるのはカレンダーの 1 つだけである。
+    expect(
+      [...container.querySelectorAll('button')].filter((b) => b.textContent === '直す'),
+    ).toHaveLength(1);
+  });
+
+  it('**それでも直す先は書く**（route.json だと分かる。T-85 受入条件）', () => {
+    boot();
+    useAppStore.getState().setNetworkDef({ ...network.def, agency: undefined });
+    render({ onGoTo: () => undefined });
+
+    expect(container.textContent).toContain('事業者の「事業者名」が空です（route.json');
   });
 });
 

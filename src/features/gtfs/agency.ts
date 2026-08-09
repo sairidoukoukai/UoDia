@@ -1,25 +1,26 @@
 /**
- * 事業者の入力（#198、仕様書 v2 §3.3）。**純関数のみ。**
+ * 事業者の項目（#198・#221、仕様書 v2 §3.3）。**純関数のみ。**
  *
- * **画面は打った値を持つだけ**にし、「何が変わったか」「入れてよい形か」の判断は
- * ここに集める。設定ダイアログの `segments.ts` と同じ作りである。
+ * **打つ場所はもう無い**（T-85）。`route.json` に書いてあるものを読み、**欠けて
+ * いれば書き出しタブが名指しする**ためにだけ使う（`readiness.ts`）。項目の並びと
+ * 呼び名をここに置いておくのは、**「事業者の何が空か」を欄の名前で言える**ように
+ * するためである——`agencyUrl` が空です、では読めない。
  */
 
 import type { Agency } from '@/domain/model';
 
-/** 打ち直せる項目。`agencyId` は含まない（[§3.3](#) の「外と突き合わせる ID」）。 */
+/** 事業者の項目。`agencyId` は含まない（法人番号であり、こちらで採番しない）。 */
 export type AgencyField =
   'agencyName' | 'agencyUrl' | 'agencyTimezone' | 'agencyLang' | 'agencyPhone';
 
-/** 画面に出す欄の並び。**この順に上から並ぶ。** */
+/** 項目の並びと呼び名。**足りないものはこの順に並ぶ。** */
 export const AGENCY_FIELDS: readonly {
   readonly field: AgencyField;
   readonly label: string;
-  /** GTFS で必須の項目か。空のままにできないものに印を出す。 */
+  /** GTFS で必須の項目か。空のままにできないもの。 */
   readonly required: boolean;
-  readonly hint?: string;
 }[] = [
-  { field: 'agencyName', label: '事業者名', required: true, hint: 'バスを走らせている主体' },
+  { field: 'agencyName', label: '事業者名', required: true },
   { field: 'agencyUrl', label: 'URL', required: true },
   { field: 'agencyTimezone', label: 'タイムゾーン', required: true },
   { field: 'agencyLang', label: '言語', required: true },
@@ -27,11 +28,10 @@ export const AGENCY_FIELDS: readonly {
 ];
 
 /**
- * まだ何も無いときに出す値（仕様書 v2 §3.3）。
+ * まだ何も無いときの値（仕様書 v2 §3.3）。
  *
- * **タイムゾーンと言語は既定値を入れておく。** 欄としては出す——隠すと、GTFS を
- * 読む側が「なぜこの値なのか」を確かめる手立てが無くなる。既定が入っていれば、
- * 打つ手間は発生しない。
+ * **タイムゾーンと言語は既定値を持つ。** どちらも `route.json` に書いていなくても
+ * 決まっており、「空です」と言う筋合いのものではない。
  */
 export const AGENCY_DEFAULTS: Readonly<Record<AgencyField, string>> = {
   agencyName: '',
@@ -41,10 +41,10 @@ export const AGENCY_DEFAULTS: Readonly<Record<AgencyField, string>> = {
   agencyPhone: '',
 };
 
-/** 打った値の入れ物。**キーは {@link AgencyField}。** */
+/** 項目ごとの値。**キーは {@link AgencyField}。** */
 export type AgencyEdits = Readonly<Record<AgencyField, string>>;
 
-/** いまの定義から、画面の初期値を作る。 */
+/** いまの定義から、項目ごとの値を取り出す。 */
 export function agencyEditsOf(agency: Agency | undefined): AgencyEdits {
   if (agency === undefined) return AGENCY_DEFAULTS;
 
@@ -62,34 +62,4 @@ export function missingRequired(edits: AgencyEdits): AgencyField[] {
   return AGENCY_FIELDS.filter((entry) => entry.required && edits[entry.field].trim() === '').map(
     (entry) => entry.field,
   );
-}
-
-/** いまの定義と違うか。**同じなら書き戻さない。** */
-export function agencyChanged(agency: Agency | undefined, edits: AgencyEdits): boolean {
-  const current = agencyEditsOf(agency);
-  return AGENCY_FIELDS.some((entry) => current[entry.field] !== edits[entry.field]);
-}
-
-/**
- * 打った値を `Agency` にする。空の必須項目があれば `null`。
- *
- * **`agencyId` は既存の値を引き継ぐ。** 法人番号であり、こちらで採番し直さない
- * （仕様書 v2 §6.6）。まだ無ければ呼び出し側が決める。
- */
-export function toAgency(edits: AgencyEdits, agencyId: string, existing?: Agency): Agency | null {
-  if (missingRequired(edits).length > 0) return null;
-
-  const phone = edits.agencyPhone.trim();
-
-  return {
-    ...existing,
-    agencyId,
-    agencyName: edits.agencyName.trim(),
-    agencyUrl: edits.agencyUrl.trim(),
-    agencyTimezone: edits.agencyTimezone.trim(),
-    agencyLang: edits.agencyLang.trim(),
-    // **空文字は項目ごと落とす。** 任意の項目に空文字を書くと、GTFS には
-    // 「空の欄がある」として出るが、それは値が無いことと同じである。
-    ...(phone === '' ? { agencyPhone: undefined } : { agencyPhone: phone }),
-  };
 }
