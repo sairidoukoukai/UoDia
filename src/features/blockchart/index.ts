@@ -1,4 +1,4 @@
-export { barEnds, drawBlockChart } from './drawBlockChart';
+export { barEnds, drawBlockChart, standbyLabel } from './drawBlockChart';
 
 export {
   selectBlockChartScene,
@@ -6,6 +6,7 @@ export {
   type BlockChartScene,
   type ChartBar,
   type ChartBlock,
+  type ChartStandby,
   type ChartStop,
 } from './scene';
 

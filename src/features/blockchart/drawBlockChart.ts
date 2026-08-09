@@ -30,7 +30,7 @@
 
 import { formatTime } from '@/domain/time';
 import type { DrawContext } from '@/features/diagram';
-import type { BlockChartScene, ChartBar, ChartBlock } from './scene';
+import type { BlockChartScene, ChartBar, ChartBlock, ChartStandby } from './scene';
 import { axisToX, blockRowOffsets, chartHeight, rowToY, type BlockChartViewport } from './viewport';
 
 /** 棒の太さ（px）。 */
@@ -231,6 +231,10 @@ type StopX = (stopId: string) => number | null;
  * 前の便の終着と次の便の始発は同じ停留所であるはずだが、**そうでないことも
  * ある**（運用が破綻している。V-02 が拾う）。その場合は斜めに繋ぐ——繋がない
  * と、段がばらばらに浮いて理由が読めない。
+ *
+ * **車庫を挟む段は繋がない**（T-88、#230）。繋ぐと「そこで折り返した」と読める
+ * が、実際には車庫へ帰っている。**繋がないことが、帰ったことの印になる**——
+ * 上下の三角がその隙間に立つ。
  */
 function drawLinks(
   ctx: DrawContext,
@@ -239,6 +243,8 @@ function drawLinks(
   firstRow: number,
   xOf: StopX,
 ): void {
+  const overDepot = new Set(block.standbys.map((standby) => standby.outRow));
+
   ctx.strokeStyle = block.color;
   ctx.lineWidth = LINK_WIDTH;
   ctx.setLineDash([]);
@@ -246,6 +252,7 @@ function drawLinks(
 
   for (const [index, bar] of block.bars.entries()) {
     if (index === 0) continue;
+    if (overDepot.has(bar.row)) continue;
     const previous = block.bars[index - 1];
     if (previous === undefined) continue;
 
@@ -289,8 +296,12 @@ function drawBars(
 /**
  * 出入庫の印（§5.5.3）。**棒にしない。**
  *
- * 出庫は最初の便の始発停留所の**上**、入庫は最後の便の終着停留所の**下**。
- * 回送に段を割かないのは、車庫が横軸のどこにも無いためである。
+ * 出庫は始発停留所の**上**、入庫は終着停留所の**下**。回送に段を割かないのは、
+ * 車庫が横軸のどこにも無いためである。
+ *
+ * **運用の端に限らない**（T-88、#230）。1 日に 2 回出庫する運用は途中でも
+ * 車庫へ帰る。**同じ印を、同じ規則で、途中にも置く**——端と途中で描き分けると、
+ * 読む人は 2 通りの記号を覚えることになる。
  */
 function drawMarks(
   ctx: DrawContext,
@@ -315,6 +326,17 @@ function drawMarks(
     const last = block.bars.at(-1);
     if (x !== null && last !== undefined) {
       triangle(ctx, x, rowToY(firstRow + last.row, viewport) + MARK_GAP, 1);
+    }
+  }
+
+  for (const standby of block.standbys) {
+    const inX = xOf(standby.inStopId);
+    if (inX !== null) {
+      triangle(ctx, inX, rowToY(firstRow + standby.inRow, viewport) + MARK_GAP, 1);
+    }
+    const outX = xOf(standby.outStopId);
+    if (outX !== null) {
+      triangle(ctx, outX, rowToY(firstRow + standby.outRow, viewport) - MARK_GAP, -1);
     }
   }
 }
@@ -365,6 +387,44 @@ function drawTimes(
   }
 
   drawLayovers(ctx, scene, viewport, block, firstRow, xOf);
+  drawStandbys(ctx, scene, viewport, block, firstRow, xOf);
+}
+
+/**
+ * 車庫に居た分（T-88、#230）。**折返しと同じ場所に、違う言葉で置く。**
+ *
+ * 「290分」とだけ書くと折返しに読める。**車庫へ帰ったことは形からは読めない**
+ * ——段の間が空くわけでも、棒が伸びるわけでもない（§5.5.2 で縦を時間にしないと
+ * 決めた）。三角の印は置くが、印だけでは長さが分からない。**「車庫」と書く。**
+ */
+function drawStandbys(
+  ctx: DrawContext,
+  scene: BlockChartScene,
+  viewport: BlockChartViewport,
+  block: ChartBlock,
+  firstRow: number,
+  xOf: StopX,
+): void {
+  ctx.fillStyle = scene.theme.label;
+
+  for (const standby of block.standbys) {
+    const x = xOf(standby.outStopId);
+    if (x === null) continue;
+
+    // 折返しと同じ寄せ方をする（マスの端から内側へ）。
+    const inward = x > (viewport.left + viewport.width) / 2 ? -1 : 1;
+    ctx.textAlign = inward === 1 ? 'left' : 'right';
+
+    const y =
+      (rowToY(firstRow + standby.inRow, viewport) + rowToY(firstRow + standby.outRow, viewport)) /
+      2;
+    ctx.fillText(standbyLabel(standby), x + inward * TIME_GAP, y);
+  }
+}
+
+/** 車庫に居たことと、その長さ。 */
+export function standbyLabel(standby: ChartStandby): string {
+  return `車庫 ${String(standby.minutes)}分`;
 }
 
 /** 折返し時分。**縦線の脇に置く。** */

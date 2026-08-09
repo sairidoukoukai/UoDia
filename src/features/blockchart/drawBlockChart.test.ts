@@ -51,6 +51,7 @@ function addTrip(
   hour: number,
   minute: number,
   blockId: string,
+  depot: { readonly pullOut?: boolean; readonly pullIn?: boolean } = {},
 ): void {
   store.getState().editProject('便を足す', (project) => {
     const [service] = project.services;
@@ -59,8 +60,25 @@ function addTrip(
     if (inserted === null) throw new Error(`便を作れません: ${patternId}`);
     service.trips = [...inserted.trips];
     const added = service.trips.at(-1);
-    if (added !== undefined) added.blockId = blockId;
+    if (added === undefined) return;
+    added.blockId = blockId;
+    if (depot.pullOut === true) added.pullOut = true;
+    if (depot.pullIn === true) added.pullIn = true;
   });
+}
+
+/**
+ * 1 日に 2 回出庫する運用（T-88、#230）。
+ *
+ * 朝: 出庫 → 豊中 9:00 → 吹田 10:00 → **入庫**。
+ * 車庫で休む。
+ * 夕: **出庫** → 豊中 15:00 → 吹田 16:00 → 入庫。
+ */
+function addTwoShiftBlock(): void {
+  addTrip('S3', '1_0', 9, 0, 'A', { pullOut: true });
+  addTrip('T3', '4_0', 10, 0, 'A', { pullIn: true });
+  addTrip('S3', '1_0', 15, 0, 'A', { pullOut: true });
+  addTrip('T3', '4_0', 16, 0, 'A', { pullIn: true });
 }
 
 function state(): AppState {
@@ -82,6 +100,16 @@ function draw(): { recorder: Recorder; scene: BlockChartScene; viewport: BlockCh
   const recorder = new Recorder();
   drawBlockChart(recorder, target, viewport);
   return { recorder, scene: target, viewport };
+}
+
+/**
+ * 折返しの縦線だけを取る。
+ *
+ * **縦線は 3 種類ある**——停留所の軸（太さ 1）・折返し（1.5）・棒（4、水平）。
+ * `isVertical` だけで数えると軸の線が混ざる。
+ */
+function links(recorder: Recorder): readonly { readonly x1: number; readonly y1: number }[] {
+  return recorder.segments.filter((segment) => isVertical(segment) && segment.lineWidth === 1.5);
 }
 
 /** その停留所の x。 */
@@ -148,8 +176,7 @@ describe('形（§5.5.2）', () => {
     expect(bars[0]?.y1).toBeLessThan(bars[1]?.y1 ?? 0);
 
     // **縦線が右端で 2 本を繋いでいる。** これで四角が閉じる。
-    const links = recorder.segments.filter(isVertical);
-    expect(links.some((link) => link.x1 === right)).toBe(true);
+    expect(links(recorder).some((link) => link.x1 === right)).toBe(true);
   });
 
   it('**区間便の棒が、端から端までの便より短い**（受入条件）', () => {
@@ -173,9 +200,10 @@ describe('形（§5.5.2）', () => {
     const bars = recorder.segments.filter(isHorizontal);
     expect(bars).toHaveLength(3);
 
-    // 2 便目と 3 便目は箕面で折り返している。
+    // 2 便目と 3 便目は箕面で折り返している。**停留所の軸線と混ぜない**——
+    // 箕面には軸の縦線も立っており、`isVertical` だけでは必ず当たる。
     const minoo = xOf(target, viewport, '2_0');
-    expect(recorder.segments.filter(isVertical).some((link) => link.x1 === minoo)).toBe(true);
+    expect(links(recorder).some((link) => link.x1 === minoo)).toBe(true);
   });
 });
 
@@ -261,6 +289,82 @@ describe('出入庫はマーク（§5.5.3）', () => {
   });
 });
 
+describe('途中入庫（T-88、#230）', () => {
+  it('**車庫に居たことを場面が持つ**（回送を落としても消えない）', () => {
+    addTwoShiftBlock();
+    const [block] = scene().blocks;
+
+    expect(block?.standbys).toHaveLength(1);
+    // 2 段目で帰り、3 段目で出る。**段は営業便だけで数える。**
+    expect(block?.standbys[0]?.inRow).toBe(1);
+    expect(block?.standbys[0]?.outRow).toBe(2);
+  });
+
+  it('**車庫に居た分を持つ**（棒の間ではなく、車庫に着いてから出るまで）', () => {
+    addTwoShiftBlock();
+    const minutes = scene().blocks[0]?.standbys[0]?.minutes ?? 0;
+
+    // 2 段目の終着から入庫回送のぶん遅れて着き、3 段目の始発より出庫回送のぶん
+    // 早く出る。**棒と棒の間（10:00 発 → 15:00 発）より短い。**
+    expect(minutes).toBe(215);
+    // **0 ではない。** #230 で描かれていたのはこれである。
+    expect(minutes).toBeGreaterThan(0);
+  });
+
+  it('**折返し 0 分と言わない**（#230 の本体）', () => {
+    addTwoShiftBlock();
+    const bars = scene().blocks[0]?.bars ?? [];
+
+    // 3 段目は車庫から出てきた段である。そこに折返しは無い。
+    expect(bars[2]?.layoverMinutes).toBeNull();
+    // **ほかの段の折返しは残る。**
+    expect(bars[1]?.layoverMinutes).not.toBeNull();
+  });
+
+  it('**「車庫」と書く**（印だけでは長さが読めない）', () => {
+    addTwoShiftBlock();
+    const texts = draw().recorder.labels.map((label) => label.text);
+
+    expect(texts).toContain('車庫 215分');
+    expect(texts).not.toContain('0分');
+  });
+
+  it('**印は端と同じ規則で置く**（入る段の下・出る段の上）', () => {
+    addTwoShiftBlock();
+    const { recorder, scene: target, viewport } = draw();
+    const bars = recorder.segments.filter(isHorizontal);
+
+    // 運用の端 2 つ + 途中の出入り 2 つ。
+    expect(recorder.polygons).toHaveLength(4);
+
+    const midIn = recorder.polygons.find(
+      (polygon) => Math.min(...polygon.points.map((p) => p.y)) > (bars[1]?.y1 ?? 0),
+    );
+    const midOut = recorder.polygons.find(
+      (polygon) => Math.max(...polygon.points.map((p) => p.y)) < (bars[2]?.y1 ?? 0),
+    );
+
+    // どちらも豊中に立つ（2 段目の終着、3 段目の始発）。
+    const toyonaka = xOf(target, viewport, '1_0');
+    expect(midIn?.points[0]?.x).toBeCloseTo(toyonaka, 6);
+    expect(midOut?.points[0]?.x).toBeCloseTo(toyonaka, 6);
+  });
+
+  it('**車庫を挟む段は繋がない**（繋ぐと折り返したと読める）', () => {
+    addTwoShiftBlock();
+
+    // 縦線は 1 段目→2 段目と 3 段目→4 段目の 2 本。**2 段目→3 段目は無い。**
+    expect(links(draw().recorder)).toHaveLength(2);
+  });
+
+  it('途中入庫が無ければ縦線は今までどおり繋ぐ', () => {
+    addTrip('S3', '1_0', 9, 0, 'A');
+    addTrip('T3', '4_0', 10, 0, 'A');
+
+    expect(links(draw().recorder)).toHaveLength(1);
+  });
+});
+
 describe('落ちない（受入条件）', () => {
   it('**便が 1 本もない**', () => {
     expect(() => draw()).not.toThrow();
@@ -337,6 +441,7 @@ describe('段の高さ（§5.5.6）', () => {
         ],
         pullOut: null,
         pullIn: null,
+        standbys: [],
       })),
       theme: LIGHT_THEME,
     };
