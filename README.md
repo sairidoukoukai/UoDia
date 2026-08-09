@@ -16,9 +16,10 @@
 | [仕様書](docs/specification.md) | データモデル・機能仕様・非機能要件。**実装前に必読。** |
 | [仕様書 v1.1（追補）](docs/specification-v1.1.md) | v1.0 リリース後の issue（#158〜#168）に対する追補。**草案。** |
 | [実装計画書](docs/implementation-plan.md) | タスク分解（T-01〜T-42）・技術的な設計判断・リスク |
-| [実装計画書 v1.1](docs/implementation-plan-v1.1.md) | v1.1 のタスク分解（T-56〜T-66）。issue #158〜#168 に対応 |
+| [実装計画書 v1.1](docs/implementation-plan-v1.1.md) | v1.1 のタスク分解（T-56〜T-69）。issue #158〜#168 に対応 |
 | [仕様書 v2（追補）](docs/specification-v2.md) | 書き出し・運行日カレンダー・GTFS 出力。issue #163・#192〜#198 に対応。**草案（未確定事項ゼロ）。** |
 | [実装計画書 v2](docs/implementation-plan-v2.md) | v2 のタスク分解（T-70〜T-83） |
+| [実装計画書 v2.1](docs/implementation-plan-v2.1.md) | v2.0.0 を配ったあとに出た指摘（#219〜#222）に対するタスク分解（T-84〜T-87） |
 | [リファクタリング記録](docs/refactoring-log.md) | 構造だけを直した作業と、**その重複が生まれた理由** |
 
 ## 開発環境
