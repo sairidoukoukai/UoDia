@@ -8,6 +8,8 @@ export { PdfDrawContext, fontSizeOf, toRgb, type PdfDrawContextOptions } from '.
 
 export {
   A4_LANDSCAPE_PT,
+  A4_PORTRAIT_PT,
+  a4For,
   createPdfBuilder,
   type PdfBuilder,
   type PdfBuilderOptions,

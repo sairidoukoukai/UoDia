@@ -1,20 +1,19 @@
 /**
- * 箱ダイヤを PDF にする（仕様書 v2 §5.5.6、#194、T-80）。
+ * 箱ダイヤを PDF にする（仕様書 v2 §5.5.6、#194・#220、T-80・T-87）。
  *
- * ## 1 枚だけ出す
+ * ## 1 マスに 1 運用
  *
- * **運用ごとの出力（#193）は廃止した。** 全運用を 1 ページに収める。
+ * **全運用を 1 枚に収める形（T-80）は取り消した**（#220）。運用が増えるほど段が
+ * 詰まり、**1 台ぶんの形が読めなくなる。** 箱ダイヤは車の動きを追う図であり、
+ * 追えなくなったらそれは箱ダイヤではない。
  *
- * 箱ダイヤは車の動きを追う図であり、**追うべき車は 5 台ほどしかない。** 1 枚に
- * 並べて見比べられるなら、**1 台ずつ切り出したものは同じ情報を 5 回配るだけに
- * なる。**
+ * A4 縦を **3 行 2 列**に割り、1 マスに 1 運用ずつ描く（`blockChartCells`）。
  *
- * ## 改ページを持たない
+ * ## 改ページしてよい
  *
- * 段が何段になっても 1 ページに収まるよう縮める（`fitBlockChart`）。**段の間隔を
- * 一定にした判断が、ここで効く**——図の高さは便の数だけで決まるため、**収まるか
- * どうかを描く前に計算できる。** 折返しの長さに比例させていたら、収まるかどうかが
- * 中身次第になり、改ページを避けられなかった。
+ * 7 つめの運用からはページを足す。**何ページになるかは描く前に分かる**——運用の
+ * 数を 6 で割るだけである。**段の間隔を一定にした判断（§5.5.2）はここでも
+ * 効いている。**
  *
  * ## 配色は明るいほうで固定
  *
@@ -22,10 +21,10 @@
  */
 
 import { LIGHT_THEME } from '@/features/diagram';
-import { drawBlockChart, fitBlockChart, selectBlockChartScene } from '@/features/blockchart';
+import { blockChartCells, drawBlockChart, selectBlockChartScene } from '@/features/blockchart';
 import type { PlatformAdapter } from '@/platform';
 import type { ExportProducer, ExportSource } from './artifacts';
-import { A4_LANDSCAPE_300DPI, type ExportPage } from './diagramExport';
+import { A4_PORTRAIT_300DPI, type ExportPage } from './diagramExport';
 
 /** 一斉出力の中でのファイル名（仕様書 v2 §5.3）。 */
 export const BLOCK_CHART_PDF_NAME = '箱ダイヤ.pdf';
@@ -34,21 +33,28 @@ export interface BlockChartPdfOptions {
   readonly page?: ExportPage;
 }
 
-/** 箱ダイヤを描いた PDF のバイト列を作る。**A4 横 1 ページ。** */
+/** 箱ダイヤを描いた PDF のバイト列を作る。**A4 縦・3 行 2 列。** */
 export async function renderBlockChartPdf(
   source: ExportSource,
   platform: Pick<PlatformAdapter, 'loadExportFont'>,
   options: BlockChartPdfOptions = {},
 ): Promise<Uint8Array> {
-  const page = options.page ?? A4_LANDSCAPE_300DPI;
+  const page = options.page ?? A4_PORTRAIT_300DPI;
 
   const { createPdfBuilder } = await import('./pdf');
   const builder = await createPdfBuilder({ platform, title: source.project.document.name });
 
-  const { ctx } = builder.addPage(page.width, page.height);
   const scene = selectBlockChartScene(source.state, LIGHT_THEME);
-  drawBlockChart(ctx, scene, fitBlockChart(scene, page));
-  ctx.finish();
+
+  for (const cells of blockChartCells(scene, page)) {
+    const { ctx } = builder.addPage(page.width, page.height);
+    // **空きマスには何も描かない**（§5.5.6）。`cells` にそもそも入っていない。
+    for (const cell of cells) {
+      drawBlockChart(ctx, cell.scene, cell.viewport);
+    }
+    // 積んだ変換を降ろす。降ろさないと、次に足したページが前の変換を引き継ぐ。
+    ctx.finish();
+  }
 
   return builder.save();
 }
