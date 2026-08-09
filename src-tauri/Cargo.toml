@@ -1,6 +1,6 @@
 [package]
 name = "uodia"
-version = "1.2.0"
+version = "2.0.0"
 description = "大阪大学 学内連絡バス（再履バス）ダイヤグラム設計ソフトウェア"
 # `.deb` の `Maintainer` と `.rpm` の `Packager` はここから作られる。**`bundle.publisher`
 # より優先される**——実際に作った 1.0.0 の control は `Maintainer: sairidoukoukai` であり、
