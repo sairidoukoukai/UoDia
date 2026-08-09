@@ -1,7 +1,17 @@
 {
-  "version": 2,
+  "version": 3,
   "name": "大阪大学 学内連絡バス",
   "timeGrain": 300,
+  "agency": {
+    "agencyId": "4120905002554",
+    "agencyName": "国立大学法人大阪大学",
+    "agencyUrl": "https://www.osaka-u.ac.jp/ja/access/bus",
+    "agencyTimezone": "Asia/Tokyo",
+    "agencyLang": "ja",
+    "agencyPhone": "",
+    "nameKana": "おおさかだいがく",
+    "nameEn": "Osaka University"
+  },
   "stops": [
     {
       "stopId": "1_0",
@@ -11,7 +21,11 @@
       "axisPosition": 0,
       "gridStyle": "bold",
       "hiddenInEditor": false,
-      "isDepot": false
+      "isDepot": false,
+      "lat": 34.80542,
+      "lon": 135.45537,
+      "nameKana": "とよなかがくしゃ",
+      "nameEn": "Toyonaka-gakusha"
     },
     {
       "stopId": "2_0",
@@ -21,7 +35,11 @@
       "axisPosition": 20,
       "gridStyle": "bold",
       "hiddenInEditor": false,
-      "isDepot": false
+      "isDepot": false,
+      "lat": 34.8232,
+      "lon": 135.49144,
+      "nameKana": "みのおがくしゃ",
+      "nameEn": "Minoh-gakusha"
     },
     {
       "stopId": "3_0",
@@ -31,7 +49,11 @@
       "axisPosition": 35,
       "gridStyle": "normal",
       "hiddenInEditor": false,
-      "isDepot": false
+      "isDepot": false,
+      "lat": 34.81819,
+      "lon": 135.52299,
+      "nameKana": "こんべんしょんセンターまえ",
+      "nameEn": "konbenshon-senta-mae"
     },
     {
       "stopId": "5_0",
@@ -41,7 +63,11 @@
       "axisPosition": 35,
       "gridStyle": "normal",
       "hiddenInEditor": false,
-      "isDepot": false
+      "isDepot": false,
+      "lat": 34.81793,
+      "lon": 135.52518,
+      "nameKana": "にんげんかがくぶまえ",
+      "nameEn": "Ningen-kagakubu-mae"
     },
     {
       "stopId": "6_0",
@@ -51,7 +77,11 @@
       "axisPosition": 40,
       "gridStyle": "dashed",
       "hiddenInEditor": true,
-      "isDepot": false
+      "isDepot": false,
+      "lat": 34.82444,
+      "lon": 135.52003,
+      "nameKana": "びせいぶつけんきゅうじょまえ",
+      "nameEn": "Biseibutsu-kennkyujo-mae"
     },
     {
       "stopId": "4_0",
@@ -61,7 +91,11 @@
       "axisPosition": 40,
       "gridStyle": "bold",
       "hiddenInEditor": false,
-      "isDepot": false
+      "isDepot": false,
+      "lat": 34.82386,
+      "lon": 135.52374,
+      "nameKana": "こうがくぶまえ",
+      "nameEn": "Kougakubu-mae"
     },
     {
       "stopId": "9_0",
@@ -71,7 +105,9 @@
       "axisPosition": 52,
       "gridStyle": "dashed",
       "hiddenInEditor": false,
-      "isDepot": true
+      "isDepot": true,
+      "lat": 34.80548,
+      "lon": 135.5061
     }
   ],
   "segments": [
@@ -183,7 +219,7 @@
         },
         {
           "stopId": "3_0",
-          "handling": "stop"
+          "handling": "alightOnly"
         },
         {
           "stopId": "6_0",
@@ -215,7 +251,7 @@
         },
         {
           "stopId": "3_0",
-          "handling": "stop"
+          "handling": "alightOnly"
         },
         {
           "stopId": "6_0",
@@ -243,7 +279,7 @@
         },
         {
           "stopId": "3_0",
-          "handling": "stop"
+          "handling": "alightOnly"
         },
         {
           "stopId": "6_0",
@@ -291,7 +327,7 @@
         },
         {
           "stopId": "5_0",
-          "handling": "stop"
+          "handling": "boardOnly"
         },
         {
           "stopId": "1_0",
@@ -315,7 +351,7 @@
         },
         {
           "stopId": "5_0",
-          "handling": "stop"
+          "handling": "boardOnly"
         },
         {
           "stopId": "2_0",
@@ -363,7 +399,7 @@
         },
         {
           "stopId": "5_0",
-          "handling": "stop"
+          "handling": "boardOnly"
         },
         {
           "stopId": "2_0",
@@ -484,6 +520,62 @@
           "handling": "alightOnly"
         }
       ]
+    }
+  ],
+  "routes": [
+    {
+      "routeName": "豊中吹田線",
+      "color": "bdd7ee",
+      "textColor": "000000",
+      "kana": "とよなかすいたせん",
+      "en": "Toyonaka <-> Suita"
+    },
+    {
+      "routeName": "吹田豊中線",
+      "longName": "豊中吹田線",
+      "color": "bdd7ee",
+      "textColor": "000000",
+      "kana": "とよなかすいたせん",
+      "en": "Toyonaka <-> Suita"
+    },
+    {
+      "routeName": "豊中箕面線",
+      "color": "ffa7a7",
+      "textColor": "000000",
+      "kana": "とよなかみのおせん",
+      "en": "Toyonaka <-> Minoh"
+    },
+    {
+      "routeName": "箕面豊中線",
+      "longName": "豊中箕面線",
+      "color": "ffa7a7",
+      "textColor": "000000",
+      "kana": "とよなかみのおせん",
+      "en": "Toyonaka <-> Minoh"
+    },
+    {
+      "routeName": "箕面吹田線",
+      "color": "262626",
+      "textColor": "ffffff"
+    },
+    {
+      "routeName": "吹田箕面線",
+      "longName": "箕面吹田線",
+      "color": "262626",
+      "textColor": "ffffff"
+    },
+    {
+      "routeName": "三点間",
+      "color": "262626",
+      "textColor": "ffffff",
+      "kana": "さんてんかん",
+      "en": "Toyonaka <-> Minoh <-> Suita"
+    },
+    {
+      "routeName": "回送",
+      "color": "B0B0B0",
+      "textColor": "000000",
+      "en": "Out of Service"
     }
   ]
 }

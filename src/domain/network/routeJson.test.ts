@@ -297,3 +297,72 @@ describe('route.json — 方向と経路の整合', () => {
     }
   });
 });
+
+describe('route.json — GTFS に要る静的データ（T-70、#198）', () => {
+  const network = loadNetwork();
+
+  it('版数 3 である', () => {
+    expect(network.version).toBe(3);
+  });
+
+  it('事業者は大阪大学である（**同好会ではない**）', () => {
+    // バスを走らせているのは大学であり、配信を作っているのが同好会である。
+    // GTFS はこの 2 つを agency.txt と feed_info.txt の別の欄で分けている
+    // （仕様書 v2 §6.5.1）。
+    expect(network.agency?.agencyName).toBe('国立大学法人大阪大学');
+    expect(network.agency?.agencyId).toBe('4120905002554');
+    expect(network.agency?.agencyTimezone).toBe('Asia/Tokyo');
+  });
+
+  it('**すべての停留所が緯度経度を持つ**（車庫を含む）', () => {
+    const missing = network.stops.filter((s) => s.lat === undefined || s.lon === undefined);
+    expect(missing.map((s) => s.stopId)).toEqual([]);
+  });
+
+  it('緯度経度が実例と一致する', () => {
+    const toyonaka = network.stops.find((s) => s.stopId === '1_0');
+    expect(toyonaka?.lat).toBe(34.80542);
+    expect(toyonaka?.lon).toBe(135.45537);
+  });
+
+  it('**パターンが使う系統がすべて `routes` に定義されている**', () => {
+    // 1 つでも欠けると、その系統の色と訳語が GTFS に出せない。
+    const defined = new Set((network.routes ?? []).map((r) => r.routeName));
+    const used = [...new Set(network.patterns.map((p) => p.routeName))];
+    expect(used.filter((name) => !defined.has(name))).toEqual([]);
+  });
+
+  it('**系統名は方向でひっくり返さない**（往復が同じ `longName` に寄る）', () => {
+    // 同じ線の往復に 2 つの名前があると、読む側には別の系統に見える
+    // （仕様書 v2 §6.5.3）。
+    const routes = new Map((network.routes ?? []).map((r) => [r.routeName, r]));
+    const outbound = routes.get('豊中吹田線');
+    const inbound = routes.get('吹田豊中線');
+
+    expect(outbound?.longName ?? '豊中吹田線').toBe('豊中吹田線');
+    expect(inbound?.longName).toBe('豊中吹田線');
+  });
+
+  it('往復の系統が同じ色を持つ', () => {
+    const routes = new Map((network.routes ?? []).map((r) => [r.routeName, r]));
+    expect(routes.get('吹田豊中線')?.color).toBe(routes.get('豊中吹田線')?.color);
+    expect(routes.get('箕面豊中線')?.color).toBe(routes.get('豊中箕面線')?.color);
+  });
+
+  it('**GTFS の色は画面のスジ色と別物である**', () => {
+    // 画面はスジを描くための濃い色、GTFS は地色として使う淡い色である
+    // （仕様書 v2 §6.8）。片方から計算すると、どちらの用途にも合わない色が出る。
+    const routes = new Map((network.routes ?? []).map((r) => [r.routeName, r]));
+    const s1 = network.patterns.find((p) => p.patternId === 'S1');
+
+    expect(routes.get('豊中吹田線')?.color).toBe('bdd7ee');
+    expect(s1?.color).not.toBe(`#${routes.get('豊中吹田線')?.color ?? ''}`);
+  });
+
+  it('訳語は `stops.txt` に出す停留所に揃っている', () => {
+    // 千里営業所は実例が訳語を持たないため、ここでも持たない。
+    const translated = network.stops.filter((s) => !s.isDepot);
+    expect(translated.filter((s) => s.nameKana === undefined).map((s) => s.stopId)).toEqual([]);
+    expect(translated.filter((s) => s.nameEn === undefined).map((s) => s.stopId)).toEqual([]);
+  });
+});

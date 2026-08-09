@@ -33,6 +33,14 @@ fn temp_path_for(path: &Path) -> PathBuf {
 /// 途中で失敗した場合、書き込み先は元のまま残る。一時ファイルは削除を試みるが、
 /// 削除に失敗しても書き込み先には影響しない。
 pub fn write_atomic(path: &Path, content: &str) -> Result<(), String> {
+    write_atomic_bytes(path, content.as_bytes())
+}
+
+/// バイト列をアトミックに書き込む（T-74）。
+///
+/// 書き出し（zip）はテキストではない。**同じ書き込み方を通す**——書き出しだけが
+/// 途中で切れた断片を残してよい理由は無い。
+pub fn write_atomic_bytes(path: &Path, content: &[u8]) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
             .map_err(|e| format!("ディレクトリを作成できません: {}: {}", parent.display(), e))?;
@@ -43,7 +51,7 @@ pub fn write_atomic(path: &Path, content: &str) -> Result<(), String> {
     // 一時ファイルへの書き込みが失敗したら、書き込み先には触れずに終える。
     let write_result = (|| -> std::io::Result<()> {
         let mut file = fs::File::create(&temp)?;
-        file.write_all(content.as_bytes())?;
+        file.write_all(content)?;
         // 名前を付け替える前に内容をディスクへ送る。これを省くと、付け替えだけが
         // 先に永続化され、中身が空のファイルが残ることがある。
         file.sync_all()?;
@@ -190,6 +198,19 @@ mod tests {
         // アトミック性が失われる。
         let path = Path::new("/data/projects/a.uodia");
         assert_eq!(temp_path_for(path).parent(), path.parent());
+    }
+
+    #[test]
+    fn バイト列をそのまま書ける() {
+        // 書き出し（zip）は文字列ではない。文字として解釈されると必ず壊れる列で
+        // 確かめる。
+        let dir = scratch_dir("bytes");
+        let path = dir.join("a.zip");
+        let raw: Vec<u8> = (0..=255u8).collect();
+
+        write_atomic_bytes(&path, &raw).expect("書き込めません");
+
+        assert_eq!(fs::read(&path).unwrap(), raw);
     }
 
     #[test]

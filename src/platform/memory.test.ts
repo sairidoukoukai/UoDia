@@ -65,6 +65,25 @@ describe('saveProject / saveProjectAs', () => {
   });
 });
 
+describe('saveExport（T-74）', () => {
+  const ZIP = new Uint8Array([0x50, 0x4b, 0x05, 0x06]);
+
+  it('名前とバイト列を覚える', async () => {
+    const platform = createMemoryPlatform();
+
+    expect(await platform.saveExport(ZIP, 'a.zip')).toBe(true);
+    expect(platform.exports.get('a.zip')).toEqual(ZIP);
+  });
+
+  it('**取り消されたら何も残らない**', async () => {
+    const platform = createMemoryPlatform();
+    platform.exportAccepted = false;
+
+    expect(await platform.saveExport(ZIP, 'a.zip')).toBe(false);
+    expect(platform.exports.size).toBe(0);
+  });
+});
+
 describe('loadNetworkDef / saveNetworkDef', () => {
   it('route.json を読める', async () => {
     const platform = createMemoryPlatform({ networkDef: '{"version":1}' });

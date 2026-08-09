@@ -43,8 +43,10 @@ export type CommandId =
   | 'file.open'
   | 'file.save'
   | 'file.saveAs'
+  | 'file.export'
   | 'file.backupNow'
   | 'file.documentInfo'
+  | 'file.gtfs'
   | 'edit.undo'
   | 'edit.redo'
   | 'edit.copy'
@@ -108,6 +110,12 @@ export const COMMANDS: readonly Command[] = [
     label: '名前を付けて保存…',
     accelerator: { key: 's', shift: true },
   },
+  /*
+   * 一斉出力（#192・#194・#196、仕様書 v2 §5.1）。**形式を選ばせない**——押すと
+   * 保存先を尋ね、すべてを 1 つの zip に入れて出す。**ショートカットは割り当て
+   * ない**（仕様書 §8.1 に無いものを勝手に増やさない）。
+   */
+  { id: 'file.export', menu: 'file', label: '書き出し…', separatorBefore: true },
   {
     id: 'file.documentInfo',
     menu: 'file',
@@ -115,6 +123,11 @@ export const COMMANDS: readonly Command[] = [
     separatorBefore: true,
   },
   { id: 'file.backupNow', menu: 'file', label: '今すぐバックアップ' },
+  /*
+   * GTFS 画面（#163・#198、仕様書 v2 §3.2）。**ショートカットは割り当てない**
+   * ——作図中に繰り返す操作ではない。
+   */
+  { id: 'file.gtfs', menu: 'file', label: 'GTFS…', separatorBefore: true },
 
   {
     id: 'edit.undo',

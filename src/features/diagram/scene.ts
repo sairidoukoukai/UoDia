@@ -139,6 +139,26 @@ export interface DiagramScene {
   readonly theme: SceneTheme;
 }
 
+/**
+ * 明るい配色（`styles.css` の `:root`）。
+ *
+ * **2 つの役目がある。**
+ *
+ * 1. 画面が CSS 変数を読めなかったときの受け皿（`DiagramCanvas` の `readTheme`）
+ * 2. **書き出しが使う配色**（仕様書 v2 §5.4.1、T-75）——画面が暗い配色でも、
+ *    紙に黒地は刷らない
+ *
+ * **同じ値を 2 か所に書かない。** 書き出しだけ別の白を持つと、画面の受け皿と
+ * 書き出しの色が静かに食い違う。
+ */
+export const LIGHT_THEME: SceneTheme = Object.freeze({
+  background: '#ffffff',
+  axis: '#cccccc',
+  grid: '#e4e4e4',
+  gridFaint: '#f0f0f0',
+  label: '#666666',
+});
+
 /** 表示フィルタ（仕様書 §6.2.4）。 */
 interface SceneFilter {
   readonly patterns: ReadonlySet<string>;

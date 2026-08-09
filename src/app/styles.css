@@ -614,6 +614,36 @@ body {
   font-size: 0.8125rem;
 }
 
+/*
+  借りているものの表（仕様書 v2 §5.4.3、T-77）。**用途の列は左に寄せる**
+  ——鍵の一覧（`.help-dialog__keys td`）は右寄せだが、ここは文であり、
+  右端が揃っても読みやすくならない。
+*/
+.help-dialog__credits {
+  margin-top: 1.25rem;
+}
+
+.help-dialog__credits td:first-of-type {
+  text-align: left;
+  white-space: normal;
+}
+
+/*
+  ライセンス本文。**折り返さずに送る。** 92 行の全文で窓を伸ばさないよう
+  高さを抑える。
+*/
+.help-dialog__license {
+  max-height: 14rem;
+  margin: 0.75rem 0 0;
+  overflow: auto;
+  padding: 0.5rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-accent);
+  color: var(--color-fg-muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
 .help-dialog__actions {
   display: flex;
   justify-content: flex-end;
@@ -1037,6 +1067,12 @@ body {
  */
 .timetable__bar {
   display: flex;
+  /*
+    **狭いときは折り返す**（#200）。サイドパネルを広げると横幅が減り、複製が
+    右へはみ出す。折り返せば読めるまま残る——切れると押せているのかどうかが
+    分からない。
+  */
+  flex-wrap: wrap;
   align-items: flex-end;
   gap: 0.5rem;
   /* 選んでいるタブが、この線を跨いで表と繋がって見えるようにする。 */
@@ -1061,6 +1097,19 @@ body {
 
 .timetable__bar > button {
   margin-bottom: 0.25rem;
+}
+
+/*
+  別のダイヤへ複製（#200）。**並べ替えの右**に置く。写し先が無ければ、この
+  部分だけが出ない——行そのものは残るため、**出ても消えても表の高さは動かない。**
+*/
+.timetable__copy {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-bottom: 0.25rem;
+  white-space: nowrap;
+  font-size: 0.875rem;
 }
 
 .timetable__tab {
@@ -1337,27 +1386,8 @@ body {
 
 /* 便の操作（T-21、仕様書 §6.1.4）。本来の位置はメニューであり（T-37）、
    ここに置くのは操作を実際に触れるようにするためである。 */
-.timetable__toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
-  font-size: 0.875rem;
-}
-
-.timetable__toolbar-group {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-
 .timetable__minutes {
   width: 4rem;
-}
-
-.timetable__toolbar-status {
-  color: var(--color-fg-muted);
 }
 
 .timetable__empty {
@@ -1543,4 +1573,273 @@ body {
   min-height: 0;
   /* 焦点の枠を出す。キーボードで操作できることが見て分かる（§9.4）。 */
   outline-offset: -2px;
+}
+
+/* ---------------------------------------------------------------------------
+   GTFS 画面（#163・#198、仕様書 v2 §3、T-72）
+
+   枠・タブ・面・操作は設定ダイアログ（`.settings`）のものをそのまま使う。
+   **同じ形のものを 2 つ書かない。** ここに置くのは、設定に無い 2 つだけである
+   ——事業者の欄（横に長い文字列を入れる）と、停留所の表。
+
+   `.settings__field` を使い回さないのは、あちらの input が `width: 6rem` の
+   右寄せだからである。分の数を打つ欄として作られており、URL は入らない。
+--------------------------------------------------------------------------- */
+
+.gtfs__fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.gtfs__field {
+  display: grid;
+  grid-template-columns: 8rem 1fr;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+}
+
+.gtfs__field input {
+  font: inherit;
+  min-width: 0;
+}
+
+/* 補足はラベルの下ではなく、欄の下（2 列目）へ回す。 */
+.gtfs__field small {
+  grid-column: 2;
+  color: var(--color-fg-muted);
+  font-size: 0.8125rem;
+}
+
+.gtfs__stops {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.875rem;
+}
+
+.gtfs__caption {
+  margin-bottom: 0.5rem;
+  color: var(--color-fg-muted);
+  font-size: 0.8125rem;
+  text-align: left;
+}
+
+.gtfs__stops th,
+.gtfs__stops td {
+  padding: 0.2rem 0.4rem;
+  text-align: left;
+}
+
+.gtfs__stops th[scope='row'] {
+  font-weight: normal;
+  white-space: nowrap;
+}
+
+.gtfs__stops input {
+  width: 7rem;
+  font: inherit;
+  text-align: right;
+}
+
+/* 読めない値は色だけで示さない（§9.4）。`aria-invalid` が読み上げにも出る。 */
+.gtfs__stops input[aria-invalid='true'],
+.gtfs__field input[aria-invalid='true'] {
+  background: var(--color-invalid);
+}
+
+/* ---------------------------------------------------------------------------
+   カレンダータブ（#197、仕様書 v2 §4.5、T-73）
+
+   **曜日で外れる日と、範囲で外れる日を描き分ける。** どちらも走らない日だが、
+   直し方が違う——前者は曜日のチェックを、後者は範囲を触ることになる。同じ
+   見た目にすると、消せない日をクリックし続けることになる。
+
+   **色だけで分けない**（§9.4）。走らない曜日は薄く（押せない）、運行なしは
+   斜線を敷く。押せるかどうかは `disabled` が読み上げにも伝える。
+--------------------------------------------------------------------------- */
+
+.gtfs__period {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 0.6rem;
+}
+
+.gtfs__weekdays {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  margin: 0 0 0.6rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--color-border);
+  font-size: 0.875rem;
+}
+
+.gtfs__weekdays legend {
+  padding: 0 0.3rem;
+  font-size: 0.8125rem;
+  color: var(--color-fg-muted);
+}
+
+.gtfs__month {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.3rem;
+  font-size: 0.875rem;
+}
+
+.gtfs__calendar {
+  border-collapse: collapse;
+  margin: 0 auto 0.6rem;
+}
+
+.gtfs__calendar th {
+  padding: 0.2rem;
+  font-size: 0.8125rem;
+  font-weight: normal;
+  color: var(--color-fg-muted);
+}
+
+.gtfs__calendar td {
+  padding: 1px;
+}
+
+.gtfs__day {
+  width: 2.2rem;
+  height: 2rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  font: inherit;
+  font-size: 0.8125rem;
+  /* **掴んで引く。** 選択の反転が出ると、引いた跡が字の色で残る。 */
+  user-select: none;
+  cursor: pointer;
+}
+
+/* 走らない曜日。**押せない。** 薄くして、掴めないことを見せる。 */
+.gtfs__day--offWeekday,
+.gtfs__day--outside {
+  color: var(--color-fg-muted);
+  background: transparent;
+  cursor: default;
+  opacity: 0.45;
+}
+
+/* 運行なし。**斜線を敷く**——色を見分けられない環境でも、走る日と区別できる。 */
+.gtfs__day--closed {
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 3px,
+    var(--color-fg-muted) 3px,
+    var(--color-fg-muted) 4px
+  );
+}
+
+/* 前後の月からはみ出した升目。 */
+.gtfs__day--other {
+  opacity: 0.35;
+}
+
+/* 引いている最中。 */
+.gtfs__day--dragging {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+.gtfs__ranges h3 {
+  margin: 0.8rem 0 0.3rem;
+  font-size: 0.875rem;
+}
+
+.gtfs__ranges ul {
+  margin: 0 0 0.5rem;
+  padding: 0;
+  list-style: none;
+}
+
+.gtfs__ranges li {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.3rem;
+  font-size: 0.875rem;
+}
+
+.gtfs__range-dates {
+  min-width: 13rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.gtfs__ranges input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+}
+
+/* ---- GTFS の書き出しタブ（T-81、仕様書 v2 §3.2）------------------------- */
+
+/*
+  足りないものの一覧。**直せる場所への押しボタンを右端に並べる**——読んで、
+  すぐ移れるようにする。
+*/
+.gtfs__missing h3 {
+  margin: 0.8rem 0 0.3rem;
+  font-size: 0.875rem;
+}
+
+.gtfs__missing ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gtfs__missing li {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.3rem;
+  font-size: 0.875rem;
+}
+
+.gtfs__ready {
+  margin: 0.8rem 0 0;
+  font-size: 0.875rem;
+}
+
+/*
+  実例と違えるところ。**畳んでおく**——普段の書き出しでは読む必要が無い。
+  表は横に長いため、中で送る（窓の幅を押し広げない）。
+*/
+.gtfs__deviations {
+  margin-top: 1rem;
+  font-size: 0.8125rem;
+}
+
+.gtfs__deviations summary {
+  cursor: pointer;
+  color: var(--color-fg-muted);
+}
+
+.gtfs__deviations table {
+  width: 100%;
+  margin-top: 0.5rem;
+  border-collapse: collapse;
+}
+
+.gtfs__deviations th,
+.gtfs__deviations td {
+  padding: 0.2rem 0.4rem 0.2rem 0;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.gtfs__deviations thead th {
+  color: var(--color-fg-muted);
+  font-weight: normal;
 }

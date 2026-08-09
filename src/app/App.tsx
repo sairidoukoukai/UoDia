@@ -55,6 +55,8 @@ import {
   loadSettings,
   watchSettings,
 } from '@/features/settings';
+import { GtfsDialog } from '@/features/gtfs';
+import { createExportService, formatProgress } from '@/features/export';
 import { SidePanel } from '@/features/sidebar';
 import { Timetable, copySelection, cutSelection, pasteClipboard } from '@/features/timetable';
 import { ValidationPanel } from '@/features/validation';
@@ -73,6 +75,7 @@ export function App(): ReactElement {
   const [cursor, setCursor] = useState<DiagramCursor | null>(null);
   const [help, setHelp] = useState<HelpTopic | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [gtfsOpen, setGtfsOpen] = useState(false);
   const [documentOpen, setDocumentOpen] = useState(false);
   /** 直前の操作が伝えたいこと（写した便の数など）。次の操作で置き換わる。 */
   const [notice, setNotice] = useState<string | null>(null);
@@ -88,6 +91,11 @@ export function App(): ReactElement {
   const backups = useMemo(
     () => createBackupService({ platform, store: useAppStore, intervalMs: backupIntervalMs }),
     [platform, backupIntervalMs],
+  );
+  // 一斉出力（仕様書 v2 §5、T-74）。失敗の伝え方はファイル操作と同じ口を使う。
+  const exports = useMemo(
+    () => createExportService({ platform, store: useAppStore, dialogs }),
+    [platform, dialogs],
   );
 
   const canUndo = useAppStore(selectCanUndo);
@@ -196,6 +204,26 @@ export function App(): ReactElement {
       'file.save': runFile(() => files.save()),
       'file.saveAs': runFile(() => files.saveAs()),
       'file.backupNow': runFile(() => backups.backupNow()),
+      /*
+        書き出し（仕様書 v2 §5）。**進み具合はステータスバーに出す**——画面を
+        塞ぐ窓を出すと、作っているあいだ他が何も見られなくなる（§5.9）。
+      */
+      'file.export': (): void => {
+        void exports
+          .run((progress) => {
+            setNotice(progress === null ? null : formatProgress(progress));
+          })
+          .then(
+            (done) => {
+              if (done) setNotice('書き出しました');
+            },
+            // 手順の中で受け損ねた失敗。**「作っています」を残さない**——
+            // 終わらない進み具合ほど、何が起きたか分からないものはない。
+            () => {
+              setNotice(null);
+            },
+          );
+      },
       'file.documentInfo': (): void => {
         setDocumentOpen(true);
       },
@@ -236,6 +264,10 @@ export function App(): ReactElement {
         state.setDiagramView(state.settings.defaultDiagramView);
       },
 
+      'file.gtfs': (): void => {
+        setGtfsOpen(true);
+      },
+
       'settings.open': (): void => {
         setSettingsOpen(true);
       },
@@ -247,7 +279,7 @@ export function App(): ReactElement {
         setHelp('about');
       },
     };
-  }, [files, backups, refreshRecent, canUndo, canRedo]);
+  }, [files, backups, exports, refreshRecent, canUndo, canRedo]);
 
   /**
    * メニューに印を付ける操作（#144）。
@@ -370,6 +402,14 @@ export function App(): ReactElement {
         onNotice={setNotice}
         onClose={() => {
           setSettingsOpen(false);
+        }}
+      />
+      <GtfsDialog
+        open={gtfsOpen}
+        platform={platform}
+        onNotice={setNotice}
+        onClose={() => {
+          setGtfsOpen(false);
         }}
       />
     </div>

@@ -116,3 +116,35 @@ describe('鍵の綴り', () => {
     expect(formatAccelerator({ key: ',' })).toBe('Ctrl+,');
   });
 });
+
+describe('一斉出力（T-74、#192。仕様書 v2 §5.1）', () => {
+  it('ファイルメニューにある', () => {
+    expect(commandsIn('file').map((c) => c.id)).toContain('file.export');
+  });
+
+  it('**形式を選ばせる項目を並べない**（押すとすべてが出る）', () => {
+    // 「PNG で書き出し」「PDF で書き出し」…と並べないこと。**選ばせるほど
+    // 選び忘れが起きる**（§5.1）。書き出しの入口は 1 つだけである。
+    const exports = COMMANDS.filter((c) => c.label.includes('書き出し'));
+    expect(exports.map((c) => c.id)).toEqual(['file.export']);
+  });
+
+  it('**ショートカットを割り当てない**（仕様書 §8.1 に無い鍵を増やさない）', () => {
+    expect(COMMANDS.find((c) => c.id === 'file.export')?.accelerator).toBeUndefined();
+  });
+});
+
+describe('GTFS 画面（T-72、#163）', () => {
+  it('ファイルメニューにある', () => {
+    expect(commandsIn('file').map((c) => c.id)).toContain('file.gtfs');
+  });
+
+  it('**ショートカットを割り当てない**（作図中に繰り返す操作ではない）', () => {
+    const gtfs = COMMANDS.find((c) => c.id === 'file.gtfs');
+    expect(gtfs?.accelerator).toBeUndefined();
+  });
+
+  it('設定とは別の操作である', () => {
+    expect(commandsIn('settings').map((c) => c.id)).not.toContain('file.gtfs');
+  });
+});

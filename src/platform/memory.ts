@@ -29,6 +29,8 @@ export interface MemoryPlatformOptions {
   readonly canSaveNetworkDef?: boolean;
   /** 時刻。履歴の記録に使う。 */
   readonly now?: () => Date;
+  /** `loadExportFont` が返すバイト列（T-77）。 */
+  readonly exportFont?: Uint8Array;
 }
 
 /** インメモリ実装。テストから中身を覗けるように、状態を公開している。 */
@@ -46,6 +48,17 @@ export interface MemoryPlatform extends PlatformAdapter {
   openTarget: string | null;
   /** 次の「名前を付けて保存」で選ばれるファイル名。`null` なら取り消し。 */
   saveAsTarget: string | null;
+  /** 書き出されたもの。名前からバイト列への対応（T-74）。 */
+  readonly exports: Map<string, Uint8Array>;
+  /** PDF に埋めるフォント（T-77）。既定は空——読み込みだけを試すため。 */
+  exportFont: Uint8Array;
+  /**
+   * 次の「書き出し」が保存先を選ばれるか。`false` なら取り消し。
+   *
+   * 名前ではなく真偽値にしてあるのは、**書き出しがハンドルを返さない**ため
+   * である（`PlatformAdapter.saveExport`）。名前は呼び出し側が決める。
+   */
+  exportAccepted: boolean;
   /** 最後に設定されたウィンドウ題名。 */
   windowTitle: string;
   /** 閉じる操作に割り込んでいる相手。テストから閉じる操作を起こせる。 */
@@ -72,6 +85,9 @@ export function createMemoryPlatform(options: MemoryPlatformOptions = {}): Memor
     settings: null,
     openTarget: null,
     saveAsTarget: null,
+    exports: new Map(),
+    exportAccepted: true,
+    exportFont: options.exportFont ?? new Uint8Array(0),
     windowTitle: '',
     closeHandler: null,
 
@@ -106,6 +122,16 @@ export function createMemoryPlatform(options: MemoryPlatformOptions = {}): Memor
       if (name === null) return Promise.resolve(null);
       platform.files.set(name, content);
       return Promise.resolve(makeHandle(name));
+    },
+
+    saveExport(content: Uint8Array, suggestedName: string): Promise<boolean> {
+      if (!platform.exportAccepted) return Promise.resolve(false);
+      platform.exports.set(suggestedName, content);
+      return Promise.resolve(true);
+    },
+
+    loadExportFont(): Promise<Uint8Array> {
+      return Promise.resolve(platform.exportFont);
     },
 
     loadNetworkDef(): Promise<string> {

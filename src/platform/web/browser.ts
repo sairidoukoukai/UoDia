@@ -13,6 +13,9 @@ const PICKER_TYPES = [
   { description: 'UoDia プロジェクト', accept: { 'application/json': ['.uodia'] } },
 ];
 
+/** 書き出した zip を選ばせるための指定（T-74）。 */
+const EXPORT_TYPES = [{ description: 'zip 書庫', accept: { 'application/zip': ['.zip'] } }];
+
 /** 取り消しを表す例外の名前。ブラウザは取り消しも例外で伝えてくる。 */
 const ABORT_ERROR = 'AbortError';
 
@@ -82,6 +85,19 @@ export function createFileSystemAccess(): FileSystemAccess | null {
       }
     },
 
+    async saveBytesAs(bytes: Uint8Array, suggestedName: string): Promise<boolean> {
+      try {
+        const handle = await window.showSaveFilePicker({ suggestedName, types: EXPORT_TYPES });
+        const writable = await handle.createWritable();
+        await writable.write(zipBlob(bytes));
+        await writable.close();
+        return true;
+      } catch (error) {
+        if (isAbort(error)) return false;
+        throw error;
+      }
+    },
+
     async isUsable(ref: unknown): Promise<boolean> {
       try {
         const handle = ref as FileSystemFileHandle;
@@ -131,14 +147,37 @@ export function createFallbackIo(): FallbackIo {
     },
 
     download(content: string, name: string): void {
-      const url = URL.createObjectURL(new Blob([content], { type: 'application/json' }));
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = name;
-      link.click();
-      URL.revokeObjectURL(url);
+      save(new Blob([content], { type: 'application/json' }), name);
+    },
+
+    downloadBytes(bytes: Uint8Array, name: string): void {
+      save(zipBlob(bytes), name);
     },
   };
+}
+
+/**
+ * バイト列を zip の `Blob` にする。
+ *
+ * **写してから包む。** `Blob` も `FileSystemWritableFileStream` も
+ * `SharedArrayBuffer` に載ったバイト列を受け取らない。型のうえではどちらに
+ * 載っているか分からないため、普通の `ArrayBuffer` に載せ替える。写しは
+ * 書き出し 1 回につき 1 度だけである。
+ */
+function zipBlob(bytes: Uint8Array): Blob {
+  const copy = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(copy).set(bytes);
+  return new Blob([copy], { type: 'application/zip' });
+}
+
+/** 中身をダウンロードさせる。 */
+function save(blob: Blob, name: string): void {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = name;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 /**

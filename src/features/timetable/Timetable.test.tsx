@@ -343,6 +343,70 @@ describe('ダイヤ間コピー', () => {
     mount();
     expect(container.querySelector('[aria-label="複製先のダイヤ"]')).toBeNull();
   });
+
+  /*
+   * 置き場所（#200）。**行を 1 本増やすたびに、表に使える高さがそのぶん減る。**
+   * 複製だけが方向タブの行に乗り損ねていた。
+   */
+  describe('置き場所（#200）', () => {
+    /** 方向タブと同じ行。 */
+    function bar(): HTMLElement {
+      const found = container.querySelector<HTMLElement>('.timetable__bar');
+      if (found === null) throw new Error('タブの行がありません');
+      return found;
+    }
+
+    it('**方向タブと同じ行にある**（受入条件）', () => {
+      mount(twoServices());
+      expect(bar().querySelector('[aria-label="複製先のダイヤ"]')).not.toBeNull();
+    });
+
+    it('**自分の行を持たない**（受入条件。表に使える高さが 1 行分増える）', () => {
+      mount(twoServices());
+      expect(container.querySelector('.timetable__toolbar')).toBeNull();
+    });
+
+    it('**並べ替えの右にある**（内から外の順に並ぶ）', () => {
+      mount(twoServices());
+      const children = [...bar().children];
+      const sort = children.findIndex((child) => child.textContent.includes('並べ替え'));
+      const copy = children.findIndex(
+        (child) => child.querySelector('[aria-label="複製先のダイヤ"]') !== null,
+      );
+
+      expect(sort).toBeGreaterThanOrEqual(0);
+      expect(copy).toBeGreaterThan(sort);
+    });
+
+    it('**写し先が無くても行は消えない**（表の高さが動かない）', () => {
+      mount();
+      expect(container.querySelector('.timetable__bar')).not.toBeNull();
+      expect(container.querySelector('[aria-label="複製先のダイヤ"]')).toBeNull();
+    });
+
+    it('**便を選んでいなければ押せない**（受入条件）', () => {
+      mount(twoServices());
+      const select = container.querySelector<HTMLSelectElement>('[aria-label="複製先のダイヤ"]');
+      expect(select?.disabled).toBe(true);
+
+      newTrip(8, 0);
+      selectColumn(0);
+      expect(
+        container.querySelector<HTMLSelectElement>('[aria-label="複製先のダイヤ"]')?.disabled,
+      ).toBe(false);
+    });
+
+    it('**知らせが出ても並べ替えと複製の位置が動かない**（受入条件）', () => {
+      mount(twoServices());
+      const before = [...bar().children].map((child) => child.className);
+
+      newTrip(8, 0);
+      selectColumn(0);
+      expect(message()).not.toBe('');
+
+      expect([...bar().children].map((child) => child.className)).toEqual(before);
+    });
+  });
 });
 
 describe('方向の切り替え', () => {

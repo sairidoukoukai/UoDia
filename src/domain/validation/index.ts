@@ -1,3 +1,5 @@
+export { validateCalendar } from './calendar';
+
 export { validateService } from './validate';
 
 export {

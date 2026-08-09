@@ -1,6 +1,8 @@
 export { BrowserNotice, type BrowserNoticeProps } from './BrowserNotice';
 export { DocumentDialog, type DocumentDialogProps } from './DocumentDialog';
 
+export { CREDITS, OFL_FONT, type Credit } from './credits';
+
 export { HelpDialog, type HelpDialogProps, type HelpTopic } from './HelpDialog';
 export { APP_VERSION } from './version';
 export { MenuBar, type MenuBarProps, type MenuExtra } from './MenuBar';

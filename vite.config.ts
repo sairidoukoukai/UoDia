@@ -16,6 +16,27 @@ const isTauri = Boolean(process.env.TAURI_ENV_PLATFORM);
  */
 const base = isTauri ? '/' : (process.env.UODIA_BASE ?? './');
 
+/**
+ * 書き出しのときだけ要る部品（仕様書 v2 §5.4.2、T-77）。
+ *
+ * `pdf-lib` と `fontkit`、およびそれらだけが使う小さな部品。**初回ロードから
+ * 外す**ため、`vendor` とは別のチャンクに置く。
+ */
+const PDF_PACKAGES = [
+  'pdf-lib',
+  'fontkit',
+  'restructure',
+  'unicode-properties',
+  'unicode-trie',
+  'dfa',
+  'brotli',
+  'tiny-inflate',
+  'clone',
+  'tslib',
+  'pako',
+  '@pdf-lib',
+];
+
 export default defineConfig({
   base,
   plugins: [react()],
@@ -50,9 +71,17 @@ export default defineConfig({
           2 回目以降で、アプリを直しても React や Zod は落とし直さずに済む。
           機能ごとに細かく割らないのは、**この画面が全部を一度に使う**ためで
           ある——時刻表もダイヤグラムも起動した瞬間に出る。
+
+          **PDF の部品だけは別にする**（T-77）。`pdf-lib` と `fontkit` は
+          合わせて 1MB 近くあり、**書き出しを押すまで要らない。** `vendor` に
+          混ぜると、起動のたびに落ちてくる——`import()` で切り離した意味が、
+          この 1 行で消える。
         */
         manualChunks(id) {
-          return id.includes('node_modules') ? 'vendor' : undefined;
+          if (!id.includes('node_modules')) return undefined;
+          return PDF_PACKAGES.some((name) => id.includes(`node_modules/${name}`))
+            ? 'pdf'
+            : 'vendor';
         },
       },
     },

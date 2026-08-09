@@ -81,6 +81,25 @@ export interface PlatformAdapter {
   /** 名前を付けて保存する。取り消されたら `null`。 */
   saveProjectAs(content: string, suggestedName: string): Promise<FileHandle | null>;
 
+  /**
+   * 書き出したものを保存する（仕様書 v2 §5.3、T-74）。取り消されたら `false`。
+   *
+   * **バイト列で受け取る。** 包むのは zip であり、PNG も PDF も入る。文字列に
+   * すると、そこを通るたびに符号化を決めることになる。
+   *
+   * **ハンドルを返さない。** 書き出したものを開き直すことも、上書きすることも
+   * 無い——次に書き出すときは、また保存先を尋ねる。持たない参照を返しても、
+   * 使い道の無い値が呼び出し側に増えるだけである。
+   */
+  saveExport(content: Uint8Array, suggestedName: string): Promise<boolean>;
+
+  /**
+   * PDF に埋めるフォントを読む（仕様書 v2 §5.4.2、T-77）。
+   *
+   * **書き出しが押されてから呼ぶ。** 起動のたびに 4.5MB を読む理由が無い。
+   */
+  loadExportFont(): Promise<Uint8Array>;
+
   /** `route.json` を読む。 */
   loadNetworkDef(): Promise<string>;
   /**

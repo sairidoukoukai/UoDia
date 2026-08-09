@@ -16,6 +16,7 @@ import {
   type NetworkDef,
   type Project,
   type Service,
+  type ServiceCalendar,
   type Trip,
 } from '@/domain/model';
 import { buildNetworkIndex, type NetworkIndex } from '@/domain/network';
@@ -23,6 +24,7 @@ import type { FileHandle } from '@/platform';
 import { allTimes, numberTrips } from '@/domain/trip';
 import type { Seconds } from '@/domain/time';
 import {
+  validateCalendar,
   validateService,
   type ValidationIssue,
   type ValidationThresholds,
@@ -189,20 +191,37 @@ const validationOf = memoizeByIdentity(
     trips: readonly Trip[],
     network: NetworkIndex | null,
     thresholds: ValidationThresholds | undefined,
+    calendar: ServiceCalendar | undefined,
   ): readonly ValidationIssue[] => {
     if (network === null) return NO_ISSUES;
-    return thresholds === undefined
-      ? validateService(trips, network)
-      : validateService(trips, network, thresholds);
+    const issues =
+      thresholds === undefined
+        ? validateService(trips, network)
+        : validateService(trips, network, thresholds);
+
+    /*
+     * **カレンダーの指摘は最後に足す。**
+     *
+     * ここで並びは ID の昇順のままだが、**重大度の順ではなくなる**——V-10・V-11 は
+     * 警告であり、その前に情報（V-07〜V-09）が並ぶ。**それでよい。** 画面に出す
+     * 順は `shownIssues` が重大度で並べ替えて決めており（`features/validation`）、
+     * ここで並べ替えると同じ仕事が 2 か所になる。
+     */
+    return [...issues, ...validateCalendar(calendar)];
   },
 );
 
-/** ダイヤ検証の結果（仕様書 §6.6）。 */
+/** ダイヤ検証の結果（仕様書 §6.6、v2 §8.2）。 */
 export function selectValidation(
   state: AppState,
   thresholds?: ValidationThresholds,
 ): readonly ValidationIssue[] {
-  return validationOf(selectTrips(state), selectNetwork(state), thresholds);
+  return validationOf(
+    selectTrips(state),
+    selectNetwork(state),
+    thresholds,
+    selectActiveService(state)?.calendar,
+  );
 }
 
 const timesOf = memoizeByIdentity(

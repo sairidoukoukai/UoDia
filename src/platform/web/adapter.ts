@@ -20,6 +20,7 @@ import {
   type PlatformCapabilities,
   type RecentFile,
 } from '../types';
+import { loadBundledFont } from '../fonts';
 import type { WebEnvironment } from './environment';
 
 /** この実装が作るハンドルの識別子。 */
@@ -134,6 +135,27 @@ export function createWebPlatform(environment: WebEnvironment): PlatformAdapter 
 
       const saved = await fileSystem.saveAs(content, suggestedName);
       return saved === null ? null : toHandle('inPlace', saved.ref, saved.name);
+    },
+
+    /**
+     * 書き出したものを保存する（仕様書 v2 §5.3）。
+     *
+     * File System Access API があれば保存先を尋ね、無ければダウンロードする。
+     * **どちらでも「書き出せた」と答える**——ダウンロードの可否をブラウザは
+     * 教えないため、そこで嘘をつくくらいなら区別しない。取り消しが分かるのは
+     * 保存先を尋ねられた場合だけである。
+     */
+    async saveExport(content: Uint8Array, suggestedName: string): Promise<boolean> {
+      if (fileSystem === null) {
+        fallback.downloadBytes(content, suggestedName);
+        return true;
+      }
+      return fileSystem.saveBytesAs(content, suggestedName);
+    },
+
+    /** PDF に埋めるフォントを読む（T-77）。デスクトップ版と同じ道を通る。 */
+    loadExportFont(): Promise<Uint8Array> {
+      return loadBundledFont();
     },
 
     async loadNetworkDef(): Promise<string> {

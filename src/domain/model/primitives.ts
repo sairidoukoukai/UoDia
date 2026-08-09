@@ -44,6 +44,37 @@ export const hexColorSchema = z
   .string()
   .regex(/^#[0-9a-fA-F]{6}$/, { message: '色は #RRGGBB 形式で指定してください' });
 
+/**
+ * GTFS の色（`RRGGBB`。**`#` を付けない**）。
+ *
+ * **画面用の {@link hexColorSchema} と別に持つ**（仕様書 v2 §6.8）。書式が違う
+ * だけではなく、**用途が違う**——画面の色はスジを描くための濃い色、GTFS の色は
+ * 一覧や地図の地色として使う淡い色である。片方から計算すると、どちらの用途にも
+ * 合わない色が出る。
+ */
+export const gtfsColorSchema = z
+  .string()
+  .regex(/^[0-9a-fA-F]{6}$/, { message: 'GTFS の色は RRGGBB 形式（# なし）で指定してください' });
+
+/**
+ * 緯度（度）。GTFS `stop_lat`。
+ *
+ * **範囲だけを見る。** 日本の範囲に縛らない——縛れば「正しい値を弾かない」ことを
+ * 確かめる手立てが要り、その手立ては地理の知識になる。
+ */
+export const latitudeSchema = z
+  .number()
+  .finite()
+  .min(-90, { message: '緯度は -90 以上でなければなりません' })
+  .max(90, { message: '緯度は 90 以下でなければなりません' });
+
+/** 経度（度）。GTFS `stop_lon`。 */
+export const longitudeSchema = z
+  .number()
+  .finite()
+  .min(-180, { message: '経度は -180 以上でなければなりません' })
+  .max(180, { message: '経度は 180 以下でなければなりません' });
+
 /** 方向。0 = 吹田方面 / 1 = 豊中方面（仕様書 §2）。 */
 export const directionIdSchema = z.union([z.literal(0), z.literal(1)]);
 export type DirectionId = z.infer<typeof directionIdSchema>;
@@ -61,3 +92,40 @@ export const DIRECTIONS: readonly DirectionId[] = Object.freeze([0, 1]);
 export const isoDateTimeSchema = z.string().refine((v) => !Number.isNaN(Date.parse(v)), {
   message: '日時は ISO 8601 形式で指定してください',
 });
+
+/**
+ * 暦の上の日（`YYYY-MM-DD`）。運行日カレンダー（#197、仕様書 v2 §4.4）で使う。
+ *
+ * **文字列で持つ。** `Date` を持つと、保存のたびにタイムゾーンの解釈が挟まる。
+ * 時刻ではなく暦の上の日を指しているのだから、`2026-08-06` という文字列が
+ * そのまま値である。これは時刻を秒で持っていること（{@link secondsSchema}）と
+ * 矛盾しない——**あちらは 1 日の中の位置、こちらは暦の上の日**である。
+ *
+ * **形と、実在する日付であることの両方を見る。** 形だけでは `2026-02-30` が
+ * 通ってしまい、範囲を展開したときに静かにずれる。
+ */
+export const calendarDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, { message: '日付は YYYY-MM-DD 形式で指定してください' })
+  .refine(isRealDate, { message: '存在しない日付です' });
+
+/**
+ * 暦の上の日（`YYYY-MM-DD`）。**中身はただの文字列である。**
+ *
+ * 別名を付けるのは、引数が 2 つ以上並んだときに「どちらが日付か」を型で読める
+ * ようにするためであり、`string` と区別できる型を作るためではない。
+ */
+export type CalendarDate = z.infer<typeof calendarDateSchema>;
+
+/** `YYYY-MM-DD` が実在する日を指すか。閏日と月末の桁溢れを弾く。 */
+function isRealDate(value: string): boolean {
+  const [year, month, day] = value.split('-').map(Number);
+  if (year === undefined || month === undefined || day === undefined) return false;
+
+  // **UTC で組む。** ローカル時刻で組むと、実行環境の時差によって日付が 1 日
+  // ずれ、同じファイルが環境によって通ったり弾かれたりする。
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+  );
+}

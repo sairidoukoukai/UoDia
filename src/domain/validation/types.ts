@@ -15,7 +15,7 @@
  * 条件が残らないため、仕様書 v4.3 で項目ごと削除した。
  */
 export type ValidationId =
-  'V-01' | 'V-02' | 'V-03' | 'V-04' | 'V-05' | 'V-06' | 'V-07' | 'V-08' | 'V-09';
+  'V-01' | 'V-02' | 'V-03' | 'V-04' | 'V-05' | 'V-06' | 'V-07' | 'V-08' | 'V-09' | 'V-10' | 'V-11';
 
 /**
  * 重大度。
@@ -30,6 +30,13 @@ export type Severity = 'error' | 'warning' | 'info';
 export interface ValidationTarget {
   readonly tripId?: string;
   readonly blockId?: string;
+  /**
+   * 運行日カレンダーの指摘であること（V-10・V-11）。**便も運用も指さない。**
+   *
+   * 飛び先はダイヤグラムでも時刻表でもなく GTFS 画面のカレンダータブであり、
+   * それは便の位置とは無関係である。
+   */
+  readonly calendar?: true;
 }
 
 export interface ValidationIssue {
@@ -71,4 +78,6 @@ export const SEVERITY_OF: Readonly<Record<ValidationId, Severity>> = {
   'V-07': 'info',
   'V-08': 'info',
   'V-09': 'info',
+  'V-10': 'warning',
+  'V-11': 'warning',
 };

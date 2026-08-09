@@ -13,6 +13,8 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import { toBase64 } from './base64';
+import { loadBundledFont } from './fonts';
 import {
   MAX_RECENT_FILES,
   foreignHandleError,
@@ -102,6 +104,31 @@ export function createTauriPlatform(): PlatformAdapter {
       if (path === null) return null;
       await invoke('save_project_file', { path, content });
       return toHandle(path);
+    },
+
+    /**
+     * 書き出したものを保存する（仕様書 v2 §5.3）。
+     *
+     * **base64 にして渡す。** Tauri のコマンド引数は JSON であり、バイト列を
+     * そのまま載せられない（`base64.ts`）。書き込みは Rust 側がアトミックに行う
+     * ——プロジェクトの保存と同じ扱いにする。
+     */
+    async saveExport(content: Uint8Array, suggestedName: string): Promise<boolean> {
+      const path = await invoke<string | null>('save_export_dialog', { suggestedName });
+      if (path === null) return false;
+      await invoke('save_export_file', { path, contentBase64: toBase64(content) });
+      return true;
+    },
+
+    /**
+     * PDF に埋めるフォントを読む（T-77）。
+     *
+     * **Rust を通さない。** フォントは画面の資産として同梱されており
+     * （`fonts.ts`）、`route.json` のように設定ディレクトリへ複製する必要が無い
+     * ——利用者が書き換えるものではないからである。
+     */
+    loadExportFont(): Promise<Uint8Array> {
+      return loadBundledFont();
     },
 
     loadNetworkDef(): Promise<string> {

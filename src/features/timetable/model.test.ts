@@ -188,9 +188,11 @@ describe('時刻が出せない便', () => {
     const timetable = build([trip]);
 
     expect(cellAt(timetable, 0, '1_0')).toMatchObject({ kind: 'time', time: fromHM(47, 50) });
+    // コンベンションセンター前は降車専用である（#202、T-83）。取扱区分は
+    // 升目に出ないが（T-54）、値としては持ち続ける。
     expect(cellAt(timetable, 0, '3_0')).toEqual({
       kind: 'empty',
-      handling: 'stop',
+      handling: 'alightOnly',
       reason: 'unresolvable',
     });
   });
