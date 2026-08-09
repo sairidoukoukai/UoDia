@@ -22,9 +22,18 @@
 import type { BlockChartScene } from './scene';
 
 export interface BlockChartViewport {
-  /** 描画領域の左端（運用番号を出す欄の幅）。 */
+  /**
+   * この視野に割り当てられたマスの左端（T-87）。
+   *
+   * 紙 1 枚を 1 つの視野で使うなら `0`。書き出しは 3 行 2 列の格子に割るため、
+   * 右の列はここが 0 でなくなる（`blockChartCells`）。
+   */
+  readonly left: number;
+  /** 割り当てられたマスの天。**停留所名を出す帯の上**である。 */
+  readonly top: number;
+  /** 描画領域の左端（マスの左端 + 運用番号を出す欄の幅）。 */
   readonly originX: number;
-  /** 描画領域の上端（停留所名を出す帯の高さ）。 */
+  /** 描画領域の上端（マスの天 + 停留所名を出す帯の高さ）。 */
   readonly originY: number;
   /** 左端が指す `axisPosition`。**一番左の停留所。** */
   readonly startAxis: number;
@@ -34,7 +43,9 @@ export interface BlockChartViewport {
   readonly rowHeight: number;
   /** 運用と運用のあいだに空ける段数（見分けるための隙間）。 */
   readonly blockGapRows: number;
+  /** 割り当てられたマスの右端。**幅ではなく座標である。** */
   readonly width: number;
+  /** 割り当てられたマスの地。**高さではなく座標である。** */
   readonly height: number;
 }
 
@@ -106,8 +117,21 @@ export function chartHeight(scene: BlockChartScene, viewport: BlockChartViewport
 }
 
 export interface BlockChartFitOptions {
+  /** マスの左端。既定は `0`（紙 1 枚を 1 つの視野で使う）。 */
+  readonly left?: number;
+  /** マスの天。既定は `0`。 */
+  readonly top?: number;
+  /** マスの右端。 */
   readonly width: number;
+  /** マスの地。 */
   readonly height: number;
+  /**
+   * 段の高さを指定する（px。T-87）。
+   *
+   * **格子に割るときは全マスで揃える。** マスごとに便の数から決めると、隣の
+   * マスと見比べたときに**「便が多いのか、段が広いのか」が読めない。**
+   */
+  readonly rowHeight?: number;
   /**
    * 段の高さの下限（px）。**これ以上は縮めない**（§5.5.6 の受入条件）。
    *
@@ -139,30 +163,50 @@ export function fitBlockChart(
   scene: BlockChartScene,
   options: BlockChartFitOptions,
 ): BlockChartViewport {
-  const minRowHeight = options.minRowHeight ?? MIN_ROW_HEIGHT;
-  const maxRowHeight = options.maxRowHeight ?? MAX_ROW_HEIGHT;
+  const left = options.left ?? 0;
+  const top = options.top ?? 0;
 
   const rows = scene.blocks.reduce((total, block) => total + block.bars.length, 0);
   const gaps = Math.max(0, scene.blocks.length - 1) * BLOCK_GAP_ROWS;
-  const units = rows + gaps;
-
-  const available = options.height - STOP_LABEL_HEIGHT;
-  const rowHeight =
-    units === 0 ? maxRowHeight : Math.min(maxRowHeight, Math.max(minRowHeight, available / units));
 
   const positions = scene.stops.map((stop) => stop.axisPosition);
   const startAxis = positions.length === 0 ? 0 : Math.min(...positions);
   const span = positions.length === 0 ? 0 : Math.max(...positions) - startAxis;
-  const plotWidth = options.width - BLOCK_LABEL_WIDTH - CHART_EDGE_MARGIN * 2;
+  const plotWidth = options.width - left - BLOCK_LABEL_WIDTH - CHART_EDGE_MARGIN * 2;
 
   return {
-    originX: BLOCK_LABEL_WIDTH,
-    originY: STOP_LABEL_HEIGHT,
+    left,
+    top,
+    originX: left + BLOCK_LABEL_WIDTH,
+    originY: top + STOP_LABEL_HEIGHT,
     startAxis,
     pxPerAxisUnit: span > 0 ? plotWidth / span : 1,
-    rowHeight,
+    rowHeight:
+      options.rowHeight ??
+      fitRowHeight(rows + gaps, options.height - top - STOP_LABEL_HEIGHT, options),
     blockGapRows: BLOCK_GAP_ROWS,
     width: options.width,
     height: options.height,
   };
+}
+
+/**
+ * 段数を与えられた高さに収める、段の高さ（px）。
+ *
+ * **収まらないなら、収まらないまま描く**（下限で止める）。読めない絵を出すより、
+ * はみ出していることが見えるほうがよい。
+ *
+ * @param units 段の数（隙間を含む）
+ * @param available 段に使える高さ（px）。見出しの帯を引いたあとの値
+ */
+export function fitRowHeight(
+  units: number,
+  available: number,
+  limits: Pick<BlockChartFitOptions, 'minRowHeight' | 'maxRowHeight'> = {},
+): number {
+  const minRowHeight = limits.minRowHeight ?? MIN_ROW_HEIGHT;
+  const maxRowHeight = limits.maxRowHeight ?? MAX_ROW_HEIGHT;
+  if (units === 0) return maxRowHeight;
+
+  return Math.min(maxRowHeight, Math.max(minRowHeight, available / units));
 }

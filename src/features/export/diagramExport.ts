@@ -65,6 +65,18 @@ export const A4_LANDSCAPE_300DPI: ExportPage = Object.freeze({
   scale: 2,
 });
 
+/**
+ * A4 縦 300dpi 相当（2480 × 3508px。T-87）。
+ *
+ * **箱ダイヤはこちらを使う**（仕様書 v2 §5.5.6）。1 マス 1 運用の格子に割ると、
+ * 求められるのは横幅ではなく段の数——**縦に伸びる紙のほうが素直である。**
+ */
+export const A4_PORTRAIT_300DPI: ExportPage = Object.freeze({
+  width: 1240,
+  height: 1754,
+  scale: 2,
+});
+
 /** 実際の画素の大きさ。 */
 export function pixelSize(page: ExportPage): { readonly width: number; readonly height: number } {
   return { width: page.width * page.scale, height: page.height * page.scale };
