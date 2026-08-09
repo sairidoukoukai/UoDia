@@ -103,6 +103,7 @@ export {
   SOLID,
   assignPatternDashes,
   dashForServiceType,
+  defaultDashKindOf,
   patternStyles,
   type PatternStyle,
 } from './tripStyle';

@@ -7,7 +7,13 @@
 
 import { describe, expect, it } from 'vitest';
 import type { ServiceType, StopPattern } from '@/domain/model';
-import { DEADHEAD_DASH, assignPatternDashes, dashForServiceType } from './tripStyle';
+import {
+  DASH_BY_KIND,
+  DEADHEAD_DASH,
+  assignPatternDashes,
+  dashForServiceType,
+  defaultDashKindOf,
+} from './tripStyle';
 
 function pattern(
   patternId: string,
@@ -96,5 +102,77 @@ describe('回送パターン', () => {
   it('回送は営業パターンと違う線種を使う', () => {
     expect(DEADHEAD_DASH).not.toEqual(dashForServiceType('local'));
     expect(DEADHEAD_DASH).not.toEqual(dashForServiceType('express'));
+  });
+});
+
+/**
+ * 既定の線種（#222、T-84）。
+ *
+ * **設定ダイアログが「上書きしない（…）」に添えるのはこれである。** かつては
+ * 画面が `serviceType` を読み直しており、**回送を見落として「実線」と書いて
+ * いた**——実際に引かれるのは破線である。判定を 1 か所に集めた。
+ */
+describe('defaultDashKindOf', () => {
+  /** 既定の判定だけを見るパターン。 */
+  function make(overrides: Partial<StopPattern>): StopPattern {
+    return {
+      patternId: 'X',
+      patternName: 'X',
+      routeName: 'X',
+      directionId: 0,
+      color: '#000000',
+      isDeadhead: false,
+      stopSequence: [],
+      ...overrides,
+    } as StopPattern;
+  }
+
+  it('**回送は破線**（#222。画面が実線と書いていた）', () => {
+    expect(defaultDashKindOf(make({ isDeadhead: true }))).toBe('dashed');
+  });
+
+  it('**回送は `serviceType` を持たなくても破線**（route.json の回送 6 本がこれ）', () => {
+    expect(defaultDashKindOf(make({ isDeadhead: true, serviceType: undefined }))).toBe('dashed');
+  });
+
+  it('直行は破線', () => {
+    expect(defaultDashKindOf(make({ serviceType: 'express' }))).toBe('dashed');
+  });
+
+  it('各駅は実線', () => {
+    expect(defaultDashKindOf(make({ serviceType: 'local' }))).toBe('solid');
+  });
+
+  it('種別が無い営業パターンは各駅として扱う', () => {
+    expect(defaultDashKindOf(make({ serviceType: undefined }))).toBe('solid');
+  });
+
+  /*
+   * **説明と絵が食い違わない。**
+   *
+   * 刻みまで同じにはならない——回送の破線（`DEADHEAD_DASH` = `[5, 4]`）は
+   * **利用者が選べる破線（`[8, 4]`）より短く**、選択肢には無い 4 つめの線種で
+   * ある。確かめるのは**実線か破線か**であり、そこが合っていれば説明は嘘に
+   * ならない。
+   */
+  it('**説明と絵が食い違わない**（実線と書いて破線が引かれることが無い）', () => {
+    const patterns = [
+      make({ patternId: 'A', isDeadhead: true }),
+      make({ patternId: 'B', serviceType: 'express' }),
+      make({ patternId: 'C', serviceType: 'local' }),
+      make({ patternId: 'D' }),
+    ];
+    const drawn = assignPatternDashes(patterns);
+
+    for (const entry of patterns) {
+      const saysSolid = defaultDashKindOf(entry) === 'solid';
+      const drawsSolid = (drawn.get(entry.patternId) ?? []).length === 0;
+      expect(saysSolid, entry.patternId).toBe(drawsSolid);
+    }
+  });
+
+  it('**回送の破線は選べる破線より刻みが短い**（選択肢には無い 4 つめ）', () => {
+    expect(DEADHEAD_DASH).not.toEqual(DASH_BY_KIND.dashed);
+    expect(DEADHEAD_DASH.length).toBeGreaterThan(0);
   });
 });

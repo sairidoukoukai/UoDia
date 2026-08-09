@@ -64,6 +64,21 @@ export function dashForServiceType(serviceType: ServiceType): readonly number[] 
 }
 
 /**
+ * そのパターンの**既定の線種**（利用者の上書きを当てる前の姿）。
+ *
+ * **判定を 2 か所に書かない。** 設定ダイアログは「上書きしない（破線）」の
+ * ように既定を添えて出すが、そこで `serviceType` を読み直していたため、
+ * **回送を見落として「実線」と書いていた**（#222）——`route.json` の回送は
+ * `serviceType` を持たず、実際には破線が引かれる。
+ *
+ * `assignPatternDashes` と**同じ判定**をここに置き、画面もこれを呼ぶ。
+ */
+export function defaultDashKindOf(pattern: StopPattern): DashKind {
+  if (pattern.isDeadhead) return 'dashed';
+  return (pattern.serviceType ?? 'local') === 'express' ? 'dashed' : 'solid';
+}
+
+/**
  * パターンに線種を割り当てる。
  *
  * 回送はすべて同じ破線とする。回送どうしを見分ける必要はない——どの営業便から
