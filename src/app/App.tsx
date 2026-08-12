@@ -30,10 +30,13 @@ import { DiagramCanvas, type DiagramCursor } from '@/features/diagram';
 import { loadNetworkDef } from '@/domain/network';
 import {
   FileDialogHost,
+  RouteImportDialog,
   createBackupService,
   createFileService,
+  createRouteImportService,
   useFileDialogs,
   watchWindowTitle,
+  type RouteImportCandidate,
 } from '@/features/file';
 import {
   BrowserNotice,
@@ -76,6 +79,8 @@ export function App(): ReactElement {
   const [help, setHelp] = useState<HelpTopic | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [gtfsOpen, setGtfsOpen] = useState(false);
+  /** 取り込もうとしている路線。**確かめる前は当てない**（T-91）。 */
+  const [routeCandidate, setRouteCandidate] = useState<RouteImportCandidate | null>(null);
   const [documentOpen, setDocumentOpen] = useState(false);
   /** 直前の操作が伝えたいこと（写した便の数など）。次の操作で置き換わる。 */
   const [notice, setNotice] = useState<string | null>(null);
@@ -88,6 +93,11 @@ export function App(): ReactElement {
   // バックアップの間隔は設定で変えられる（§6.5.2）。**間隔が変われば繋ぎ直す**
   // ——走っている時計はその間隔を焼き付けているため、作り直すほかない。
   const backupIntervalMs = useAppStore((state) => state.settings.backupIntervalMs);
+  const routeImports = useMemo(
+    () => createRouteImportService({ platform, store: useAppStore }),
+    [platform],
+  );
+
   const backups = useMemo(
     () => createBackupService({ platform, store: useAppStore, intervalMs: backupIntervalMs }),
     [platform, backupIntervalMs],
@@ -274,6 +284,26 @@ export function App(): ReactElement {
         setGtfsOpen(true);
       },
 
+      /*
+        路線の取り込み（#235、T-91）。**読んで数えるところまでで止める**——
+        当てるかどうかは、何が起きるかを見てから決める。
+      */
+      'file.importRoute': (): void => {
+        void routeImports.inspect().then(
+          (result) => {
+            if (result.ok) {
+              setRouteCandidate(result.candidate);
+              return;
+            }
+            // 取り消しは失敗ではない。**何も言わない。**
+            if (result.reason !== 'cancelled') setNotice(result.message);
+          },
+          (error: unknown) => {
+            setNotice(`路線を読み取れませんでした: ${String(error)}`);
+          },
+        );
+      },
+
       'settings.open': (): void => {
         setSettingsOpen(true);
       },
@@ -285,7 +315,7 @@ export function App(): ReactElement {
         setHelp('about');
       },
     };
-  }, [files, backups, exports, refreshRecent, canUndo, canRedo]);
+  }, [files, backups, exports, routeImports, refreshRecent, canUndo, canRedo]);
 
   /**
    * メニューに印を付ける操作（#144）。
@@ -416,6 +446,17 @@ export function App(): ReactElement {
         onNotice={setNotice}
         onClose={() => {
           setGtfsOpen(false);
+        }}
+      />
+      <RouteImportDialog
+        candidate={routeCandidate}
+        onCancel={() => {
+          setRouteCandidate(null);
+        }}
+        onApply={(candidate) => {
+          const done = routeImports.apply(candidate);
+          setRouteCandidate(null);
+          setNotice(done ? '路線を取り込みました' : '路線を取り込めませんでした');
         }}
       />
     </div>
