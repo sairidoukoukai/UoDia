@@ -26,7 +26,9 @@
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
     "build:desktop:macos": "tauri build",
-    "package:portable": "node scripts/package-portable.mjs"
+    "package:portable": "node scripts/package-portable.mjs",
+    "lint:rust": "cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings",
+    "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml"
   },
   "dependencies": {
     "fontkit": "^2.0.4",
