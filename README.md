@@ -51,6 +51,8 @@ npm install
 | `npm run build:cloudflare` | 配信用のビルド（資産を絶対パスで指す） |
 | `npm run preview:cloudflare` | 配信と同じ経路で手元に出す（http://localhost:8787） |
 | `npm run deploy` | 配信用にビルドして`uodia.sairibus.com`へ置く |
+| `npm run lint:rust` | Rust の Lint。**CI と同じ引数**（`--all-targets -- -D warnings`） |
+| `npm run test:rust` | Rust のテスト |
 | `npm run build:desktop` | デスクトップ版のビルド（配布物も作る） |
 | `npm run test` | テスト実行 |
 | `npm run test:coverage` | カバレッジ付きテスト |
