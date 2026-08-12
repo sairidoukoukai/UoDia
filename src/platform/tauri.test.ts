@@ -128,17 +128,10 @@ describe('route.json', () => {
     expect(invoke).toHaveBeenCalledWith('read_route_def');
   });
 
-  it('書き戻せる', async () => {
-    invoke.mockResolvedValue(undefined);
-    await createTauriPlatform().saveNetworkDef('{"version":2}');
-    expect(invoke).toHaveBeenCalledWith('write_route_def', { content: '{"version":2}' });
-  });
-
   it('デスクトップ版はすべての機能を備える', () => {
     expect(createTauriPlatform().capabilities).toEqual({
       saveInPlace: true,
       recentFiles: true,
-      networkDefWritable: true,
     });
   });
 });

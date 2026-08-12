@@ -72,9 +72,6 @@ export function createWebPlatform(environment: WebEnvironment): PlatformAdapter 
     // 覚えられない環境では、どちらも成り立たない。
     saveInPlace: fileSystem !== null,
     recentFiles: fileSystem !== null,
-    // route.json はブラウザから元の場所へ書き戻せない。編集分は手元に保存し、
-    // 書き出しは利用者に委ねる（仕様書 §6.5.5）。
-    networkDefWritable: false,
   };
 
   async function readRecent(): Promise<StoredRecent[]> {
@@ -162,12 +159,6 @@ export function createWebPlatform(environment: WebEnvironment): PlatformAdapter 
       // 編集分があればそれを使う。無ければ同梱のものを読む。
       const edited = await store.get<string>(NETWORK_DEF_KEY);
       return edited ?? (await environment.loadBundledNetworkDef());
-    },
-
-    saveNetworkDef(): Promise<void> {
-      return Promise.reject(
-        new Error('Web 版では route.json を書き戻せません。書き出して差し替えてください'),
-      );
     },
 
     readSettings(): Promise<string | null> {

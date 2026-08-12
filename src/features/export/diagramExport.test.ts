@@ -84,7 +84,7 @@ function bands(): readonly ReturnType<typeof exportBands>[number][] {
 
 beforeEach(() => {
   store = createAppStore();
-  store.getState().setNetworkDef(network.def);
+  store.getState().setSeedNetworkDef(network.def);
   store.getState().setProject(createProject(network, { now: NOW }));
 });
 

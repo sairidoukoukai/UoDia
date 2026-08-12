@@ -55,8 +55,8 @@ function makeTrip(tripId: string, patternId: string, hours: number): Trip {
 function mount(writable = true): void {
   // **毎回同じところから始める。** ストアは 1 つしかなく、前の検証で変えた設定が
   // 残ると、順番によって結果が変わる。
-  useAppStore.getState().setSettings({ theme: 'system', stopGridStyles: {}, patternStyles: {} });
-  useAppStore.getState().setNetworkDef(network.def);
+  useAppStore.getState().setSettings({ theme: 'system' });
+  useAppStore.getState().setSeedNetworkDef(network.def);
   useAppStore
     .getState()
     .setProject(createProject(network, { now: new Date('2026-01-01T00:00:00Z') }));
@@ -221,17 +221,20 @@ describe('区間所要時間タブ（§6.5.1）', () => {
   });
 });
 
-describe('書き戻せない環境（§6.5.5）', () => {
-  it('**制約を画面に出し、書き出しを提げる**', () => {
-    mount(false);
-
-    expect(text()).toContain('書き戻せません');
-    expect(button('route.json を書き出す')).toBeDefined();
+describe('書き戻す先が無い（T-92、#235）', () => {
+  it('**`route.json` の押しボタンが出ない**', () => {
+    mount();
+    // 環境で分かれていた 2 つの文言が、どちらも消えている。
+    expect(text()).not.toContain('route.json に書き戻す');
+    expect(text()).not.toContain('route.json を書き出す');
+    expect(text()).not.toContain('書き戻せません');
   });
 
-  it('書き戻せる環境では書き戻すと言う', () => {
-    mount(true);
-    expect(button('route.json に書き戻す')).toBeDefined();
+  it('**変更が文書に入ることを伝える**', () => {
+    mount();
+    expect(text()).toContain('編集中の文書に入ります');
+    // 画面に出す文には印付けを混ぜない（そのまま字として出る）。
+    expect(text()).not.toContain('**');
   });
 });
 
@@ -319,8 +322,9 @@ describe('表示タブ（§6.5.3）', () => {
 
   /** 停留所の線種（#133）。 */
   describe('停留所の線種', () => {
+    // **上書きは文書にある**（T-90、#235）。
     const overrides = (): Readonly<Record<string, string>> =>
-      useAppStore.getState().settings.stopGridStyles;
+      useAppStore.getState().project?.view.stopGridStyles ?? {};
 
     function openDisplayTab(): void {
       mount();
@@ -418,7 +422,8 @@ describe('区間距離（#161）', () => {
 
     expect(selectTrips(useAppStore.getState()).map((t) => t.anchor?.time)).toEqual(before);
     expect(
-      useAppStore.getState().networkDef?.segments.find((s) => s.toStopId === '2_0')?.distanceMeters,
+      useAppStore.getState().project?.network.segments.find((s) => s.toStopId === '2_0')
+        ?.distanceMeters,
     ).toBe(9900);
   });
 
@@ -441,7 +446,7 @@ describe('停車パターンの色と線種', () => {
     });
   }
 
-  const styles = (): unknown => useAppStore.getState().settings.patternStyles;
+  const styles = (): unknown => useAppStore.getState().project?.view.patternStyles;
 
   it('**回送のパターンも並べる**（#179）', () => {
     openDisplayTab();

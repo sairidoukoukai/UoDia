@@ -25,8 +25,6 @@ export interface MemoryPlatformOptions {
   readonly networkDef?: string;
   /** 最初から存在するファイル。名前から内容への対応。 */
   readonly files?: Readonly<Record<string, string>>;
-  /** `route.json` を書き戻せる環境として振る舞うか。 */
-  readonly canSaveNetworkDef?: boolean;
   /** 時刻。履歴の記録に使う。 */
   readonly now?: () => Date;
   /** `loadExportFont` が返すバイト列（T-77）。 */
@@ -40,7 +38,6 @@ export interface MemoryPlatform extends PlatformAdapter {
   readonly files: Map<string, string>;
   /** 最後に書き戻された `route.json`。書き戻されていなければ `null`。 */
   networkDef: string;
-  savedNetworkDef: string | null;
   backup: string | null;
   /** 保存されている設定（T-39）。 */
   settings: string | null;
@@ -72,7 +69,6 @@ export function createMemoryPlatform(options: MemoryPlatformOptions = {}): Memor
   const capabilities: PlatformCapabilities = {
     saveInPlace: true,
     recentFiles: true,
-    networkDefWritable: options.canSaveNetworkDef ?? true,
   };
 
   const platform: MemoryPlatform = {
@@ -80,7 +76,6 @@ export function createMemoryPlatform(options: MemoryPlatformOptions = {}): Memor
     capabilities,
     files: new Map(Object.entries(options.files ?? {})),
     networkDef: options.networkDef ?? '',
-    savedNetworkDef: null,
     backup: null,
     settings: null,
     openTarget: null,
@@ -136,15 +131,6 @@ export function createMemoryPlatform(options: MemoryPlatformOptions = {}): Memor
 
     loadNetworkDef(): Promise<string> {
       return Promise.resolve(platform.networkDef);
-    },
-
-    saveNetworkDef(content: string): Promise<void> {
-      if (!capabilities.networkDefWritable) {
-        return Promise.reject(new Error('この環境では route.json を書き戻せません'));
-      }
-      platform.savedNetworkDef = content;
-      platform.networkDef = content;
-      return Promise.resolve();
     },
 
     readSettings(): Promise<string | null> {

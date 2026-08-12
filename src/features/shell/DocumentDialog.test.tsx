@@ -67,7 +67,7 @@ beforeEach(() => {
   };
   onClose.mockClear();
 
-  useAppStore.getState().setNetworkDef(network.def);
+  useAppStore.getState().setSeedNetworkDef(network.def);
   useAppStore
     .getState()
     .setProject(createProject(network, { now: new Date('2026-01-01T00:00:00Z') }));
