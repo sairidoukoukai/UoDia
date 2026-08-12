@@ -49,7 +49,7 @@ let platform: MemoryPlatform;
 
 /** ネットワーク定義まで読み込んだストアと、そこに繋いだバックアップ係。 */
 function boot(store = createAppStore()) {
-  store.getState().setNetworkDef(network.def);
+  store.getState().setSeedNetworkDef(network.def);
   const backups = createBackupService({ platform, store, now: () => NOW });
   return { store, backups };
 }
@@ -119,7 +119,7 @@ describe('書き出し', () => {
       writeBackup: (): Promise<void> => Promise.reject(new Error('書けません')),
     };
     const store = createAppStore();
-    store.getState().setNetworkDef(network.def);
+    store.getState().setSeedNetworkDef(network.def);
     const backups = createBackupService({ platform: brittle, store, now: () => NOW });
     edit(store, '書きかけ');
 
@@ -148,7 +148,7 @@ describe('定期的な書き出し', () => {
 
   it('間隔を変えられる（設定欄は T-35）', async () => {
     const store = createAppStore();
-    store.getState().setNetworkDef(network.def);
+    store.getState().setSeedNetworkDef(network.def);
     const backups = createBackupService({ platform, store, intervalMs: 1000, now: () => NOW });
     const stop = backups.start();
     edit(store, '書きかけ');
@@ -204,7 +204,7 @@ describe('定期的な書き出し', () => {
       clearBackup: (): Promise<void> => Promise.reject(new Error('消せません')),
     };
     const store = createAppStore();
-    store.getState().setNetworkDef(network.def);
+    store.getState().setSeedNetworkDef(network.def);
     const backups = createBackupService({ platform: brittle, store, now: () => NOW });
     const stop = backups.start();
 
@@ -327,7 +327,7 @@ describe('復元の提案（受入条件）', () => {
       readBackup: (): Promise<string | null> => Promise.reject(new Error('読めません')),
     };
     const store = createAppStore();
-    store.getState().setNetworkDef(network.def);
+    store.getState().setSeedNetworkDef(network.def);
     const backups = createBackupService({ platform: brittle, store, now: () => NOW });
 
     expect(await backups.findRecoverable()).toBeNull();

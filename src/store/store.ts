@@ -33,13 +33,7 @@ import {
 } from '@/domain/model';
 import { validateNetwork, type NetworkIssue } from '@/domain/network';
 import type { FileHandle } from '@/platform';
-import {
-  DEFAULT_BACKUP_INTERVAL_MS,
-  DEFAULT_THEME,
-  NO_GRID_STYLE_OVERRIDES,
-  NO_PATTERN_STYLES,
-  clampBackupInterval,
-} from './settings';
+import { DEFAULT_BACKUP_INTERVAL_MS, DEFAULT_THEME, clampBackupInterval } from './settings';
 import {
   createHistory,
   pushHistory,
@@ -97,7 +91,13 @@ export interface AppActions {
     recipe: (project: Project) => void,
     mergeKey?: string,
   ) => ExecuteResult;
-  /** ネットワーク定義を書き換える。読み込まれていなければ何もしない。 */
+  /**
+   * 文書が持つ路線を書き換える（T-89）。開いていなければ何もしない。
+   *
+   * **`editProject` と同じ履歴に積まれる。** 元からそうだったが、保存先が
+   * 分かれていたために未保存の判定から漏れていた。路線が文書に入ったことで
+   * 揃う。
+   */
   readonly editNetwork: (
     label: string,
     recipe: (networkDef: NetworkDef) => void,
@@ -119,12 +119,12 @@ export interface AppActions {
   readonly setSettings: (settings: Partial<AppSettings>) => void;
 
   /**
-   * ネットワーク定義を読み込む。**編集ではないため履歴を捨てる。**
+   * 新しい文書を始めるための路線を載せる（T-89）。
    *
-   * 履歴のパッチは特定の定義の上での位置を指しており、定義が入れ替わると
-   * 意味を失う。
+   * **履歴を捨てない。** 文書ではないため、取り消しの対象に入らない
+   * （`setNetworkDef` は捨てていた——あちらは文書の一部だった）。
    */
-  readonly setNetworkDef: (networkDef: NetworkDef) => void;
+  readonly setSeedNetworkDef: (networkDef: NetworkDef) => void;
   /**
    * プロジェクトを開く・新規作成する。履歴と選択を捨てる。
    *
@@ -246,8 +246,8 @@ export interface AppStoreHook {
 }
 
 const INITIAL_STATE: AppState = {
-  networkDef: null,
   project: null,
+  seedNetworkDef: null,
   ui: {
     selectedTripIds: [],
     clipboard: [],
@@ -262,8 +262,6 @@ const INITIAL_STATE: AppState = {
     theme: DEFAULT_THEME,
     backupIntervalMs: DEFAULT_BACKUP_INTERVAL_MS,
     defaultDiagramView: diagramViewSchema.parse({}),
-    stopGridStyles: NO_GRID_STYLE_OVERRIDES,
-    patternStyles: NO_PATTERN_STYLES,
     patternsUnlocked: false,
   },
 };
@@ -295,9 +293,9 @@ export function createAppStore(): AppStoreHook {
     ): boolean => {
       if (taken === null) return false;
 
-      const { networkDef, project } = get();
+      const { project } = get();
       set({
-        ...applyPatches({ networkDef, project }, patchesOf(taken.entry)),
+        ...applyPatches({ project }, patchesOf(taken.entry)),
         history: taken.history,
       });
       return true;
@@ -326,25 +324,23 @@ export function createAppStore(): AppStoreHook {
       ...INITIAL_STATE,
 
       execute: (label, mutator, mergeKey): ExecuteResult => {
-        const { networkDef, project, history } = get();
-        const [next, patches, inversePatches] = produceWithPatches(
-          { networkDef, project },
-          (draft) => {
-            mutator(draft);
-          },
-        );
+        const { project, history } = get();
+        const [next, patches, inversePatches] = produceWithPatches({ project }, (draft) => {
+          mutator(draft);
+        });
         if (patches.length === 0) return { ok: true, changed: false };
 
-        // 定義に触れていないときは検査しない。便を 1 つ動かすたびに全規則を
-        // 走らせる理由が無い。
-        const changedDef = next.networkDef === networkDef ? null : next.networkDef;
+        // 路線に触れていないときは検査しない。便を 1 つ動かすたびに全規則を
+        // 走らせる理由が無い。**参照で見る**——路線は文書の中にあるが、
+        // Immer は触っていない枝の参照を保つ（T-89）。
+        const changedDef =
+          next.project?.network === project?.network ? null : (next.project?.network ?? null);
         if (changedDef !== null) {
           const issues = validateNetwork(changedDef);
           if (issues.length > 0) return { ok: false, issues };
         }
 
         set({
-          networkDef: next.networkDef,
           project: next.project,
           history: pushHistory(history, { label, patches, inversePatches }, mergeKey ?? null),
         });
@@ -365,8 +361,8 @@ export function createAppStore(): AppStoreHook {
         get().execute(
           label,
           (document) => {
-            if (document.networkDef === null) return;
-            recipe(document.networkDef);
+            if (document.project === null) return;
+            recipe(document.project.network);
           },
           mergeKey,
         ),
@@ -387,8 +383,8 @@ export function createAppStore(): AppStoreHook {
         set({ history: setHistoryLimit(get().history, limit) });
       },
 
-      setNetworkDef: (networkDef): void => {
-        set({ networkDef, history: createHistory(get().history.limit) });
+      setSeedNetworkDef: (seedNetworkDef): void => {
+        set({ seedNetworkDef });
       },
 
       setProject: (project, handle = null): void => {

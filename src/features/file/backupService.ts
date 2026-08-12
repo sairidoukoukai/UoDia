@@ -24,7 +24,7 @@ import type { PlatformAdapter } from '@/platform';
 import {
   DEFAULT_BACKUP_INTERVAL_MS,
   selectIsDirty,
-  selectNetwork,
+  selectSeedNetwork,
   type AppState,
   type AppStoreHook,
 } from '@/store';
@@ -143,7 +143,7 @@ export function createBackupService(options: BackupServiceOptions): BackupServic
       const parsed = parseBackup(raw);
       if (!parsed.ok) return null;
 
-      const network = selectNetwork(store.getState());
+      const network = selectSeedNetwork(store.getState());
       if (network === null) return null;
 
       const loaded = loadProjectData(parsed.envelope.project, network);

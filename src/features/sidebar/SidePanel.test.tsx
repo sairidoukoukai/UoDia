@@ -69,7 +69,7 @@ let root: Root;
 
 /** S1 の 8:00（出区あり・運用 1）と T1 の 9:00（運用 2）。 */
 function mount(): void {
-  useAppStore.getState().setNetworkDef(network.def);
+  useAppStore.getState().setSeedNetworkDef(network.def);
   useAppStore
     .getState()
     .setProject(makeProject([makeTrip('S1', 8, '1', { pullOut: true }), makeTrip('T1', 9, '2')]));

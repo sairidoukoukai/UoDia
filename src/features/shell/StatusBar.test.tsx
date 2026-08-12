@@ -61,7 +61,7 @@ function mount(cursor: DiagramCursor | null = null, message: string | null = nul
 beforeEach(() => {
   container = document.createElement('div');
   document.body.append(container);
-  useAppStore.getState().setNetworkDef(network.def);
+  useAppStore.getState().setSeedNetworkDef(network.def);
   useAppStore
     .getState()
     .setProject(
