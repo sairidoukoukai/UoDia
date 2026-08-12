@@ -85,7 +85,7 @@ const OFF_LINE = { clientX: 800, clientY: 380 };
 
 beforeEach(() => {
   store = createAppStore();
-  store.getState().setNetworkDef(network.def);
+  store.getState().setSeedNetworkDef(network.def);
   store.getState().setProject(createProject(network, { now: new Date('2026-01-01T00:00:00Z') }));
   setTrips([makeTrip('t1', 'S1', [8, 0]), makeTrip('t2', 'T1', [9, 0])]);
 

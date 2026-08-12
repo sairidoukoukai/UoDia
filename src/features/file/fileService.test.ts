@@ -79,7 +79,7 @@ function edit(name = '編集'): void {
 
 beforeEach(() => {
   store = createAppStore();
-  store.getState().setNetworkDef(network.def);
+  store.getState().setSeedNetworkDef(network.def);
   platform = createMemoryPlatform({ networkDef: routeJson });
   fake = createFakeDialogs();
   files = createFileService({
@@ -307,12 +307,24 @@ describe('開く', () => {
     expect(fake.record.errors.at(-1)).toContain('ネットワーク定義');
   });
 
-  it('**route.json の版数が違えば警告する**（W-01）', async () => {
-    await makeSavedFile('a.uodia', '既存の文書');
-    // 版数だけを上げた定義に差し替える。**食い違っていることだけが要る。**
-    store.getState().editNetwork('版数の更新', (def) => {
-      def.version += 1;
-    });
+  /**
+   * 中で版数が食い違っているファイルを置く（T-89）。
+   *
+   * **突き合わせる相手が変わった。** かつては共有の `route.json` と比べており、
+   * 「保存したあとに路線が書き換わった」ことを知らせる警告だった。路線が文書へ
+   * 入った以上そういうことは起こらず、**残るのは手で書き換えた文書だけ**である。
+   */
+  async function makeMismatchedFile(name: string, documentName: string): Promise<void> {
+    await makeSavedFile(name, documentName);
+    const raw = JSON.parse(platform.files.get(name) ?? '{}') as {
+      meta: { routeVersion: number };
+    };
+    raw.meta.routeVersion += 1;
+    platform.files.set(name, JSON.stringify(raw));
+  }
+
+  it('**中で版数が食い違えば警告する**（W-01）', async () => {
+    await makeMismatchedFile('a.uodia', '既存の文書');
     platform.openTarget = 'a.uodia';
 
     expect(await files.open()).toBe(true);
@@ -320,10 +332,7 @@ describe('開く', () => {
   });
 
   it('警告があっても開く（開けなかったように見せない）', async () => {
-    await makeSavedFile('a.uodia', '既存の文書');
-    store.getState().editNetwork('版数の更新', (def) => {
-      def.version = 2;
-    });
+    await makeMismatchedFile('a.uodia', '既存の文書');
     platform.openTarget = 'a.uodia';
 
     await files.open();

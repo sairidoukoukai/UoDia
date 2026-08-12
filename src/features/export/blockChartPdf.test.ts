@@ -98,7 +98,7 @@ function allCells(): readonly ReturnType<typeof blockChartCells>[number][number]
 
 beforeEach(() => {
   store = createAppStore();
-  store.getState().setNetworkDef(network.def);
+  store.getState().setSeedNetworkDef(network.def);
   store.getState().setProject(createProject(network, { now: new Date('2026-08-09T00:00:00Z') }));
   platform = createMemoryPlatform({ exportFont: new Uint8Array(readFileSync(fontPath)) });
 });
