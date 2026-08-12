@@ -56,10 +56,10 @@ jobs:
       - name: テスト（カバレッジ付き）
         run: npm run test:coverage
 
-      - name: Web 版のビルド
+      - name: Web版のビルド
         run: npm run build:web
 
-      # デスクトップ版はより古い WebView に合わせた対象環境でビルドされる
+      # デスクトップ版はより古いWebViewに合わせた対象環境でビルドされる
       # （vite.config.ts）。Web 単体のビルドだけが通って気づけない差異
       # （トップレベル await など）を、Rust を伴わずに検出する。
       - name: デスクトップ版と同じ対象環境でのビルド確認
@@ -73,6 +73,35 @@ jobs:
         with:
           name: coverage
           path: coverage/
+          retention-days: 14
+          if-no-files-found: ignore
+
+  responsive:
+    name: 狭幅画面
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: 依存のインストール
+        run: npm ci
+
+      - name: Chromiumのインストール
+        run: npm exec playwright install -- --with-deps chromium
+
+      - name: 狭幅画面の検査
+        run: npm run test:e2e
+
+      - name: 失敗時のブラウザ記録
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: responsive-test-results
+          path: test-results/
           retention-days: 14
           if-no-files-found: ignore
 
@@ -174,7 +203,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     # 品質ゲートを通ってから作る。下書きとはいえ、型検査すら通らないものを
     # 配布物の形にして残す意味は無い。
-    needs: check
+    needs: [check, responsive]
     runs-on: ${{ matrix.os }}
     permissions:
       contents: write
