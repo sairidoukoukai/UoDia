@@ -159,10 +159,16 @@ jobs:
         include:
           - os: ubuntu-22.04
             label: Linux
+            portable: linux
+            binary: src-tauri/target/release/uodia
           - os: windows-latest
             label: Windows
+            portable: windows
+            binary: src-tauri/target/release/UoDia.exe
           - os: macos-latest
             label: macOS
+            portable: macos
+            binary: src-tauri/target/release/bundle/macos/UoDia.app
     steps:
       - uses: actions/checkout@v4
 
@@ -206,8 +212,17 @@ jobs:
       - name: Rust の Lint
         run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 
+      # **インストーラーは作らない**（T-95、#245）。配るのはポータブル版だけで
+      # ある。macOS だけ `.app` を作る——素のバイナリは `Info.plist` を持たず、
+      # ダブルクリックで正しく起動しない。
       - name: ビルド
-        run: npm run build:desktop
+        shell: bash
+        run: |
+          if [ "${{ matrix.portable }}" = "macos" ]; then
+            npm run build:desktop:macos
+          else
+            npm run build:desktop
+          fi
 
       # 仕様書 §9.1 の「バイナリサイズ 30MB 以内」を機械が見る。**入れ物ではなく
       # 実行ファイルを測る**——インストーラは圧縮の効き方が OS ごとに違い、
@@ -216,17 +231,22 @@ jobs:
         shell: bash
         run: node scripts/check-bundle-size.mjs
 
-      # 出来た配布物を残す。**PR では走らないジョブ**であり（push のみ）、
-      # 手元に 3 OS を揃えられない以上、ここが唯一の確かめる手立てになる。
+      # ポータブル版を組み立てて残す。**PR では走らないジョブ**であり（push
+      # のみ）、手元に 3 OS を揃えられない以上、ここが唯一の確かめる手立てに
+      # なる。`verify` が同梱リソースの置き場所を見る。
+      - name: ポータブル版を組み立てる
+        shell: bash
+        run: |
+          node scripts/package-portable.mjs \
+            "${{ matrix.portable }}" "${{ matrix.binary }}" portable-out
+
       - name: 配布物の保存
         uses: actions/upload-artifact@v4
         with:
           name: uodia-${{ matrix.label }}
-          path: |
-            src-tauri/target/release/bundle/**/*
-            !src-tauri/target/release/bundle/**/*.txt
+          path: portable-out/**/*
           retention-days: 14
-          if-no-files-found: warn
+          if-no-files-found: error
 
   # ---------------------------------------------------------------------------
   # 配布（T-41）。**タグを打ったときだけ**走る。
@@ -295,22 +315,20 @@ jobs:
       - name: 依存のインストール
         run: npm ci
 
-      # **下書きとして作る。** 中身を見てから公開できるようにするためであり、
-      # 3 つの OS のビルドが揃うのを待つ意味もある。
-      - uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tagName: ${{ github.ref_name }}
-          releaseName: UoDia ${{ github.ref_name }}
-          releaseDraft: true
-          prerelease: false
+      # **インストーラーは作らない**（T-95、#245）。配るのはポータブル版だけで
+      # ある。macOS だけ `.app` を作る——素のバイナリは `Info.plist` を持たず、
+      # ダブルクリックで正しく起動しない。
+      - name: ビルド
+        shell: bash
+        run: |
+          if [ "${{ matrix.portable }}" = "macos" ]; then
+            npm run build:desktop:macos
+          else
+            npm run build:desktop
+          fi
 
       # -----------------------------------------------------------------------
-      # ポータブル版（T-94、仕様書（ポータブル版））。
-      #
-      # **インストーラーを通さずに配れる形。** 展開したフォルダの外に何も書かない
-      # ——目印（`portable`）を最初から入れておく。
+      # ポータブル版（T-94・T-95、仕様書（ポータブル版））。
       #
       # 組み立てのあと `verify` が走る。**同梱リソースが読まれる場所にあるか**を
       # 確かめる工程であり、`productName` を変えたときにここで落ちる（Linux の
@@ -335,8 +353,19 @@ jobs:
           fi
           ls -l "$name"
 
-      # **下書きへ足す。** 公開は人の判断であり、ここでは配らない（`release` の
-      # ほかの成果物と同じ扱い）。
+      # **下書きとして作る。** 中身を見てから公開できるようにするためであり、
+      # 3 つの OS のビルドが揃うのを待つ意味もある。**公開は人の判断である。**
+      #
+      # 3 つの機械が同時に走るため、最初の 1 つだけが作る（`|| true`）。
+      - name: 下書きを用意する
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view "${{ github.ref_name }}" >/dev/null 2>&1 || \
+            gh release create "${{ github.ref_name }}" \
+              --draft --title "UoDia ${{ github.ref_name }}" --notes "" || true
+
       - name: 下書きに載せる
         shell: bash
         env:

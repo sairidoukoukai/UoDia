@@ -19,10 +19,10 @@
  * `tauri.conf.json` を直すとここも変わるため、**置いたものが読まれる場所に
  * あるかを最後に確かめる**（{@link verify}）。
  *
- * ## 目印を最初から入れる
+ * ## 目印はもう入れない（T-95）
  *
- * 展開しただけでポータブルとして動く（§5）。利用者に作らせると、その手順を
- * 説明する文章が要る——**入れておくほうが短い。**
+ * T-93 では `portable` という目印を同梱していた。**配るのがポータブル版だけに
+ * なった以上、見分ける相手が居ない**（#245）。
  */
 
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -45,10 +45,24 @@ const RESOURCES = [
   ['assets/fonts/OFL.txt', 'OFL.txt'],
 ];
 
-/** 目印。**中身は見られない**ので、何のためのものかだけ書いておく。 */
-const MARKER_TEXT = [
-  'このファイルがあると、UoDia は設定や自動保存を data/ に書きます。',
-  '消すと、ふつうのインストール版と同じ場所（OS の設定ディレクトリ）に書きます。',
+/**
+ * Linux のアプリ一覧に出すための雛形（T-95）。
+ *
+ * **登録はしない。** 書庫を展開しただけでアプリ一覧に出す方法は無く、置き先も
+ * 人によって違う（`~/.local/share/applications/`）。**置きたい人が置ける形で
+ * 同梱する**にとどめる。
+ *
+ * `Exec` と `Icon` は展開先で変わるため、`README.txt` で書き換えを促す。
+ */
+const DESKTOP_ENTRY = [
+  '[Desktop Entry]',
+  'Type=Application',
+  'Name=UoDia',
+  'Comment=再履バスのダイヤグラム設計ソフトウェア',
+  'Exec=/path/to/UoDia/bin/uodia',
+  'Icon=/path/to/UoDia/lib/UoDia/icon.png',
+  'Categories=Utility;',
+  'Terminal=false',
   '',
 ].join('\n');
 
@@ -64,9 +78,8 @@ function readme(platform) {
     '  設定・自動保存・最近使ったファイルが入ります。消すと初期状態に戻ります。',
     '  このフォルダの外には何も書きません。',
     '',
-    '■ portable というファイルについて',
-    '  これがあるとポータブルとして動きます。消すと、ふつうのインストール版と',
-    '  同じ場所（OS の設定ディレクトリ）に書くようになります。',
+    '■ 消すとき',
+    '  インストールしていないので、フォルダごと消せば何も残りません。',
     '',
     ...(platform === 'windows'
       ? [
@@ -74,6 +87,14 @@ function readme(platform) {
           '  Microsoft Edge WebView2 ランタイムが要ります。Windows 10（2021 年以降の',
           '  更新）と Windows 11 には最初から入っています。入っていない場合は',
           '  Microsoft の配布ページから入れてください。',
+          '',
+        ]
+      : []),
+    ...(platform === 'linux'
+      ? [
+          '■ アプリ一覧に出したいときは',
+          '  uodia.desktop の Exec と Icon を、このフォルダの実際の場所に書き換えて',
+          '  ~/.local/share/applications/ に置いてください。置かなくても動きます。',
           '',
         ]
       : []),
@@ -129,7 +150,11 @@ export function layout(platform, binary, out) {
     cpSync(binary, join(out, 'UoDia.app'), { recursive: true });
   }
 
-  writeFileSync(join(out, 'portable'), MARKER_TEXT);
+  if (platform === 'linux') {
+    cpSync(join(root, 'src-tauri/icons/128x128.png'), join(out, 'lib', PRODUCT_NAME, 'icon.png'));
+    writeFileSync(join(out, 'uodia.desktop'), DESKTOP_ENTRY);
+  }
+
   writeFileSync(join(out, 'README.txt'), readme(platform));
 }
 
@@ -153,10 +178,7 @@ export function verify(platform, out) {
     throw new Error(`同梱リソースが読まれる場所にありません:\n  ${missing.join('\n  ')}`);
   }
 
-  // 目印と説明は 3 つとも要る。
-  for (const name of ['portable', 'README.txt']) {
-    if (!existsSync(join(out, name))) throw new Error(`${name} がありません`);
-  }
+  if (!existsSync(join(out, 'README.txt'))) throw new Error('README.txt がありません');
 }
 
 /** 書庫の名前（§5）。 */

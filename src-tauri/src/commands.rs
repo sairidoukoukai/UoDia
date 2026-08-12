@@ -103,28 +103,28 @@ pub fn read_route_def(app: AppHandle) -> Result<String, String> {
 /// **読めなくても失敗にしない**のは呼び出し側（TS）の判断であり、ここでは
 /// 素直に返す。壊れた設定で起動できなくなるのは代償が大きい。
 #[tauri::command]
-pub fn read_settings(app: AppHandle) -> Result<Option<String>, String> {
-    atomic::read_optional(&paths::settings_path(&app)?)
+pub fn read_settings() -> Result<Option<String>, String> {
+    atomic::read_optional(&paths::settings_path()?)
 }
 
 #[tauri::command]
-pub fn write_settings(app: AppHandle, content: String) -> Result<(), String> {
-    atomic::write_atomic(&paths::settings_path(&app)?, &content)
+pub fn write_settings(content: String) -> Result<(), String> {
+    atomic::write_atomic(&paths::settings_path()?, &content)
 }
 
 #[tauri::command]
-pub fn write_backup(app: AppHandle, content: String) -> Result<(), String> {
-    atomic::write_atomic(&paths::backup_path(&app)?, &content)
+pub fn write_backup(content: String) -> Result<(), String> {
+    atomic::write_atomic(&paths::backup_path()?, &content)
 }
 
 #[tauri::command]
-pub fn read_backup(app: AppHandle) -> Result<Option<String>, String> {
-    atomic::read_optional(&paths::backup_path(&app)?)
+pub fn read_backup() -> Result<Option<String>, String> {
+    atomic::read_optional(&paths::backup_path()?)
 }
 
 #[tauri::command]
-pub fn clear_backup(app: AppHandle) -> Result<(), String> {
-    let path = paths::backup_path(&app)?;
+pub fn clear_backup() -> Result<(), String> {
+    let path = paths::backup_path()?;
     match std::fs::remove_file(&path) {
         Ok(()) => Ok(()),
         // 無いものを消せなくても困らない。正常終了時に呼ばれるため、ここで
@@ -138,13 +138,13 @@ pub fn clear_backup(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn list_recent_files(app: AppHandle) -> Result<Vec<RecentEntry>, String> {
-    read_recent(&paths::recent_path(&app)?)
+pub fn list_recent_files() -> Result<Vec<RecentEntry>, String> {
+    read_recent(&paths::recent_path()?)
 }
 
 #[tauri::command]
-pub fn add_recent_file(app: AppHandle, path: String, opened_at: String) -> Result<(), String> {
-    let list_path = paths::recent_path(&app)?;
+pub fn add_recent_file(path: String, opened_at: String) -> Result<(), String> {
+    let list_path = paths::recent_path()?;
     let entries = read_recent(&list_path)?;
     let next = recent::add(&entries, RecentEntry { path, opened_at });
     let json = serde_json::to_string_pretty(&next)
