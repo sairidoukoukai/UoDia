@@ -4,7 +4,7 @@
 
 | 項目 | 内容 |
 | --- | --- |
-| ドキュメント版数 | 2.0 |
+| ドキュメント版数 | 2.1 |
 | 作成日 | 2026-08-10 |
 | 対象 | UoDia v2.2 以降 |
 | 前提 | [仕様書 v1.0](specification.md) §10.4（配布）・[仕様書 v2](specification-v2.md) |
@@ -18,6 +18,7 @@
 | 1.0 | 2026-08-10 | 初版。 |
 | 1.1 | 2026-08-13 | **実装した**（T-93・T-94）。初版の [§3](#3-どこに書くか) が示した版面は**誤りだった**——`resources/` に置くと、**どの OS も同梱リソースを見つけられない。** Tauri は実行ファイルからの相対で探し、その相対が 3 つとも違う（Windows は同じ階層、Linux は `../lib/<productName>`、macOS は `.app/Contents/Resources`）。版面を実装に合わせて書き直した。あわせて **[§4](#4-ポータブルかどうかをどう決めるか) の目印の探し方を改めた**——実行ファイルは展開した根の直下にあるとは限らない（Linux は `bin/`、macOS は `.app` の中）ため、**根まで登って探す。** 未確定事項も 2 つとも閉じた。 |
 | 2.0 | 2026-08-13 | **インストーラー版を廃止した**（T-95、#245）。[§1.2](#12-本書が扱わないこと) の「インストーラー版を廃止することは扱わない。両方を配る」を取り消す。**配るのはポータブル版だけである。** これにより **[§4](#4-書く先の決め方) の目印（`portable`）が要らなくなった**——あれは 2 つの版を見分けるためのものであり、**見分ける相手が居なくなれば置いておく理由が無い。** 書く先は常に展開した根の下の `data/` である。根の割り出しは**段数ではなく構造で見る**（`.app` の中か `bin/` の中か）——段数で決め打つと、開発中のビルドがリポジトリの外に書く。失うのは **Windows の WebView2 自動導入**（インストーラーの既定は `DownloadBootstrapper`）と **Linux のアプリ一覧への登録**である。前者は README に書き、後者は `.desktop` の雛形を同梱して置きたい人が置ける形にした。 |
+| 2.1 | 2026-08-13 | **同梱リソースが 1 つも無くなった**（T-96）。`route.json` は Web 版が `?url` で取り込んでおり、**その資産は実行ファイルの中に埋まっている**——にもかかわらず Tauri のリソースとしても隣に置いていた。**同じものを 2 か所から配っていた。** デスクトップ版も Web 版と同じ道を通るようにし、`bundle.resources` を空にした。結果、**[§3.1](#31-同梱リソースは無くなった) の入れ子が要らなくなった**——Linux が `bin/` に入っていたのはリソースを `../lib/<productName>` から読むためだけであり、実行ファイルは根の直下でよい。**Windows の書庫は `UoDia.exe`・`OFL.txt`・`README.txt` の 3 つになった。** 置き場所を見る検査は、見る対象が消えたので**実行ファイルの中を見る検査に置き換えた**（[§6](#6-検証)）。 |
 
 ---
 
@@ -74,33 +75,34 @@
 
 **「実行ファイルの隣」ではない**（版数 1.1 で改め）。実行ファイルは根の直下にあるとは限らない。
 
-### 3.1 実行ファイルが入れ子になるのはリソースの都合である
+### 3.1 同梱リソースは無くなった
 
-Tauri は同梱リソースを**実行ファイルからの相対**で探す（`tauri-utils` の `resource_dir_from`）。**3 つとも違う。**
+**Tauri のリソースを 1 つも使っていない**（版数 2.1）。
 
-| OS | リソースを探す先 |
+`route.json` は Web 版が `?url` で取り込んでおり、**その資産は実行ファイルの中に埋まる**（`frontendDist`）。にもかかわらず、デスクトップ版だけが同梱リソースとしても隣に置き、Rust のコマンドで読んで設定ディレクトリへ複製していた。**同じものを 2 か所から配っていた。**
+
+複製する理由も既に無くなっていた。
+
+| 複製していた理由 | いま |
 | --- | --- |
-| Windows | **実行ファイルと同じ階層** |
-| Linux | `<実行ファイルの階層>/../lib/<productName>` |
-| macOS | `<実行ファイルの階層>/../Resources`（`.app` の中） |
+| 隠し設定で所要時間を直す | **書き戻しを畳んだ**（T-92） |
+| GTFS の事業者・緯度経度を打つ | **タブを外した**（T-85） |
+| 直せば全文書に効く | **路線は文書の中**（T-89）。差し替えは取り込みで行う（T-91） |
 
-**初版が書いた `resources/` は、どの OS も見ない。** そこに置くと、起動して初めて「route.json を読み込めません」と出る。
-
-**Linux だけ実行ファイルを根の直下に置けない。** `../lib/` を作れないためである。
+**入れ子が消えた。** Linux が `bin/` に入っていたのは、リソースを `../lib/<productName>` から読むためだけの都合だった。
 
 ```
 Windows                Linux                    macOS
 UoDia/                 UoDia/                   UoDia/
-├── UoDia.exe          ├── bin/uodia            ├── UoDia.app/
-├── route.json         ├── lib/UoDia/           │   └── Contents/Resources/…
-├── OFL.txt            │   ├── route.json       ├── portable
-├── portable           │   └── OFL.txt          ├── README.txt
-├── README.txt         ├── portable             └── data/
-└── data/              ├── README.txt
+├── UoDia.exe          ├── uodia                ├── UoDia.app/
+├── OFL.txt            ├── icon.png             ├── OFL.txt
+├── README.txt         ├── uodia.desktop        ├── README.txt
+└── data/              ├── OFL.txt              └── data/
+                       ├── README.txt
                        └── data/
 ```
 
-**`lib/` の名前は `productName` で決まる**（`UoDia`。小文字ではない）。`tauri.conf.json` を直すとここも変わるため、**組み立てのあとに置いた場所を検査する**（`scripts/package-portable.mjs` の `verify`）。配ってから気づくより早い。
+**`OFL.txt` は根に置く。** Noto Sans JP は OFL-1.1 であり、フォントは実行ファイルの中に埋まっている。ライセンス本文もヘルプから読めるが（`?raw` で埋まっている）、**開かない人にも見えるところに 1 つ置く。**
 
 ### 3.2 `data/` を掘る
 
@@ -129,8 +131,9 @@ UoDia/                 UoDia/                   UoDia/
 | 実行ファイルの階層 | 根 |
 | --- | --- |
 | `…/Contents/MacOS` | `.app` の隣 |
-| `…/bin` | `bin/` の外 |
 | それ以外 | その階層 |
+
+**入れ子は macOS だけになった**（版数 2.1）。
 
 **段数で決め打たない。** 「macOS は 3 段上」とすると、**開発中のビルド**（`src-tauri/target/debug/uodia`）が**リポジトリの外に書く**。構造で見れば、当てはまらない置かれ方では実行ファイルの隣に落ちる。
 
@@ -152,11 +155,9 @@ UoDia/                 UoDia/                   UoDia/
 
 | OS | 形 | 中身 |
 | --- | --- | --- |
-| Windows | `UoDia-<版数>-windows-x64-portable.zip` | `UoDia.exe`・`route.json`・`OFL.txt`・`README.txt` |
-| Linux | `UoDia-<版数>-linux-x64-portable.tar.gz` | `bin/uodia`・`lib/UoDia/`・`uodia.desktop`・`README.txt` |
-| macOS | `UoDia-<版数>-macos-aarch64-portable.zip` | `UoDia.app`・`README.txt` |
-
-**`OFL.txt` は外せない。** Noto Sans JP は OFL-1.1 であり、フォントは実行ファイルの中に埋まっている——**配るものに license 本文を添える義務がある。**
+| Windows | `UoDia-<版数>-windows-x64-portable.zip` | `UoDia.exe`・`OFL.txt`・`README.txt` |
+| Linux | `UoDia-<版数>-linux-x64-portable.tar.gz` | `uodia`・`icon.png`・`uodia.desktop`・`OFL.txt`・`README.txt` |
+| macOS | `UoDia-<版数>-macos-aarch64-portable.zip` | `UoDia.app`・`OFL.txt`・`README.txt` |
 
 ### 5.1 `README.txt` に書くこと
 
@@ -195,7 +196,7 @@ Tauri は WebView2 を使う。Windows 10 の 2021 年以降の更新と Windows
 | 何を | どこで |
 | --- | --- |
 | 根の割り出し（3 つの版面すべて） | **Rust の単体テスト**（`src-tauri/src/paths.rs`）。`bin/` の中・`.app` の中から根を見つけること、**開発中のビルドが実行ファイルの隣に落ちる**こと |
-| 同梱リソースが読まれる場所にあること | **組み立ての工程**（`scripts/package-portable.mjs` の `verify`）。CI が配布物を作るたびに走る |
+| 路線とフォントが**実行ファイルに埋まっている**こと | **組み立ての工程**（`scripts/package-portable.mjs` の `verify`）。`dist/` が出した資産の名前が実行ファイルの中に現れるかを見る。CI が配布物を作るたびに走る |
 
 
 **GUI を起動して確かめる工程は置かない**（P-1 の結論）。3 OS ぶんのヘッドレス実行が要るわりに、**確かめられるのは「起動した」までである**——書いた先が正しいかは、結局ファイルを数えることになる。**その数えるところを、上の 2 つが先に押さえている。**

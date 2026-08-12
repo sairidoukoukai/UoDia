@@ -106,15 +106,15 @@ node scripts/check-bundle-size.mjs   # 実行ファイルの大きさ
 
 | OS | 出来るもの |
 | --- | --- |
-| Windows | `UoDia.exe` + `route.json` + `OFL.txt` |
-| Linux | `bin/uodia` + `lib/UoDia/` + `uodia.desktop` |
-| macOS | `UoDia.app` |
+| Windows | `UoDia.exe` + `OFL.txt` + `README.txt` |
+| Linux | `uodia` + `icon.png` + `uodia.desktop` + 同上 |
+| macOS | `UoDia.app` + 同上 |
 
 **展開したフォルダの外に何も書かない。** 設定・自動保存・最近使ったファイルは、根の下の `data/` に入る（`src-tauri/src/paths.rs`）。
 
-**組み立てのあとに検査が走る。** Tauri は同梱リソースを実行ファイルからの相対で探し、その相対が OS ごとに違う——Windows は同じ階層、Linux は `../lib/UoDia`（`productName`）、macOS は `.app/Contents/Resources` である。`tauri.conf.json` の `productName` を変えると、ここで落ちる。
+**同梱リソースは 1 つも無い**（T-96）。`route.json` もフォントも**実行ファイルの中**にあり、Web 版と同じ道で読む（`src/platform/networkSeed.ts`）。
 
-**`route.json` は同梱される**（`bundle.resources`）。初回起動時に `data/` へ複製し、以後はそちらを読む。
+**組み立てのあとに検査が走る。** `dist/` が出した資産の名前が実行ファイルの中に現れるかを見る——埋まっていなければ、**起動して初めて「route.json を取得できません」と出る。**
 
 タグを打つと CI が 3 OS ぶんの書庫を作り、**下書き**の release に載せる。公開は人の判断で行う。
 

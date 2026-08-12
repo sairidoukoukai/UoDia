@@ -5,6 +5,7 @@
  * ここに閉じ込めておけば、対応状況が変わったときに直す先が 1 箇所で済む。
  */
 
+import { loadBundledNetworkDef } from '../networkSeed';
 import { openKeyValueStore } from './idb';
 import type { FallbackIo, FileSystemAccess, PickedFile, WebEnvironment } from './environment';
 
@@ -178,21 +179,6 @@ function save(blob: Blob, name: string): void {
   link.download = name;
   link.click();
   URL.revokeObjectURL(url);
-}
-
-/**
- * 同梱の `route.json` を読む。
- *
- * ビルド時にアセットとして出力させ、その URL を取得する。`public/` へ複製する
- * 方式を採らないのは、`data/route.json` を唯一の置き場所に保つためである。
- */
-async function loadBundledNetworkDef(): Promise<string> {
-  const url = (await import('../../../data/route.json?url')).default;
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`route.json を取得できません: ${String(response.status)}`);
-  }
-  return response.text();
 }
 
 /** ブラウザ環境一式を組み立てる。 */
