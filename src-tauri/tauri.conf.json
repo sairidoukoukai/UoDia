@@ -26,8 +26,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
-    "publisher": "再履バス同好会",
+    "targets": ["app"],
     "copyright": "© 2026 再履バス同好会",
     "category": "Productivity",
     "shortDescription": "再履バスのダイヤグラム設計ソフトウェア",
@@ -42,16 +41,6 @@
     "resources": {
       "../data/route.json": "route.json",
       "../assets/fonts/OFL.txt": "OFL.txt"
-    },
-    "linux": {
-      "deb": {
-        "section": "utils"
-      }
-    },
-    "windows": {
-      "wix": {
-        "language": ["ja-JP"]
-      }
     }
   }
 }

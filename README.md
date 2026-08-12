@@ -92,34 +92,30 @@ libEGL warning: egl: failed to create dri2 screen
 
 Web 版（`npm run dev`）は WSL でもそのまま動作する。ブラウザで確認するだけなら、こちらの方が起動が速い。
 
-## 配布物を作る（T-41）
+## 配布物を作る（T-41・T-95）
+
+**配るのはポータブル版だけである**（[仕様書](docs/specification-portable.md)）。インストーラー（`.deb` / `.msi` / `.dmg` ほか）は作らない。
 
 ```
-npm run build:desktop            # 3 OS それぞれの機械で走らせる
-node scripts/check-bundle-size.mjs   # 出来た配布物と実行ファイルの大きさ
+npm run build:desktop                # Windows / Linux（--no-bundle）
+npm run build:desktop:macos          # macOS（.app を作る）
+npm run package:portable linux src-tauri/target/release/uodia portable-out
+node scripts/check-bundle-size.mjs   # 実行ファイルの大きさ
 ```
 
 | OS | 出来るもの |
 | --- | --- |
-| Linux | `.deb` / `.rpm` / `.AppImage` |
-| Windows | `.msi` / `.exe`（NSIS） |
-| macOS | `.dmg` / `.app` |
+| Windows | `UoDia.exe` + `route.json` + `OFL.txt` |
+| Linux | `bin/uodia` + `lib/UoDia/` + `uodia.desktop` |
+| macOS | `UoDia.app` |
 
-**`route.json` は同梱される**（`bundle.resources`）。初回起動時に読み書きの置き場所へ複製し、以後はそちらを読む——インストール先が書き込み不可のことがあるためである（`src-tauri/src/paths.rs`）。
+**展開したフォルダの外に何も書かない。** 設定・自動保存・最近使ったファイルは、根の下の `data/` に入る（`src-tauri/src/paths.rs`）。
 
-### ポータブル版（T-93・T-94）
+**組み立てのあとに検査が走る。** Tauri は同梱リソースを実行ファイルからの相対で探し、その相対が OS ごとに違う——Windows は同じ階層、Linux は `../lib/UoDia`（`productName`）、macOS は `.app/Contents/Resources` である。`tauri.conf.json` の `productName` を変えると、ここで落ちる。
 
-インストーラーを通さない形も作れる（[仕様書](docs/specification-portable.md)）。**展開したフォルダの外に何も書かない。**
+**`route.json` は同梱される**（`bundle.resources`）。初回起動時に `data/` へ複製し、以後はそちらを読む。
 
-```
-node scripts/package-portable.mjs linux src-tauri/target/release/uodia portable-out
-```
-
-組み立てのあと、**同梱リソースが読まれる場所にあるかを検査する。** Tauri は実行ファイルからの相対でリソースを探し、その相対が OS ごとに違う——Windows は同じ階層、Linux は `../lib/UoDia`（`productName`）、macOS は `.app/Contents/Resources` である。`tauri.conf.json` の `productName` を変えると、ここで落ちる。
-
-配布物はタグを打つと CI が 3 OS ぶん作り、ほかの成果物と同じ下書きに載せる。
-
-**目印は `portable` というファイルである。** 書庫に最初から入っており、消すとふつうのインストール版と同じ場所に書くようになる。
+タグを打つと CI が 3 OS ぶんの書庫を作り、**下書き**の release に載せる。公開は人の判断で行う。
 
 **アイコンの版元は `src-tauri/icons/source.svg`** である。描き直したら次の 2 つで作り直す。
 

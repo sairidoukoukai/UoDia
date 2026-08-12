@@ -10,14 +10,14 @@
 //! **書き戻す口は無い**（T-92、#235）。路線は `.uodia` の中にあり、ここにある
 //! のは**新しい文書を始めるための種**だけである。
 //!
-//! ## ポータブル版（T-93、仕様書（ポータブル版））
+//! ## 書く先は展開した根の下だけである（T-95、仕様書（ポータブル版））
 //!
-//! **実行ファイルの隣に `portable` があれば、書く先を隣の `data/` に移す。**
-//! 定義は 1 つだけである——**自分の置かれたディレクトリの外に、何も書かない。**
+//! **配るのはポータブル版だけになった**（#245）。設定ディレクトリへ書く道は
+//! 無い——**自分の置かれたディレクトリの外に、何も書かない。**
 //!
-//! 目印で決めるのは、**ポータブルかどうかがバイナリの性質ではなく置かれ方の
-//! 性質**だからである。ビルドで分けると、インストーラー版のバイナリを USB に
-//! 置いてもポータブルにならず、同じものが 2 つ並ぶ。
+//! 目印（`portable`）は T-93 で入れたが、**T-95 で外した。** あれは 2 つの版を
+//! 見分けるためのものであり、**見分ける相手が居なくなれば、置いておく理由が
+//! 無い。**
 
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager};
@@ -33,93 +33,75 @@ const RECENT_FILE: &str = "recent.json";
 /// 設定（T-39）。プロジェクトとは別に置く。
 const SETTINGS_FILE: &str = "settings.json";
 
-/// ポータブル版の目印。**中身は見ない。あるかどうかだけを見る。**
-const PORTABLE_MARKER: &str = "portable";
-/// ポータブル版が書く先。実行ファイルの隣を散らかさないよう 1 段掘る。
-const PORTABLE_DATA_DIR: &str = "data";
+/// 読み書きの置き場所。展開した根の下に 1 段掘る。
+const DATA_DIR: &str = "data";
 
-/// アプリの設定ディレクトリ。
-fn config_dir(app: &AppHandle) -> Result<PathBuf, String> {
-    app.path()
-        .app_config_dir()
-        .map_err(|e| format!("設定ディレクトリを特定できません: {e}"))
-}
-
-/// 目印を探しに登る段数。
+/// 実行ファイルから、展開した根を割り出す。
 ///
-/// **実行ファイルは展開した根の直下にあるとは限らない。**
+/// **実行ファイルは根の直下にあるとは限らない**（仕様書（ポータブル版）§3.1）。
+/// 同梱リソースの探し方が OS ごとに違うためであり、こちらの都合ではない。
 ///
-/// | OS | 実行ファイルの位置 | 根までの段 |
+/// | 版面 | 実行ファイル | 根 |
 /// | --- | --- | --- |
-/// | Windows | `UoDia/UoDia.exe` | 0 |
-/// | Linux | `UoDia/bin/uodia` | 1 |
-/// | macOS | `UoDia.app/Contents/MacOS/UoDia` | 3 |
+/// | Windows | `UoDia/UoDia.exe` | `UoDia/` |
+/// | Linux | `UoDia/bin/uodia` | `UoDia/` |
+/// | macOS | `UoDia.app/Contents/MacOS/UoDia` | `.app` の隣 |
 ///
-/// **入れ子になるのはリソースの都合である**（仕様書（ポータブル版）§3）。Tauri は
-/// 同梱リソースを OS ごとに違う場所から読む——Linux は `exe_dir/../lib/<名前>`、
-/// macOS は `.app/Contents/Resources` である。実行ファイルを根の直下に置くと、
-/// **`route.json` を見つけられない。**
-const MARKER_SEARCH_DEPTH: usize = 3;
-
-/// 目印がある祖先を探す。**展開した根を指す。**
+/// **段数ではなく構造で見る。** 「macOS は 3 段上」と決め打つと、開発中の
+/// ビルド（`target/debug/uodia`）で**リポジトリの外に書く**。`.app` の中か
+/// `bin/` の中かを見れば、当てはまらない置かれ方では実行ファイルの隣に落ちる。
 ///
-/// **OS で分岐しない。** 分けると、その OS の上でしか通らない道ができる——
-/// ここは 3 つの版面すべてを 1 つの規則で扱う。
-fn portable_base_from(exe: &Path) -> Option<PathBuf> {
-    let mut dir = exe.parent()?;
+/// **OS で分岐しない。** 分けると、その OS の上でしか通らない道ができる。
+fn root_from(exe: &Path) -> Option<PathBuf> {
+    let dir = exe.parent()?;
 
-    for _ in 0..=MARKER_SEARCH_DEPTH {
-        if dir.join(PORTABLE_MARKER).exists() {
-            return Some(dir.to_path_buf());
-        }
-        dir = dir.parent()?;
+    // `Foo.app/Contents/MacOS/Foo` → `.app` の隣。**バンドルの中には書かない**
+    // ——書くと署名が壊れる（同 §3.3）。
+    if dir.ends_with("Contents/MacOS") {
+        return dir.parent()?.parent()?.parent().map(Path::to_path_buf);
     }
 
-    None
-}
+    // `UoDia/bin/uodia` → `UoDia/`。リソースを `../lib/<productName>` から
+    // 読むため、実行ファイルを根の直下には置けない。
+    if dir.file_name() == Some(std::ffi::OsStr::new("bin")) {
+        return dir.parent().map(Path::to_path_buf);
+    }
 
-/// 目印がある基準から、書く先を作る。
-fn portable_data_dir_of(base: &Path) -> PathBuf {
-    base.join(PORTABLE_DATA_DIR)
-}
-
-/// いまの実行ファイルから見たポータブル版の置き場所。
-fn portable_data_dir() -> Option<PathBuf> {
-    let exe = std::env::current_exe().ok()?;
-    Some(portable_data_dir_of(&portable_base_from(&exe)?))
+    Some(dir.to_path_buf())
 }
 
 /// 読み書きの置き場所。
 ///
-/// **ポータブル版では設定ディレクトリへ倒さない**（同 §4.2）。目印を置いた人は
-/// そこに書かせたいのであり、黙って倒すと**持ち歩いたつもりのものが端末に残る**
-/// ——ポータブル版として最も避けたい壊れ方である。
-fn data_dir(app: &AppHandle) -> Result<PathBuf, String> {
-    let Some(dir) = portable_data_dir() else {
-        return config_dir(app);
-    };
+/// **設定ディレクトリへ倒さない**（同 §4）。倒す先が無い——配るのはポータブル版
+/// だけであり、**持ち歩いたつもりのものが端末に残る**道を残さない。
+///
+/// 読み取り専用の媒体に置かれることはある。**そのときは失敗として伝える。**
+fn data_dir() -> Result<PathBuf, String> {
+    let exe = std::env::current_exe().map_err(|e| format!("実行ファイルを特定できません: {e}"))?;
+    let dir = root_from(&exe)
+        .ok_or_else(|| format!("置き場所を特定できません: {}", exe.display()))?
+        .join(DATA_DIR);
 
-    // 読み取り専用の媒体に置かれることはある。**そのときは失敗として伝える。**
     std::fs::create_dir_all(&dir)
         .map(|()| dir.clone())
-        .map_err(|e| format!("ポータブル版の置き場所を作れません: {}: {e}", dir.display()))
+        .map_err(|e| format!("置き場所を作れません: {}: {e}", dir.display()))
 }
 
 /// 読み書きの置き場所にある `route.json`。**読むためだけに使う**（T-92 で書き戻しを畳んだ）。
-fn route_path(app: &AppHandle) -> Result<PathBuf, String> {
-    Ok(data_dir(app)?.join(ROUTE_FILE))
+fn route_path() -> Result<PathBuf, String> {
+    Ok(data_dir()?.join(ROUTE_FILE))
 }
 
-pub fn backup_path(app: &AppHandle) -> Result<PathBuf, String> {
-    Ok(data_dir(app)?.join(BACKUP_FILE))
+pub fn backup_path() -> Result<PathBuf, String> {
+    Ok(data_dir()?.join(BACKUP_FILE))
 }
 
-pub fn recent_path(app: &AppHandle) -> Result<PathBuf, String> {
-    Ok(data_dir(app)?.join(RECENT_FILE))
+pub fn recent_path() -> Result<PathBuf, String> {
+    Ok(data_dir()?.join(RECENT_FILE))
 }
 
-pub fn settings_path(app: &AppHandle) -> Result<PathBuf, String> {
-    Ok(data_dir(app)?.join(SETTINGS_FILE))
+pub fn settings_path() -> Result<PathBuf, String> {
+    Ok(data_dir()?.join(SETTINGS_FILE))
 }
 
 /// 同梱リソースの `route.json`。
@@ -131,7 +113,7 @@ fn bundled_route_path(app: &AppHandle) -> Result<PathBuf, String> {
 
 /// 設定ディレクトリに `route.json` が無ければ、同梱リソースから複製する。
 pub fn ensure_route_file(app: &AppHandle) -> Result<PathBuf, String> {
-    seed_if_absent(&route_path(app)?, &bundled_route_path(app)?)
+    seed_if_absent(&route_path()?, &bundled_route_path(app)?)
 }
 
 /// `target` が無ければ `source` から複製する。
@@ -192,78 +174,42 @@ mod tests {
         assert_eq!(fs::read_to_string(&target).unwrap(), "利用者が直した内容");
     }
 
-    /// 目印を置いた根の下に、実行ファイルを深さ `depth` で作る。
-    fn portable_layout(name: &str, depth: usize) -> (PathBuf, PathBuf) {
-        let root = scratch_dir(name);
-        fs::write(root.join(PORTABLE_MARKER), "").unwrap();
-
-        let mut dir = root.clone();
-        for i in 0..depth {
-            dir = dir.join(format!("d{i}"));
-        }
-        fs::create_dir_all(&dir).unwrap();
-
-        (root, dir.join("UoDia"))
+    #[test]
+    fn windows_は実行ファイルの階層が根() {
+        let exe = PathBuf::from("/media/usb/UoDia/UoDia.exe");
+        assert_eq!(root_from(&exe), Some(PathBuf::from("/media/usb/UoDia")));
     }
 
     #[test]
-    fn 目印が無ければポータブルではない() {
-        let dir = scratch_dir("plain");
-        assert_eq!(portable_base_from(&dir.join("UoDia")), None);
+    fn linux_は_bin_の外が根() {
+        // リソースを `../lib/UoDia` から読むため、実行ファイルは `bin/` に入る。
+        let exe = PathBuf::from("/media/usb/UoDia/bin/uodia");
+        assert_eq!(root_from(&exe), Some(PathBuf::from("/media/usb/UoDia")));
     }
 
     #[test]
-    fn 実行ファイルの隣にあれば効く() {
-        // Windows の版面。`UoDia/UoDia.exe`
-        let (root, exe) = portable_layout("win", 0);
-        assert_eq!(portable_base_from(&exe), Some(root));
+    fn macos_は_app_の隣が根() {
+        // バンドルの中に書くと署名が壊れる（仕様書（ポータブル版）§3.3）。
+        let exe = PathBuf::from("/Volumes/USB/UoDia.app/Contents/MacOS/UoDia");
+        assert_eq!(root_from(&exe), Some(PathBuf::from("/Volumes/USB")));
     }
 
     #[test]
-    fn bin_の中にあっても根を見つける() {
-        // Linux の版面。`UoDia/bin/uodia`——リソースが `../lib/uodia` にあるため
-        // 実行ファイルは根の直下に置けない。
-        let (root, exe) = portable_layout("linux", 1);
-        assert_eq!(portable_base_from(&exe), Some(root));
+    fn 開発中のビルドは実行ファイルの隣に落ちる() {
+        // **段数で決め打つと、ここでリポジトリの外に書く。** 構造で見れば、
+        // 当てはまらない置かれ方では隣に落ちる。
+        let exe = PathBuf::from("/home/me/UoDia/src-tauri/target/debug/uodia");
+        assert_eq!(
+            root_from(&exe),
+            Some(PathBuf::from("/home/me/UoDia/src-tauri/target/debug"))
+        );
     }
 
     #[test]
-    fn app_バンドルの中にあっても根を見つける() {
-        // macOS の版面。`UoDia.app/Contents/MacOS/UoDia`。**バンドルの中には
-        // 書かない**——署名が壊れる（仕様書（ポータブル版）§3.1）。
-        let (root, exe) = portable_layout("macos", 3);
-        assert_eq!(portable_base_from(&exe), Some(root));
-    }
-
-    #[test]
-    fn 深すぎるところは見に行かない() {
-        // 3 段で足りる。無闇に登ると、無関係な `portable` を拾う。
-        let (_root, exe) = portable_layout("deep", 4);
-        assert_eq!(portable_base_from(&exe), None);
-    }
-
-    #[test]
-    fn 目印の中身は見ない() {
-        let root = scratch_dir("marker-content");
-        fs::write(root.join(PORTABLE_MARKER), "なんでもよい").unwrap();
-
-        assert_eq!(portable_base_from(&root.join("UoDia")), Some(root));
-    }
-
-    #[test]
-    fn 目印がディレクトリでも効く() {
-        // 展開の仕方によってはフォルダとして作られうる。**あるかどうかだけを
-        // 見る**と決めた以上、ここで弾かない。
-        let root = scratch_dir("marker-dir");
-        fs::create_dir(root.join(PORTABLE_MARKER)).unwrap();
-
-        assert_eq!(portable_base_from(&root.join("UoDia")), Some(root));
-    }
-
-    #[test]
-    fn 書く先は根の下の_data_である() {
-        let dir = PathBuf::from("/media/usb/UoDia");
-        assert_eq!(portable_data_dir_of(&dir), dir.join("data"));
+    fn bin_という名前だけを見る() {
+        // `sbin` や `binaries` は `bin` ではない。
+        let exe = PathBuf::from("/opt/UoDia/sbin/uodia");
+        assert_eq!(root_from(&exe), Some(PathBuf::from("/opt/UoDia/sbin")));
     }
 
     #[test]
