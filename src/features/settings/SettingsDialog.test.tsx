@@ -221,17 +221,20 @@ describe('区間所要時間タブ（§6.5.1）', () => {
   });
 });
 
-describe('書き戻せない環境（§6.5.5）', () => {
-  it('**制約を画面に出し、書き出しを提げる**', () => {
-    mount(false);
-
-    expect(text()).toContain('書き戻せません');
-    expect(button('route.json を書き出す')).toBeDefined();
+describe('書き戻す先が無い（T-92、#235）', () => {
+  it('**`route.json` の押しボタンが出ない**', () => {
+    mount();
+    // 環境で分かれていた 2 つの文言が、どちらも消えている。
+    expect(text()).not.toContain('route.json に書き戻す');
+    expect(text()).not.toContain('route.json を書き出す');
+    expect(text()).not.toContain('書き戻せません');
   });
 
-  it('書き戻せる環境では書き戻すと言う', () => {
-    mount(true);
-    expect(button('route.json に書き戻す')).toBeDefined();
+  it('**変更が文書に入ることを伝える**', () => {
+    mount();
+    expect(text()).toContain('編集中の文書に入ります');
+    // 画面に出す文には印付けを混ぜない（そのまま字として出る）。
+    expect(text()).not.toContain('**');
   });
 });
 

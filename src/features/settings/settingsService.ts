@@ -15,9 +15,7 @@
  * 「書き戻し前に検証を行い、違反があれば保存を拒否する」はこの順序である。
  */
 
-import { serializeNetworkDef } from '@/domain/io';
 import { segmentKey } from '@/domain/network';
-import type { PlatformAdapter } from '@/platform';
 import type { StopPattern } from '@/domain/model';
 import type { AppStore } from '@/store';
 import { changedPatternIds } from './patterns';
@@ -115,29 +113,4 @@ export function applyPatterns(store: SettingsStore, patterns: readonly StopPatte
   }
 
   return { ok: true, message: '停車パターンを変えました' };
-}
-
-/**
- * `route.json` へ書き戻す（§6.5.1）。書き戻せない環境では書き出す（§6.5.5）。
- *
- * @returns 画面に出す言葉。取り消されたときは `null`
- */
-export async function saveNetworkDef(
-  store: SettingsStore,
-  platform: PlatformAdapter,
-): Promise<string | null> {
-  const def = store.getState().project?.network ?? null;
-  if (def === null) return '路線図を読み込んでいません';
-
-  const content = serializeNetworkDef(def);
-
-  if (platform.capabilities.networkDefWritable) {
-    await platform.saveNetworkDef(content);
-    return 'route.json に書き戻しました';
-  }
-
-  // 書き戻せない環境では、内容と名前を渡してファイルに出す（§6.5.5）。同じ
-  // 出口を使うのは、**保存の仕方を環境ごとに書き分けない**ためである。
-  const handle = await platform.saveProjectAs(content, 'route.json');
-  return handle === null ? null : 'route.json を書き出しました。差し替えてください';
 }

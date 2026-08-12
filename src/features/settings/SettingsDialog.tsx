@@ -56,7 +56,7 @@ import {
 } from './segments';
 import { PatternsTab } from './PatternsTab';
 import { METERS_PER_KM } from '@/domain/trip';
-import { applySegmentEdits, saveNetworkDef } from './settingsService';
+import { applySegmentEdits } from './settingsService';
 
 /** タブ。 */
 type TabId = 'segments' | 'behavior' | 'display' | 'patterns';
@@ -223,22 +223,6 @@ function SegmentsTab(props: SegmentsTabProps): ReactElement {
     }
   };
 
-  const save = (): void => {
-    void saveNetworkDef(useAppStore, props.platform).then(
-      (said) => {
-        if (said !== null) {
-          setMessage(said);
-          props.onNotice?.(said);
-        }
-      },
-      (error: unknown) => {
-        setMessage(`書き戻せません: ${String(error)}`);
-      },
-    );
-  };
-
-  const writable = props.platform.capabilities.networkDefWritable;
-
   return (
     <section className="settings__panel">
       <table className="settings__segments">
@@ -385,17 +369,16 @@ function SegmentsTab(props: SegmentsTabProps): ReactElement {
         <button type="button" disabled={texts.size + kmTexts.size === 0} onClick={reset}>
           入力を元に戻す
         </button>
-        <button type="button" onClick={save}>
-          {writable ? 'route.json に書き戻す' : 'route.json を書き出す'}
-        </button>
       </div>
 
-      {!writable && (
-        <p className="settings__note">
-          この環境では route.json を書き戻せません（仕様書 §6.5.5）。変更はこのブラウザの中だけで
-          有効です。書き出したファイルで route.json を差し替えるまで、ほかの環境には反映されません。
-        </p>
-      )}
+      {/*
+        **書き戻す先が無くなった**（T-92、#235）。路線は文書の中にあり、
+        「適用」で文書が変わる。あとは文書を保存すればよい——`route.json` へ
+        書き戻す押しボタンは、**保存の道を 2 つに見せていた。**
+      */}
+      <p className="settings__note">
+        変更は編集中の文書に入ります。ほかの文書には及びません。取り消し（Ctrl+Z）で戻せます。
+      </p>
 
       {message !== null && <p className="settings__message">{message}</p>}
     </section>
