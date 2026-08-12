@@ -164,7 +164,9 @@ jobs:
           - os: windows-latest
             label: Windows
             portable: windows
-            binary: src-tauri/target/release/UoDia.exe
+            # cargo が作るのは**クレート名**（`uodia.exe`）である。書庫へ入れる
+            # ときに `UoDia.exe` へ改める（`package-portable.mjs`）。
+            binary: src-tauri/target/release/uodia.exe
           - os: macos-latest
             label: macOS
             portable: macos
@@ -276,7 +278,9 @@ jobs:
             label: Windows
             portable: windows
             arch: x64
-            binary: src-tauri/target/release/UoDia.exe
+            # cargo が作るのは**クレート名**（`uodia.exe`）である。書庫へ入れる
+            # ときに `UoDia.exe` へ改める（`package-portable.mjs`）。
+            binary: src-tauri/target/release/uodia.exe
           - os: macos-latest
             label: macOS
             portable: macos
