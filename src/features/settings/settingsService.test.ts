@@ -50,7 +50,7 @@ const runMinutes = (): number | undefined =>
 
 beforeEach(() => {
   store = createAppStore();
-  store.getState().setNetworkDef(network.def);
+  store.getState().setSeedNetworkDef(network.def);
   store.getState().setProject(createProject(network, { now: new Date('2026-01-01T00:00:00Z') }));
 });
 

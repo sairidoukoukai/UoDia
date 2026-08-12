@@ -58,6 +58,7 @@ export {
   selectIsDirty,
   selectNetwork,
   selectRedoLabel,
+  selectSeedNetwork,
   selectSelectedTripIds,
   selectSelectedTrips,
   selectServices,

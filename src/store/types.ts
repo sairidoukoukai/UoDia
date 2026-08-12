@@ -23,6 +23,13 @@
  * だけを差し替えると**閉じ込めた古い値を返し続ける索引**ができあがる。
  * 状態が持つのは素のデータだけとし、索引はセレクタで組み立てる
  * （`selectNetwork`）。
+ *
+ * ## 路線は文書の中にある（T-89 で変更）
+ *
+ * 最上位に `networkDef` を持っていたが、`project.network` へ移した（#235）。
+ * **状態の項目が 1 つ減り、履歴と未保存の判定が 1 つになる**——`editNetwork` と
+ * `editProject` は元から同じ履歴に積まれていたのに、未保存の判定は `project`
+ * しか見ておらず、**区間を変えても未保存にならなかった。**
  */
 
 import type { DiagramView, GridStyle, NetworkDef, Project, Trip } from '@/domain/model';
@@ -120,13 +127,11 @@ export interface UiState {
  */
 export interface DocumentState {
   /**
-   * ネットワーク定義。読込前は `null`。
+   * 編集対象。開いていなければ `null`。**路線もこの中にある**（T-89）。
    *
    * 読込は非同期であり、その間も画面は立ち上がっている。`null` を許さない形に
    * すると、読込が終わるまでストアを作れず、状態の置き場所が二重になる。
    */
-  readonly networkDef: NetworkDef | null;
-  /** 編集対象。開いていなければ `null`。 */
   readonly project: Project | null;
 }
 
@@ -201,6 +206,19 @@ export interface AppSettings {
 }
 
 export interface AppState extends DocumentState {
+  /**
+   * **新しい文書を始めるための路線**（T-89）。同梱の `route.json`（デスクトップ
+   * 版では設定ディレクトリの写し）を読んだもの。読込前は `null`。
+   *
+   * **開いている文書の路線ではない。** そちらは `project.network` にあり、
+   * `selectNetwork` が返す。ここにあるのは「まだ何も開いていないときに何から
+   * 始めるか」と、**版数 4 以下のファイルを引き上げるときに埋める路線**だけで
+   * ある。
+   *
+   * **文書ではないため履歴に載らない。** 取り消しの対象にも、未保存の判定にも
+   * 入らない。
+   */
+  readonly seedNetworkDef: NetworkDef | null;
   readonly ui: UiState;
   readonly history: History;
   readonly file: FileState;
@@ -209,8 +227,8 @@ export interface AppState extends DocumentState {
 
 /** 状態が持つ項目。派生値を足していないことをテストで固定するために使う。 */
 export const APP_STATE_KEYS = [
-  'networkDef',
   'project',
+  'seedNetworkDef',
   'ui',
   'history',
   'file',

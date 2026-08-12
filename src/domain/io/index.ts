@@ -11,7 +11,13 @@ export {
   type ProjectWarningId,
 } from './load';
 
-export { migrateProjectData, MIGRATIONS, type Migration, type MigrateResult } from './migrate';
+export {
+  migrateProjectData,
+  migrationsFor,
+  MIGRATIONS_BEFORE_NETWORK,
+  type Migration,
+  type MigrateResult,
+} from './migrate';
 
 export {
   ZIP32_LIMIT,

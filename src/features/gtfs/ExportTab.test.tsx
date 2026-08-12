@@ -30,7 +30,7 @@ let root: Root;
 
 /** 便を 1 つ持ち、運行日も入った状態にする。 */
 function boot(options: { readonly calendar?: boolean } = {}): void {
-  useAppStore.getState().setNetworkDef(network.def);
+  useAppStore.getState().setSeedNetworkDef(network.def);
   useAppStore
     .getState()
     .setProject(createProject(network, { now: new Date('2026-08-09T00:00:00Z') }));
@@ -57,6 +57,21 @@ function render(props: Parameters<typeof ExportTab>[0]): void {
   act(() => {
     root.render(<ExportTab {...props} />);
   });
+}
+
+/**
+ * 開いている文書から事業者を落とす（T-89）。
+ *
+ * **`editNetwork` は通らない**——R-14 が事業者を求めており、検証で弾かれる。
+ * ここで見たいのは「欠けていたら何と出るか」であって、欠けさせられるかでは
+ * ない。文書を直に差し替える。
+ */
+function dropAgency(): void {
+  const project = useAppStore.getState().project;
+  if (project === null) throw new Error('文書がありません');
+  useAppStore
+    .getState()
+    .setProject({ ...project, network: { ...project.network, agency: undefined } });
 }
 
 /** 文字で押しボタンを引く。 */
@@ -119,7 +134,7 @@ describe('揃っていないとき（受入条件）', () => {
 
   it('**route.json を直すものには「直す」を出さない**（移る先が無い。T-85）', () => {
     boot({ calendar: false });
-    useAppStore.getState().setNetworkDef({ ...network.def, agency: undefined });
+    dropAgency();
     render({ onGoTo: () => undefined });
 
     // 事業者の必須 2 項目が欠けても、押せるのはカレンダーの 1 つだけである。
@@ -130,7 +145,7 @@ describe('揃っていないとき（受入条件）', () => {
 
   it('**それでも直す先は書く**（route.json だと分かる。T-85 受入条件）', () => {
     boot();
-    useAppStore.getState().setNetworkDef({ ...network.def, agency: undefined });
+    dropAgency();
     render({ onGoTo: () => undefined });
 
     expect(container.textContent).toContain('事業者の「事業者名」が空です（route.json');

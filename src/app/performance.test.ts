@@ -74,6 +74,7 @@ function makeTrips(count = TRIP_COUNT): readonly Trip[] {
 function makeProject(): Project {
   const now = new Date('2026-08-02T00:00:00Z').toISOString();
   return {
+    network: network.def,
     meta: {
       format: 'uodia',
       formatVersion: 3,
@@ -135,7 +136,7 @@ function record(name: string, elapsed: number, target: number): void {
 
 function storeWith(project: Project): AppStoreHook {
   const store = createAppStore();
-  store.getState().setNetworkDef(network.def);
+  store.getState().setSeedNetworkDef(network.def);
   store.getState().setProject(project);
   return store;
 }

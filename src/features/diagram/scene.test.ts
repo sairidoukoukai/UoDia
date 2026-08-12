@@ -73,7 +73,7 @@ function tripIds(): readonly string[] {
 
 beforeEach(() => {
   store = createAppStore();
-  store.getState().setNetworkDef(network.def);
+  store.getState().setSeedNetworkDef(network.def);
   store.getState().setProject(createProject(network, { now: new Date('2026-01-01T00:00:00Z') }));
 });
 
@@ -142,7 +142,9 @@ describe('停留所の線種', () => {
     store.getState().setSettings({ stopGridStyles: { '1_0': 'dashed' } });
 
     expect(network.def.stops.find((stop) => stop.stopId === '1_0')?.gridStyle).toBe('bold');
-    expect(state().networkDef?.stops.find((stop) => stop.stopId === '1_0')?.gridStyle).toBe('bold');
+    expect(state().project?.network.stops.find((stop) => stop.stopId === '1_0')?.gridStyle).toBe(
+      'bold',
+    );
   });
 
   it('**知らない停留所 ID が残っていても落ちない**（route.json の改訂で消えうる）', () => {
@@ -213,7 +215,7 @@ describe('スジの色と線種', () => {
     store.getState().setSettings({ patternStyles: { S1: { color: '#123456' } } });
 
     expect(network.findPattern('S1')?.color).not.toBe('#123456');
-    expect(state().networkDef?.patterns.find((p) => p.patternId === 'S1')?.color).not.toBe(
+    expect(state().project?.network.patterns.find((p) => p.patternId === 'S1')?.color).not.toBe(
       '#123456',
     );
   });

@@ -6,7 +6,7 @@
  * 受け取るのは `unknown` であり、自分が扱う版の形を自分で確かめる責任を持つ。
  */
 
-import { CURRENT_FORMAT_VERSION } from '@/domain/model';
+import { CURRENT_FORMAT_VERSION, type NetworkDef } from '@/domain/model';
 
 /** 1 つ前の版から次の版への変換。 */
 export interface Migration {
@@ -124,15 +124,53 @@ function bumpToVersion4(data: unknown): unknown {
 }
 
 /**
- * 版数の昇順に並んだ変換の一覧。
+ * 版数 4 → 5: 運行経路の定義を中に入れる（#235、T-89）。
  *
- * 形式を変えるときは、ここに `{ from: n, to: n + 1, migrate }` を追加する。
+ * **埋めるのは「その環境がいま読んでいる `route.json`」である。** 同梱のもので
+ * 埋めてはならない——利用者が隠し設定で所要時間を直していれば（T-36）、その
+ * 文書はその値で描かれていた。**同梱のもので埋めると、作られた当時と違う路線が
+ * 入り込む。**
+ *
+ * この変換だけが引数を要る。変換関数は `unknown` しか受け取らない形で揃えて
+ * あるため、**外から路線を束ねて作る**（{@link migrationsFor}）。
  */
-export const MIGRATIONS: readonly Migration[] = [
+function embedNetwork(network: NetworkDef): (data: unknown) => unknown {
+  return (data: unknown): unknown => {
+    const root = asRecord(data);
+    if (root === null) return data;
+    return {
+      ...root,
+      // **既にあれば触らない。** 手で `network` を入れたファイルを、版数だけ
+      // 古いまま渡されることはある。上書きすると、その人が入れたものが消える。
+      network: root.network ?? network,
+      meta: { ...asRecord(root.meta), formatVersion: 5 },
+    };
+  };
+}
+
+/**
+ * 版数 4 以下の変換。**路線を要らない部分だけ**をここに置く。
+ *
+ * 単体で使わない（{@link migrationsFor} を通す）。**export するのは、版数 4 まで
+ * の道が今までどおり残っていることをテストで確かめられるようにするため**である。
+ */
+export const MIGRATIONS_BEFORE_NETWORK: readonly Migration[] = [
   { from: 1, to: 2, migrate: dropTripShortName },
   { from: 2, to: 3, migrate: bumpToVersion3 },
   { from: 3, to: 4, migrate: bumpToVersion4 },
 ];
+
+/**
+ * 版数の昇順に並んだ変換の一覧を作る。
+ *
+ * 形式を変えるときは、ここに `{ from: n, to: n + 1, migrate }` を追加する。
+ *
+ * @param network 版数 4 以下を引き上げるときに埋める路線。**その環境が読んで
+ *   いるもの**を渡す
+ */
+export function migrationsFor(network: NetworkDef): readonly Migration[] {
+  return [...MIGRATIONS_BEFORE_NETWORK, { from: 4, to: 5, migrate: embedNetwork(network) }];
+}
 
 export type MigrateResult =
   | { readonly ok: true; readonly data: unknown; readonly applied: readonly number[] }
@@ -148,12 +186,14 @@ export type MigrateResult =
  *
  * @param data JSON として解釈しただけの値
  * @param formatVersion ファイルが名乗っている版数
+ * @param migrations 適用する変換。**既定を持たない**——版数 5 への変換は路線を
+ *   要るため（{@link migrationsFor}）、ここで既定を決めると路線の出どころが隠れる
  * @param target 引き上げ先の版数
  */
 export function migrateProjectData(
   data: unknown,
   formatVersion: number,
-  migrations: readonly Migration[] = MIGRATIONS,
+  migrations: readonly Migration[],
   target: number = CURRENT_FORMAT_VERSION,
 ): MigrateResult {
   if (formatVersion > target) {

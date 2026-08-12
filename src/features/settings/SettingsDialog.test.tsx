@@ -56,7 +56,7 @@ function mount(writable = true): void {
   // **毎回同じところから始める。** ストアは 1 つしかなく、前の検証で変えた設定が
   // 残ると、順番によって結果が変わる。
   useAppStore.getState().setSettings({ theme: 'system', stopGridStyles: {}, patternStyles: {} });
-  useAppStore.getState().setNetworkDef(network.def);
+  useAppStore.getState().setSeedNetworkDef(network.def);
   useAppStore
     .getState()
     .setProject(createProject(network, { now: new Date('2026-01-01T00:00:00Z') }));
@@ -418,7 +418,8 @@ describe('区間距離（#161）', () => {
 
     expect(selectTrips(useAppStore.getState()).map((t) => t.anchor?.time)).toEqual(before);
     expect(
-      useAppStore.getState().networkDef?.segments.find((s) => s.toStopId === '2_0')?.distanceMeters,
+      useAppStore.getState().project?.network.segments.find((s) => s.toStopId === '2_0')
+        ?.distanceMeters,
     ).toBe(9900);
   });
 

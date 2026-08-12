@@ -49,7 +49,7 @@ export function applySegmentEdits(
   distances: DistanceEdits = NO_DISTANCES,
 ): ApplyResult {
   const state = store.getState();
-  if (state.networkDef === null) return { ok: false, message: '路線図を読み込んでいません' };
+  if (state.project === null) return { ok: false, message: '路線図を読み込んでいません' };
 
   /*
    * **所要時間と距離を 1 回の編集で当てる。**
@@ -90,12 +90,12 @@ export function applySegmentEdits(
  */
 export function applyPatterns(store: SettingsStore, patterns: readonly StopPattern[]): ApplyResult {
   const state = store.getState();
-  if (state.networkDef === null) return { ok: false, message: '路線図を読み込んでいません' };
+  if (state.project === null) return { ok: false, message: '路線図を読み込んでいません' };
 
   // **変わっていなければ触らない。** 配列を入れ替えると、中身が同じでも Immer は
   // 変更として記録し、履歴に空の 1 段が積まれる（区間表と違い、ここは配列ごと
   // 差し替えるため値ごとの比較が効かない）。
-  if (changedPatternIds(state.networkDef.patterns, patterns).length === 0) {
+  if (changedPatternIds(state.project.network.patterns, patterns).length === 0) {
     return { ok: true, message: '変わったパターンはありません' };
   }
 
@@ -126,7 +126,7 @@ export async function saveNetworkDef(
   store: SettingsStore,
   platform: PlatformAdapter,
 ): Promise<string | null> {
-  const def = store.getState().networkDef;
+  const def = store.getState().project?.network ?? null;
   if (def === null) return '路線図を読み込んでいません';
 
   const content = serializeNetworkDef(def);
