@@ -120,8 +120,10 @@
 html,
 body,
 #root {
+  width: 100%;
   height: 100%;
   margin: 0;
+  overflow: hidden;
 }
 
 body {
@@ -157,9 +159,15 @@ body {
   /* 伸びるのは本体だけである。**`auto` は無い行を潰す**ため、案内が出ていない
      ときに隙間は空かない。 */
   grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+  width: 100%;
   height: 100%;
-  /* 子（分割領域）が縮めるようにする。既定の auto では中身の高さが下限になる。 */
+  height: 100dvh;
+  /* 子（分割領域）が縮めるようにする。既定のautoでは中身の高さが下限になる。 */
+  min-width: 0;
   min-height: 0;
+  overflow: hidden;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
 }
 
 /* 対応していないブラウザへの案内（§10.4、T-42）。 */
@@ -198,6 +206,11 @@ body {
   position: relative;
 }
 
+.menubar__compact-trigger,
+.menubar__compact-panel {
+  display: none;
+}
+
 .menubar__title {
   padding: 0.25rem 0.7rem;
   border: none;
@@ -224,7 +237,9 @@ body {
   z-index: 20;
   top: 100%;
   left: 0;
+  width: max-content;
   min-width: 15rem;
+  max-width: min(32rem, calc(100vw - 1rem));
   padding: 0.25rem 0;
   border: 1px solid var(--color-border);
   border-radius: 4px;
@@ -251,7 +266,7 @@ body {
   color: inherit;
   font: inherit;
   text-align: left;
-  white-space: nowrap;
+  white-space: normal;
   cursor: pointer;
 }
 
@@ -274,6 +289,8 @@ body {
 
 .menubar__label {
   flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .menubar__item:disabled {
@@ -1002,12 +1019,173 @@ body {
 }
 
 .status-bar__message {
+  min-width: 0;
   overflow: hidden;
   color: var(--color-fg);
   text-overflow: ellipsis;
 }
 
-/* ファイル操作の問いかけ（T-17）。焦点と Esc は <dialog> に任せる。 */
+@media (max-width: 48rem) {
+  .notice {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 0.35rem 0.75rem;
+    max-height: min(35dvh, 12rem);
+    overflow-y: auto;
+    padding: 0.5rem;
+  }
+
+  .notice__text {
+    flex: 1 1 14rem;
+    min-width: 0;
+  }
+
+  .menubar {
+    position: relative;
+    min-width: 0;
+  }
+
+  .menubar__menu {
+    display: none;
+  }
+
+  .menubar__panel,
+  .menubar__item {
+    white-space: normal;
+  }
+
+  .menubar__compact-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    width: 100%;
+    min-height: 2.25rem;
+    padding: 0.35rem 0.75rem;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .menubar__compact-trigger[aria-expanded='true'] {
+    background: var(--color-same-block);
+  }
+
+  .menubar__compact-panel {
+    position: absolute;
+    z-index: 30;
+    top: 100%;
+    right: 0;
+    left: 0;
+    display: block;
+    max-height: calc(100vh - 3rem);
+    max-height: min(75dvh, calc(100dvh - 3rem));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 0.25rem 0 0.75rem;
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-bg);
+    box-shadow: 0 5px 12px rgb(0 0 0 / 20%);
+  }
+
+  .menubar__compact-group + .menubar__compact-group {
+    margin-top: 0.35rem;
+    padding-top: 0.35rem;
+    border-top: 1px solid var(--color-border);
+  }
+
+  .menubar__compact-heading {
+    padding: 0.2rem 0.9rem;
+    color: var(--color-fg-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .menubar__compact-panel .menubar__item {
+    min-height: 2.5rem;
+    padding-block: 0.45rem;
+    white-space: normal;
+  }
+
+  .menubar__compact-panel .menubar__key {
+    flex: 0 0 auto;
+  }
+
+  .panel {
+    flex-basis: min(15rem, 42vw);
+  }
+
+  .validation__bar {
+    gap: 0.25rem 0.45rem;
+  }
+
+  .validation__summary {
+    min-width: 0;
+  }
+
+  .validation__filters {
+    flex: 1 0 100%;
+    flex-wrap: wrap;
+    margin-left: 0;
+  }
+
+  .validation__list {
+    max-height: min(25dvh, 7rem);
+    overscroll-behavior: contain;
+  }
+
+  .validation__item {
+    min-width: 0;
+  }
+
+  .validation__message {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .status-bar {
+    gap: 0.5rem;
+    min-width: 0;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+
+  .status-bar__item--cursor {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    min-width: 0;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .status-bar__message {
+    flex: 1 1 auto;
+  }
+}
+
+@media (max-width: 24rem) {
+  .status-bar {
+    gap: 0.35rem;
+    font-size: 0.75rem;
+  }
+}
+
+@media (pointer: coarse) {
+  .menubar__compact-trigger,
+  .notice__close {
+    min-height: 2.75rem;
+  }
+}
+
+/* ファイル操作の問いかけ（T-17）。焦点とEscは<dialog>に任せる。 */
 .file-dialog {
   max-width: 32rem;
   padding: 1.25rem;
