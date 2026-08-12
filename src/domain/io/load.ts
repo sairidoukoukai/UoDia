@@ -28,7 +28,7 @@ import {
   type Trip,
 } from '@/domain/model';
 import { buildNetworkIndex, type NetworkIndex } from '@/domain/network';
-import { originStopId, originTime, terminalStopId, terminalTime } from '@/domain/trip';
+import { depotIds, originStopId, originTime, terminalStopId, terminalTime } from '@/domain/trip';
 import { parseJson } from '@/domain/util';
 import { migrateProjectData, migrationsFor, type Migration } from './migrate';
 
@@ -269,10 +269,21 @@ interface RepairContext {
 }
 
 /**
- * 保存されている回送便を営業便の `pullOut` / `pullIn` へ畳む（仕様書 §7.3、T-51）。
+ * 出入庫の回送便を営業便の `pullOut` / `pullIn` へ畳む（仕様書 §7.3、T-51）。
  *
- * 版数 2 以前のファイルには回送便が便として入っている。版数 3 では回送便を
- * 保存しないため、接している営業便の真偽値に移し替えて取り除く。
+ * 版数 2 以前のファイルには出入庫が便として入っている。版数 3 以降は真偽値で
+ * 持つため、接している営業便に移し替えて取り除く。
+ *
+ * ## 畳むのは営業所に接する回送だけである（T-98、#247）
+ *
+ * かつては `isDeadhead` の便を**すべて**畳んでいた。**当時は回送＝出入庫しか
+ * 無かった**ため、それで正しかった。
+ *
+ * 停留所間の回送（`箕面 → 豊中` など）が入ったことで、**この手順が移行と関係の
+ * 無い便を消すようになった**——畳めないものとして W-06 を出し、取り除いていた。
+ *
+ * > **開くたびに走る手順が、開くたびに便を消していた。** 気づけたのは、回送の
+ * > 種類が増えたからである。
  *
  * 接点は**停留所と時刻の一致**で見る。0 分折返しの制約により、繋がっている回送は
  * 必ず営業便の始発・終着とぴたり一致する（§6.1.7）。運用番号が違えば繋がって
@@ -300,14 +311,26 @@ function foldServiceDeadheads(
   warnings: ProjectWarning[],
   path: string,
 ): Service {
-  const isDeadhead = (trip: Trip): boolean =>
-    network.patternIndex(trip.patternId)?.pattern.isDeadhead === true;
+  const depots = depotIds(network);
 
-  const deadheads = service.trips.filter(isDeadhead);
-  // 回送便が 1 つも無ければ写しを作らない。版数 3 のファイルはここを素通りする。
+  /**
+   * 営業所に接する回送か（T-98、#247）。
+   *
+   * **畳むのはこれだけである。** 停留所間の回送（`箕面 → 豊中` など）は便として
+   * 保存されるものであり、**畳む先が無い**——2 便の間にあり、どちらか一方から
+   * は決まらない（実装計画書 v2.3 §3.1）。
+   */
+  const foldable = (trip: Trip): boolean => {
+    const pattern = network.patternIndex(trip.patternId);
+    if (pattern?.pattern.isDeadhead !== true) return false;
+    return depots.has(pattern.originStopId) || depots.has(pattern.terminalStopId);
+  };
+
+  const deadheads = service.trips.filter(foldable);
+  // 畳む回送が 1 つも無ければ写しを作らない。版数 3 のファイルはここを素通りする。
   if (deadheads.length === 0) return service;
 
-  const kept = service.trips.filter((trip) => !isDeadhead(trip)).map((trip) => ({ ...trip }));
+  const kept = service.trips.filter((trip) => !foldable(trip)).map((trip) => ({ ...trip }));
 
   for (const [index, deadhead] of deadheads.entries()) {
     if (!fold(deadhead, kept, network)) {
