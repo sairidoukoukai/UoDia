@@ -34,7 +34,7 @@ function newProject(): Project {
 }
 
 function mount(project: Project = newProject()): void {
-  useAppStore.getState().setNetworkDef(network.def);
+  useAppStore.getState().setSeedNetworkDef(network.def);
   useAppStore.getState().setProject(project);
 
   root = createRoot(container);

@@ -33,7 +33,7 @@ export interface ExportTabProps {
 }
 
 export function ExportTab(props: ExportTabProps): ReactElement {
-  const networkDef = useAppStore((state) => state.networkDef);
+  const networkDef = useAppStore((state) => state.project?.network ?? null);
   const service = useAppStore(selectActiveService);
   const [busy, setBusy] = useState(false);
 
