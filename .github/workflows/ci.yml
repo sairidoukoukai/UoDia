@@ -249,10 +249,19 @@ jobs:
         include:
           - os: ubuntu-22.04
             label: Linux
+            portable: linux
+            arch: x64
+            binary: src-tauri/target/release/uodia
           - os: windows-latest
             label: Windows
+            portable: windows
+            arch: x64
+            binary: src-tauri/target/release/UoDia.exe
           - os: macos-latest
             label: macOS
+            portable: macos
+            arch: aarch64
+            binary: src-tauri/target/release/bundle/macos/UoDia.app
     steps:
       - uses: actions/checkout@v4
 
@@ -296,3 +305,40 @@ jobs:
           releaseName: UoDia ${{ github.ref_name }}
           releaseDraft: true
           prerelease: false
+
+      # -----------------------------------------------------------------------
+      # ポータブル版（T-94、仕様書（ポータブル版））。
+      #
+      # **インストーラーを通さずに配れる形。** 展開したフォルダの外に何も書かない
+      # ——目印（`portable`）を最初から入れておく。
+      #
+      # 組み立てのあと `verify` が走る。**同梱リソースが読まれる場所にあるか**を
+      # 確かめる工程であり、`productName` を変えたときにここで落ちる（Linux の
+      # `lib/` の名前がそれで決まる）。配ってから「route.json を読み込めません」
+      # と言われるより早い。
+      # -----------------------------------------------------------------------
+      - name: ポータブル版を組み立てる
+        shell: bash
+        run: |
+          node scripts/package-portable.mjs \
+            "${{ matrix.portable }}" "${{ matrix.binary }}" portable-out
+
+      - name: 書庫にする
+        shell: bash
+        run: |
+          name=$(node -e "import('./scripts/package-portable.mjs').then(m=>console.log(m.archiveName('${{ matrix.portable }}','${{ matrix.arch }}')))")
+          echo "PORTABLE_ARCHIVE=$name" >> "$GITHUB_ENV"
+          if [ "${{ matrix.portable }}" = "linux" ]; then
+            tar -czf "$name" -C portable-out .
+          else
+            (cd portable-out && 7z a -tzip "../$name" . >/dev/null)
+          fi
+          ls -l "$name"
+
+      # **下書きへ足す。** 公開は人の判断であり、ここでは配らない（`release` の
+      # ほかの成果物と同じ扱い）。
+      - name: 下書きに載せる
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ github.ref_name }}" "$PORTABLE_ARCHIVE" --clobber
