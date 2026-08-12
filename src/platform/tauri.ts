@@ -15,6 +15,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { toBase64 } from './base64';
 import { loadBundledFont } from './fonts';
+import { loadBundledNetworkDef } from './networkSeed';
 import {
   MAX_RECENT_FILES,
   foreignHandleError,
@@ -130,8 +131,9 @@ export function createTauriPlatform(): PlatformAdapter {
       return loadBundledFont();
     },
 
+    /** 新しい文書を始めるための路線（T-96）。**Web 版と同じ道を通る。** */
     loadNetworkDef(): Promise<string> {
-      return invoke<string>('read_route_def');
+      return loadBundledNetworkDef();
     },
 
     readSettings(): Promise<string | null> {
