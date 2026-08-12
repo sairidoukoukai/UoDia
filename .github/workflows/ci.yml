@@ -106,6 +106,42 @@ jobs:
           if-no-files-found: ignore
 
   # ---------------------------------------------------------------------------
+  # Web 版の配置（Cloudflare Workers）。**main への push のときだけ**走る。
+  #
+  # 品質ゲートを通してから置く（`needs: check`）。置いた先は 1 つしかなく、
+  # 落ちたものを置けば、そこがそのまま落ちたままになる。
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: Web 版の配置
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: 依存のインストール
+        run: npm ci
+
+      # `check` のビルドを使い回さない。あちらは相対パス（既定）で書き出して
+      # おり、独自ドメインの直下に置くものとは中身が違う。
+      - name: ビルド
+        run: npm run build:cloudflare
+
+      # 事前圧縮（`build:web:dist`）は通さない。Cloudflare は配るときに自分で
+      # 圧縮する。`.gz` と `.br` を一緒に上げても、誰も取りに来ない資産が
+      # 倍に増えるだけである。
+      - name: 配置
+        run: npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+  # ---------------------------------------------------------------------------
   # デスクトップ版のビルド。Rust のコンパイルを伴い時間がかかるため、
   # PR では実行せず develop / main へのマージ時のみ実行する。
   # 公開リポジトリのため実行分数の費用は発生しない（実装計画書 T-02）。

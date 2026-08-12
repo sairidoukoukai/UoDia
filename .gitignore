@@ -16,6 +16,9 @@ test-results/
 playwright-report/
 .playwright-mcp/
 
+# wrangler が手元に作る作業領域
+.wrangler/
+
 # エディタ・OS
 .vscode/*
 !.vscode/extensions.json
