@@ -105,7 +105,21 @@ node scripts/check-bundle-size.mjs   # 出来た配布物と実行ファイル�
 | Windows | `.msi` / `.exe`（NSIS） |
 | macOS | `.dmg` / `.app` |
 
-**`route.json` は同梱される**（`bundle.resources`）。初回起動時に設定ディレクトリへ複製し、以後はそちらを読む——インストール先が書き込み不可のことがあり、隠し設定からの書き戻し（T-36）ができなくなるためである（`src-tauri/src/paths.rs`）。
+**`route.json` は同梱される**（`bundle.resources`）。初回起動時に読み書きの置き場所へ複製し、以後はそちらを読む——インストール先が書き込み不可のことがあるためである（`src-tauri/src/paths.rs`）。
+
+### ポータブル版（T-93・T-94）
+
+インストーラーを通さない形も作れる（[仕様書](docs/specification-portable.md)）。**展開したフォルダの外に何も書かない。**
+
+```
+node scripts/package-portable.mjs linux src-tauri/target/release/uodia portable-out
+```
+
+組み立てのあと、**同梱リソースが読まれる場所にあるかを検査する。** Tauri は実行ファイルからの相対でリソースを探し、その相対が OS ごとに違う——Windows は同じ階層、Linux は `../lib/UoDia`（`productName`）、macOS は `.app/Contents/Resources` である。`tauri.conf.json` の `productName` を変えると、ここで落ちる。
+
+配布物はタグを打つと CI が 3 OS ぶん作り、ほかの成果物と同じ下書きに載せる。
+
+**目印は `portable` というファイルである。** 書庫に最初から入っており、消すとふつうのインストール版と同じ場所に書くようになる。
 
 **アイコンの版元は `src-tauri/icons/source.svg`** である。描き直したら次の 2 つで作り直す。
 
