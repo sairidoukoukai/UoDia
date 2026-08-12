@@ -90,18 +90,10 @@ describe('loadNetworkDef / saveNetworkDef', () => {
     expect(await platform.loadNetworkDef()).toBe('{"version":1}');
   });
 
-  it('書き戻すと次の読込に反映される', async () => {
-    const platform = createMemoryPlatform({ networkDef: '古い' });
-    await platform.saveNetworkDef('新しい');
-    expect(await platform.loadNetworkDef()).toBe('新しい');
-    expect(platform.savedNetworkDef).toBe('新しい');
-  });
-
-  it('**書き戻せない環境では失敗する**（Web 版。仕様書 §6.5.5）', async () => {
-    const platform = createMemoryPlatform({ canSaveNetworkDef: false });
-    expect(platform.capabilities.networkDefWritable).toBe(false);
-    await expect(platform.saveNetworkDef('中身')).rejects.toThrow('書き戻せません');
-  });
+  /*
+    書き戻しの検証は落とした（T-92、#235）。**口そのものが無くなった**——路線は
+    文書の中にあり、`loadNetworkDef` が返すのは新しい文書を始めるための種である。
+  */
 });
 
 describe('バックアップ（仕様書 §6.8）', () => {

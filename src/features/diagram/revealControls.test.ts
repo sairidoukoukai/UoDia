@@ -64,7 +64,7 @@ const scrollTime = (): number | undefined => store.getState().project?.view.diag
 
 beforeEach(() => {
   store = createAppStore();
-  store.getState().setNetworkDef(network.def);
+  store.getState().setSeedNetworkDef(network.def);
   // 8:00（画面の中）と 13:00（右の外）の 2 便。
   store.getState().setProject(makeProject([makeTrip('t1', 8), makeTrip('t2', 13)]));
 

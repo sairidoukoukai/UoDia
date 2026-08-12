@@ -59,7 +59,7 @@ function settle(): void {
 }
 
 function mount(trips: readonly Trip[]): void {
-  useAppStore.getState().setNetworkDef(network.def);
+  useAppStore.getState().setSeedNetworkDef(network.def);
   useAppStore.getState().setProject(makeProject(trips));
 
   root = createRoot(container);

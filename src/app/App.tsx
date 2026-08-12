@@ -30,10 +30,13 @@ import { DiagramCanvas, type DiagramCursor } from '@/features/diagram';
 import { loadNetworkDef } from '@/domain/network';
 import {
   FileDialogHost,
+  RouteImportDialog,
   createBackupService,
   createFileService,
+  createRouteImportService,
   useFileDialogs,
   watchWindowTitle,
+  type RouteImportCandidate,
 } from '@/features/file';
 import {
   BrowserNotice,
@@ -76,6 +79,8 @@ export function App(): ReactElement {
   const [help, setHelp] = useState<HelpTopic | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [gtfsOpen, setGtfsOpen] = useState(false);
+  /** 取り込もうとしている路線。**確かめる前は当てない**（T-91）。 */
+  const [routeCandidate, setRouteCandidate] = useState<RouteImportCandidate | null>(null);
   const [documentOpen, setDocumentOpen] = useState(false);
   /** 直前の操作が伝えたいこと（写した便の数など）。次の操作で置き換わる。 */
   const [notice, setNotice] = useState<string | null>(null);
@@ -88,6 +93,11 @@ export function App(): ReactElement {
   // バックアップの間隔は設定で変えられる（§6.5.2）。**間隔が変われば繋ぎ直す**
   // ——走っている時計はその間隔を焼き付けているため、作り直すほかない。
   const backupIntervalMs = useAppStore((state) => state.settings.backupIntervalMs);
+  const routeImports = useMemo(
+    () => createRouteImportService({ platform, store: useAppStore }),
+    [platform],
+  );
+
   const backups = useMemo(
     () => createBackupService({ platform, store: useAppStore, intervalMs: backupIntervalMs }),
     [platform, backupIntervalMs],
@@ -100,7 +110,7 @@ export function App(): ReactElement {
 
   const canUndo = useAppStore(selectCanUndo);
   const canRedo = useAppStore(selectCanRedo);
-  const setNetworkDef = useAppStore((state) => state.setNetworkDef);
+  const setSeedNetworkDef = useAppStore((state) => state.setSeedNetworkDef);
   const tool = useAppStore((state) => state.ui.tool);
   const maximized = useAppStore((state) => state.ui.maximized);
 
@@ -129,15 +139,21 @@ export function App(): ReactElement {
           setLoad({ status: 'failed', message: `${result.stage} の段階で失敗しました` });
           return;
         }
-        // 索引ではなく定義を渡す。索引はセレクタが組み立てる（`selectNetwork`）。
-        setNetworkDef(result.network.def);
-        setLoad({ status: 'ready' });
+        // **種として載せる**（T-89）。開いている文書の路線ではない——新規作成の
+        // 出発点と、版数 4 以下を引き上げるときに埋める路線である。
+        // 索引ではなく定義を渡す。索引はセレクタが組み立てる。
+        setSeedNetworkDef(result.network.def);
 
         // 前回の編集内容が残っていれば先に尋ねる。新規作成してから尋ねると、
         // 復元しなかったときに空のプロジェクトが 2 回作られる。
         if (!(await backups.offerRecovery(dialogs))) {
           await files.newProject();
         }
+
+        // **文書が揃ってから開ける**（T-89）。路線は文書の中にあるため、文書が
+        // 無い間は路線も無い。先に `ready` にすると、**路線を持たない画面が
+        // 一瞬出る**——種を載せた時点で開けていた頃には無かった隙間である。
+        setLoad({ status: 'ready' });
         refreshRecent();
       } catch (error) {
         if (!controller.signal.aborted) {
@@ -149,7 +165,7 @@ export function App(): ReactElement {
     return () => {
       controller.abort();
     };
-  }, [platform, setNetworkDef, files, backups, dialogs, refreshRecent]);
+  }, [platform, setSeedNetworkDef, files, backups, dialogs, refreshRecent]);
 
   // 自動バックアップ（仕様書 §9.2）。未保存でなくなれば消える。
   useEffect(() => backups.start(), [backups]);
@@ -268,6 +284,26 @@ export function App(): ReactElement {
         setGtfsOpen(true);
       },
 
+      /*
+        路線の取り込み（#235、T-91）。**読んで数えるところまでで止める**——
+        当てるかどうかは、何が起きるかを見てから決める。
+      */
+      'file.importRoute': (): void => {
+        void routeImports.inspect().then(
+          (result) => {
+            if (result.ok) {
+              setRouteCandidate(result.candidate);
+              return;
+            }
+            // 取り消しは失敗ではない。**何も言わない。**
+            if (result.reason !== 'cancelled') setNotice(result.message);
+          },
+          (error: unknown) => {
+            setNotice(`路線を読み取れませんでした: ${String(error)}`);
+          },
+        );
+      },
+
       'settings.open': (): void => {
         setSettingsOpen(true);
       },
@@ -279,7 +315,7 @@ export function App(): ReactElement {
         setHelp('about');
       },
     };
-  }, [files, backups, exports, refreshRecent, canUndo, canRedo]);
+  }, [files, backups, exports, routeImports, refreshRecent, canUndo, canRedo]);
 
   /**
    * メニューに印を付ける操作（#144）。
@@ -410,6 +446,17 @@ export function App(): ReactElement {
         onNotice={setNotice}
         onClose={() => {
           setGtfsOpen(false);
+        }}
+      />
+      <RouteImportDialog
+        candidate={routeCandidate}
+        onCancel={() => {
+          setRouteCandidate(null);
+        }}
+        onApply={(candidate) => {
+          const done = routeImports.apply(candidate);
+          setRouteCandidate(null);
+          setNotice(done ? '路線を取り込みました' : '路線を取り込めませんでした');
         }}
       />
     </div>

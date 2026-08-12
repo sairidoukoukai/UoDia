@@ -48,7 +48,7 @@ const selected = (): readonly string[] => store.getState().ui.selectedTripIds;
 
 beforeEach(() => {
   store = createAppStore();
-  store.getState().setNetworkDef(network.def);
+  store.getState().setSeedNetworkDef(network.def);
   store.getState().setProject(createProject(network, { now: new Date('2026-01-01T00:00:00Z') }));
   setTrips([makeTrip('t1', 8), makeTrip('t2', 9, 'B')]);
 });

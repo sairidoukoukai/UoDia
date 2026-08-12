@@ -23,12 +23,19 @@
  * だけを差し替えると**閉じ込めた古い値を返し続ける索引**ができあがる。
  * 状態が持つのは素のデータだけとし、索引はセレクタで組み立てる
  * （`selectNetwork`）。
+ *
+ * ## 路線は文書の中にある（T-89 で変更）
+ *
+ * 最上位に `networkDef` を持っていたが、`project.network` へ移した（#235）。
+ * **状態の項目が 1 つ減り、履歴と未保存の判定が 1 つになる**——`editNetwork` と
+ * `editProject` は元から同じ履歴に積まれていたのに、未保存の判定は `project`
+ * しか見ておらず、**区間を変えても未保存にならなかった。**
  */
 
-import type { DiagramView, GridStyle, NetworkDef, Project, Trip } from '@/domain/model';
+import type { DiagramView, NetworkDef, Project, Trip } from '@/domain/model';
 import type { FileHandle } from '@/platform';
 import type { History } from './history';
-import type { PatternStyleChoice, ThemeMode } from './settings';
+import type { ThemeMode } from './settings';
 
 /**
  * 矩形選択で囲んでいる範囲（仕様書 §6.3.1、T-28）。
@@ -120,13 +127,11 @@ export interface UiState {
  */
 export interface DocumentState {
   /**
-   * ネットワーク定義。読込前は `null`。
+   * 編集対象。開いていなければ `null`。**路線もこの中にある**（T-89）。
    *
    * 読込は非同期であり、その間も画面は立ち上がっている。`null` を許さない形に
    * すると、読込が終わるまでストアを作れず、状態の置き場所が二重になる。
    */
-  readonly networkDef: NetworkDef | null;
-  /** 編集対象。開いていなければ `null`。 */
   readonly project: Project | null;
 }
 
@@ -170,26 +175,13 @@ export interface AppSettings {
    * <kbd>Ctrl</kbd>+<kbd>0</kbd>（拡大率を既定に戻す）が戻す先である。
    */
   readonly defaultDiagramView: DiagramView;
-  /**
-   * 停留所の線種の上書き（仕様書 §6.5.3、#133）。
-   *
-   * **路線の事実と、その人の見やすさは別物である。** どの停留所が幹線か
-   * （`route.json` の `gridStyle`）は書き換えてよい事実ではない。一方で
-   * 「この線が細くて見失う」はその人の目の話であり、直す先は `route.json`
-   * ではない。よって上書きの表を別に持つ。
-   *
-   * **入っていない停留所は `route.json` の値をそのまま使う。** 全停留所ぶんを
-   * 持つと、`route.json` 側で線種を直したときに古い値で上書きし続ける。
-   */
-  readonly stopGridStyles: Readonly<Record<string, GridStyle>>;
-  /**
-   * 停車パターンの色と線種の上書き（仕様書 §6.5.3、#147）。
-   *
-   * 停留所の線種（`stopGridStyles`）と同じ理屈で設定に置く——どのパターンが
-   * 直行かは路線の事実であり、その線が見分けやすいかはその人の目の話である。
-   * **色と線種は独立に持つ**（片方だけ選べる）。
-   */
-  readonly patternStyles: Readonly<Record<string, PatternStyleChoice>>;
+  /*
+    停留所の線種と停車パターンの上書きは**プロジェクトへ移した**（T-90、#235）。
+    `project.view.stopGridStyles` / `project.view.patternStyles` にある。
+
+    路線が文書ごとになった以上、`stopId` も `patternId` も文書ごとの名前で
+    ある。設定に持つと、**別の文書の別の停留所に同じ上書きが当たる。**
+  */
   /**
    * 停車パターンの編集を開いてよいか（仕様書 §6.5.4、T-36）。
    *
@@ -201,6 +193,19 @@ export interface AppSettings {
 }
 
 export interface AppState extends DocumentState {
+  /**
+   * **新しい文書を始めるための路線**（T-89）。同梱の `route.json`（デスクトップ
+   * 版では設定ディレクトリの写し）を読んだもの。読込前は `null`。
+   *
+   * **開いている文書の路線ではない。** そちらは `project.network` にあり、
+   * `selectNetwork` が返す。ここにあるのは「まだ何も開いていないときに何から
+   * 始めるか」と、**版数 4 以下のファイルを引き上げるときに埋める路線**だけで
+   * ある。
+   *
+   * **文書ではないため履歴に載らない。** 取り消しの対象にも、未保存の判定にも
+   * 入らない。
+   */
+  readonly seedNetworkDef: NetworkDef | null;
   readonly ui: UiState;
   readonly history: History;
   readonly file: FileState;
@@ -209,8 +214,8 @@ export interface AppState extends DocumentState {
 
 /** 状態が持つ項目。派生値を足していないことをテストで固定するために使う。 */
 export const APP_STATE_KEYS = [
-  'networkDef',
   'project',
+  'seedNetworkDef',
   'ui',
   'history',
   'file',

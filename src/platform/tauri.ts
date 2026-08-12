@@ -72,7 +72,6 @@ export function toPath(handle: FileHandle): string | null {
 const CAPABILITIES: PlatformCapabilities = {
   saveInPlace: true,
   recentFiles: true,
-  networkDefWritable: true,
 };
 
 export function createTauriPlatform(): PlatformAdapter {
@@ -133,10 +132,6 @@ export function createTauriPlatform(): PlatformAdapter {
 
     loadNetworkDef(): Promise<string> {
       return invoke<string>('read_route_def');
-    },
-
-    async saveNetworkDef(content: string): Promise<void> {
-      await invoke('write_route_def', { content });
     },
 
     readSettings(): Promise<string | null> {

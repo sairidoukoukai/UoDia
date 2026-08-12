@@ -70,7 +70,7 @@ function makeSource(): ExportSource {
 
 beforeEach(() => {
   store = createAppStore();
-  store.getState().setNetworkDef(network.def);
+  store.getState().setSeedNetworkDef(network.def);
   store.getState().setProject(createProject(network, { now: new Date('2026-08-09T00:00:00Z') }));
   store.getState().editProject('便を足す', (project) => {
     const [service] = project.services;
