@@ -75,7 +75,7 @@ function view(): DiagramView {
 
 beforeEach(() => {
   store = createAppStore();
-  store.getState().setNetworkDef(network.def);
+  store.getState().setSeedNetworkDef(network.def);
   store.getState().setProject(makeProject([makeTrip('S1', 8, 0), makeTrip('T1', 9, 0)]));
 });
 
@@ -264,7 +264,7 @@ describe('状態の形', () => {
 
   it('初期状態では何も読み込まれていない', () => {
     const fresh = createAppStore().getState();
-    expect(fresh.networkDef).toBeNull();
+    expect(fresh.seedNetworkDef).toBeNull();
     expect(fresh.project).toBeNull();
     expect(fresh.ui.selectedTripIds).toEqual([]);
   });
@@ -431,10 +431,9 @@ describe('セレクタ — 取り出し', () => {
     expect(selectActiveDirectionTrips(state()).map((t) => t.patternId)).toEqual(['T1']);
   });
 
-  it('ネットワーク定義が無ければ方向で絞れない', () => {
-    const fresh = createAppStore();
-    fresh.getState().setProject(makeProject([makeTrip('S1', 8, 0)]));
-    expect(selectTripsByDirection(fresh.getState(), 0)).toEqual([]);
+  it('文書が開いていなければ方向で絞れない', () => {
+    // **路線は文書の中にある**（T-89）。路線だけが無い状態は作れない。
+    expect(selectTripsByDirection(createAppStore().getState(), 0)).toEqual([]);
   });
 
   it('選択中の便を返す（並びは元の順）', () => {
@@ -508,9 +507,8 @@ describe('セレクタ — 派生値', () => {
     expect(numbers.get(trips[0]?.tripId ?? '')).toBe('E2');
   });
 
-  it('ネットワーク定義が無ければ導出しない', () => {
+  it('文書が開いていなければ導出しない', () => {
     const fresh = createAppStore();
-    fresh.getState().setProject(makeProject([makeTrip('S1', 8, 0)]));
     expect(selectBlocks(fresh.getState())).toBeNull();
     expect(selectValidation(fresh.getState())).toEqual([]);
     expect(selectAllTripTimes(fresh.getState()).size).toBe(0);

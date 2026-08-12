@@ -44,6 +44,7 @@ export type CommandId =
   | 'file.save'
   | 'file.saveAs'
   | 'file.export'
+  | 'file.importRoute'
   | 'file.backupNow'
   | 'file.documentInfo'
   | 'file.gtfs'
@@ -116,6 +117,12 @@ export const COMMANDS: readonly Command[] = [
    * ない**（仕様書 §8.1 に無いものを勝手に増やさない）。
    */
   { id: 'file.export', menu: 'file', label: '書き出し…', separatorBefore: true },
+  /*
+    路線の取り込み（#235、T-91）。**書き出しの隣に置く**——どちらも文書と外の
+    ファイルをやり取りする操作である。ショートカットは割り当てない（作図中に
+    繰り返す操作ではない）。
+  */
+  { id: 'file.importRoute', menu: 'file', label: '路線を取り込む…' },
   {
     id: 'file.documentInfo',
     menu: 'file',

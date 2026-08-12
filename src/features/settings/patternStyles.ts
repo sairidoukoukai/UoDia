@@ -12,8 +12,8 @@
  * つかなくなる）。
  */
 
-import type { DashKind } from '@/domain/model';
-import { NO_PATTERN_STYLES, type PatternStyleChoice } from '@/store';
+import type { DashKind, PatternStyleChoice } from '@/domain/model';
+import { NO_PATTERN_STYLES } from '@/store';
 
 export type PatternStyleChoices = Readonly<Record<string, PatternStyleChoice>>;
 

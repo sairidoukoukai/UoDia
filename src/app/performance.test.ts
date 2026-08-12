@@ -74,6 +74,7 @@ function makeTrips(count = TRIP_COUNT): readonly Trip[] {
 function makeProject(): Project {
   const now = new Date('2026-08-02T00:00:00Z').toISOString();
   return {
+    network: network.def,
     meta: {
       format: 'uodia',
       formatVersion: 3,
@@ -92,6 +93,8 @@ function makeProject(): Project {
       activeDirection: 0,
       diagram: { pxPerMinute: 3, pxPerAxisUnit: 8, scrollTime: 25200, scrollAxis: 0 },
       colorMode: 'pattern',
+      stopGridStyles: {},
+      patternStyles: {},
       hiddenPatternIds: [],
       hiddenBlockIds: [],
       hiddenDirections: [],
@@ -135,7 +138,7 @@ function record(name: string, elapsed: number, target: number): void {
 
 function storeWith(project: Project): AppStoreHook {
   const store = createAppStore();
-  store.getState().setNetworkDef(network.def);
+  store.getState().setSeedNetworkDef(network.def);
   store.getState().setProject(project);
   return store;
 }

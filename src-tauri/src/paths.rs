@@ -2,10 +2,13 @@
 //!
 //! `route.json` は同梱リソースとして配布するが、**設定ディレクトリへ複製してから
 //! 使う**。インストール先は書き込み不可のことがあり（Windows の Program Files、
-//! macOS のアプリバンドル）、隠し設定からの書き戻し（T-36）ができなくなるため。
+//! macOS のアプリバンドル）、そこを読み書きの場所にはできないためである。
 //!
 //! 複製は初回起動時に一度だけ行う。既にあるものを上書きすると、利用者の編集が
 //! アプリの更新のたびに消える。
+//!
+//! **書き戻す口は無い**（T-92、#235）。路線は `.uodia` の中にあり、ここにある
+//! のは**新しい文書を始めるための種**だけである。
 
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager};
@@ -28,8 +31,8 @@ fn config_dir(app: &AppHandle) -> Result<PathBuf, String> {
         .map_err(|e| format!("設定ディレクトリを特定できません: {e}"))
 }
 
-/// 設定ディレクトリ内の `route.json`。
-pub fn route_path(app: &AppHandle) -> Result<PathBuf, String> {
+/// 設定ディレクトリ内の `route.json`。**読むためだけに使う**（T-92 で書き戻しを畳んだ）。
+fn route_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(config_dir(app)?.join(ROUTE_FILE))
 }
 
@@ -59,8 +62,7 @@ pub fn ensure_route_file(app: &AppHandle) -> Result<PathBuf, String> {
 
 /// `target` が無ければ `source` から複製する。
 ///
-/// **既にある場合は何もしない。利用者の編集をアプリの更新で消さないため。**
-/// この判断が逆になると、隠し設定で直した所要時間（T-36）が更新のたびに戻る。
+/// **既にある場合は何もしない。利用者が置いたものをアプリの更新で消さないため。**
 fn seed_if_absent(target: &Path, source: &Path) -> Result<PathBuf, String> {
     if target.exists() {
         return Ok(target.to_path_buf());
@@ -103,7 +105,7 @@ mod tests {
 
     #[test]
     fn 既にあるものを上書きしない() {
-        // 利用者が隠し設定で直した内容が、アプリの更新で戻ってはならない。
+        // 利用者が置いた種が、アプリの更新で戻ってはならない。
         let dir = scratch_dir("keep");
         let source = dir.join("bundled.json");
         let target = dir.join("config").join(ROUTE_FILE);

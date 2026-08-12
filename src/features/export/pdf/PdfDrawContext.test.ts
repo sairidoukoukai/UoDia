@@ -59,7 +59,7 @@ const HAS_MUTOOL = has('mutool');
 /** 便を 1 つ持つ状態から、ダイヤグラムを描いた PDF を作る。 */
 async function makeDiagramPdf(): Promise<Uint8Array> {
   const store = createAppStore();
-  store.getState().setNetworkDef(network.def);
+  store.getState().setSeedNetworkDef(network.def);
   store.getState().setProject(createProject(network, { now: new Date('2026-08-09T00:00:00Z') }));
   store.getState().editProject('便を足す', (project) => {
     const [service] = project.services;

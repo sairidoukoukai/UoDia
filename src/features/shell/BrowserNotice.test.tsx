@@ -15,16 +15,8 @@ import { BrowserNotice } from './BrowserNotice';
 let container: HTMLDivElement;
 let root: Root;
 
-const ABLE: PlatformCapabilities = {
-  saveInPlace: true,
-  recentFiles: true,
-  networkDefWritable: true,
-};
-const UNABLE: PlatformCapabilities = {
-  saveInPlace: false,
-  recentFiles: false,
-  networkDefWritable: false,
-};
+const ABLE: PlatformCapabilities = { saveInPlace: true, recentFiles: true };
+const UNABLE: PlatformCapabilities = { saveInPlace: false, recentFiles: false };
 
 function mount(kind: string, capabilities: PlatformCapabilities): void {
   root = createRoot(container);

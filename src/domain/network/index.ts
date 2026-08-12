@@ -10,3 +10,11 @@ export {
   type NetworkIssueTarget,
   type NetworkRule,
 } from './validate';
+
+export {
+  changeCount,
+  summarizeRouteImport,
+  type BrokenTrip,
+  type RouteChange,
+  type RouteImportSummary,
+} from './routeImport';

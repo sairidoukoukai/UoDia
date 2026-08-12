@@ -28,7 +28,7 @@ import {
   withStopAdded,
   withStopRemoved,
 } from './patterns';
-import { applyPatterns, saveNetworkDef } from './settingsService';
+import { applyPatterns } from './settingsService';
 
 const HANDLING_LABEL: Record<Handling, string> = {
   stop: '乗降',
@@ -90,20 +90,6 @@ export function PatternsTab(props: PatternsTabProps): ReactElement {
     setMessage(result.message);
     props.onNotice?.(result.message);
     if (result.ok) setDraft(null);
-  };
-
-  const save = (): void => {
-    void saveNetworkDef(useAppStore, props.platform).then(
-      (said) => {
-        if (said !== null) {
-          setMessage(said);
-          props.onNotice?.(said);
-        }
-      },
-      (error: unknown) => {
-        setMessage(`書き戻せません: ${String(error)}`);
-      },
-    );
   };
 
   if (network === null) {
@@ -354,11 +340,6 @@ export function PatternsTab(props: PatternsTabProps): ReactElement {
           }}
         >
           入力を元に戻す
-        </button>
-        <button type="button" onClick={save}>
-          {props.platform.capabilities.networkDefWritable
-            ? 'route.json に書き戻す'
-            : 'route.json を書き出す'}
         </button>
       </div>
 

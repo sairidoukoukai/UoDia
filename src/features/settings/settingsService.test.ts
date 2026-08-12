@@ -7,13 +7,11 @@
 
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { createProject } from '@/domain/io';
-import type { NetworkDef } from '@/domain/model';
 import { loadNetworkDef, type NetworkIndex } from '@/domain/network';
-import type { PlatformAdapter } from '@/platform';
 import { createAppStore, selectNetwork, type AppStoreHook } from '@/store';
-import { applySegmentEdits, saveNetworkDef } from './settingsService';
+import { applySegmentEdits } from './settingsService';
 
 const routeJsonPath = fileURLToPath(new URL('../../../data/route.json', import.meta.url));
 const loaded = loadNetworkDef(readFileSync(routeJsonPath, 'utf8'));
@@ -24,33 +22,12 @@ const TOYONAKA_TO_MINOH = '1_0→2_0';
 
 let store: AppStoreHook;
 
-/** 書き戻せるかどうかだけが違う、最低限のプラットフォーム。 */
-function makePlatform(networkDefWritable: boolean): {
-  platform: PlatformAdapter;
-  saved: ReturnType<typeof vi.fn>;
-  exported: ReturnType<typeof vi.fn>;
-} {
-  const saved = vi.fn<(content: string) => Promise<void>>().mockResolvedValue(undefined);
-  const exported = vi
-    .fn<(content: string, name: string) => Promise<{ kind: string; name: string } | null>>()
-    .mockResolvedValue({ kind: 'test', name: 'route.json' });
-
-  const platform = {
-    kind: 'test',
-    capabilities: { saveInPlace: true, recentFiles: true, networkDefWritable },
-    saveNetworkDef: saved,
-    saveProjectAs: exported,
-  } as unknown as PlatformAdapter;
-
-  return { platform, saved, exported };
-}
-
 const runMinutes = (): number | undefined =>
   selectNetwork(store.getState())?.runMinutes('1_0', '2_0');
 
 beforeEach(() => {
   store = createAppStore();
-  store.getState().setNetworkDef(network.def);
+  store.getState().setSeedNetworkDef(network.def);
   store.getState().setProject(createProject(network, { now: new Date('2026-01-01T00:00:00Z') }));
 });
 
@@ -99,47 +76,8 @@ describe('適用', () => {
   });
 });
 
-describe('書き戻し（§6.5.1、§6.5.5）', () => {
-  it('書き戻せる環境では route.json に書く', async () => {
-    const { platform, saved } = makePlatform(true);
-    applySegmentEdits(store, new Map([[TOYONAKA_TO_MINOH, 25]]));
-
-    expect(await saveNetworkDef(store, platform)).toContain('書き戻しました');
-
-    const written = String(saved.mock.calls[0]?.[0] ?? '');
-    // **今の定義がそのまま出る。** 打った値がファイルに入っていなければ、
-    // 次に開いたときに元へ戻る。
-    const parsed = JSON.parse(written) as NetworkDef;
-    expect(parsed.segments).toContainEqual({
-      fromStopId: '1_0',
-      toStopId: '2_0',
-      runMinutes: 25,
-      // 距離は所要時間と独立であり、**所要時間を直しても動かない**（#161）。
-      distanceMeters: 6400,
-    });
-    // 末尾に改行を 1 つ置く（仕様書 §7.1 と同じ扱い）。
-    expect(written.endsWith('\n')).toBe(true);
-  });
-
-  it('**書き戻せない環境では書き出す**（Web 版。§6.5.5）', async () => {
-    const { platform, saved, exported } = makePlatform(false);
-
-    expect(await saveNetworkDef(store, platform)).toContain('書き出しました');
-    expect(saved).not.toHaveBeenCalled();
-    expect(exported).toHaveBeenCalledWith(expect.stringContaining('"segments"'), 'route.json');
-  });
-
-  it('書き出しを取り消したら何も言わない', async () => {
-    const { platform, exported } = makePlatform(false);
-    exported.mockResolvedValue(null);
-
-    expect(await saveNetworkDef(store, platform)).toBeNull();
-  });
-
-  it('路線図を読み込んでいなければ書かない', async () => {
-    const { platform, saved } = makePlatform(true);
-
-    expect(await saveNetworkDef(createAppStore(), platform)).toContain('読み込んでいません');
-    expect(saved).not.toHaveBeenCalled();
-  });
-});
+/*
+  「書き戻し」の節は落とした（T-92、#235）。**`route.json` へ書き戻す道その
+  ものが無くなった**——路線は文書の中にあり、区間を直すことは文書を直すこと
+  である。適用したものがファイルに入るかどうかは `io.test.ts` の往復が見る。
+*/
