@@ -73,8 +73,16 @@ const NOT_AVAILABLE = '1';
 /** 運休（`calendar_dates.txt`）。**`exception_type: 1`（臨時運行）は出さない。** */
 const EXCEPTION_REMOVED = '2';
 
-/** 回送の系統名（`route.json`）。**訳語の付き先が他と違う。** */
-const DEADHEAD_ROUTE_NAME = '回送';
+/**
+ * その系統が回送か（#247、T-100）。
+ *
+ * **系統名で決め打たない。** かつては `回送` という名前を直に照らしていたが、
+ * 停留所間の回送が別の系統として増えた（`区間回送`）。**回送かどうかは
+ * `route.json` が宣言する**（`RouteInfo.isDeadhead`）。
+ */
+function isDeadheadRoute(def: NetworkDef, routeName: string): boolean {
+  return def.routes?.some((route) => route.routeName === routeName && route.isDeadhead) === true;
+}
 
 /** 発行者（§6.5.1）。**事業者は大阪大学、発行者は再履バス同好会である。** */
 const FEED_PUBLISHER = {
@@ -224,8 +232,8 @@ function routeRows(def: NetworkDef, agencyId: string): CsvRows {
       return [
         pattern.patternId,
         agencyId,
-        // 回送は種別を名乗り、行先はパターン名で言う（実例に合わせる）。
-        pattern.isDeadhead ? DEADHEAD_ROUTE_NAME : pattern.patternName,
+        // 回送は系統名を名乗り、行先はパターン名で言う（実例に合わせる）。
+        pattern.isDeadhead ? pattern.routeName : pattern.patternName,
         pattern.isDeadhead ? pattern.patternName : (info?.longName ?? pattern.routeName),
         '',
         ROUTE_TYPE_BUS,
@@ -470,7 +478,7 @@ function translationRows(def: NetworkDef): CsvRows {
   // 付ける。
   const seen = new Set<string>();
   for (const route of def.routes ?? []) {
-    if (route.routeName === DEADHEAD_ROUTE_NAME) continue;
+    if (isDeadheadRoute(def, route.routeName)) continue;
     const longName = route.longName ?? route.routeName;
     if (seen.has(longName)) continue;
     seen.add(longName);
@@ -479,10 +487,11 @@ function translationRows(def: NetworkDef): CsvRows {
   }
 
   // 回送のパターン名。**系統名ではなくパターン名に付く**（実例と同じ）。
-  const deadheadEn = def.routes?.find((route) => route.routeName === DEADHEAD_ROUTE_NAME)?.en;
+  // **訳語は自分の系統から引く**（T-100）——回送の系統が 2 つになった。
   for (const pattern of def.patterns) {
     if (!pattern.isDeadhead) continue;
-    add('routes', 'route_long_name', 'en', deadheadEn, pattern.patternName);
+    const info = def.routes?.find((route) => route.routeName === pattern.routeName);
+    add('routes', 'route_long_name', 'en', info?.en, pattern.patternName);
   }
 
   const agency = def.agency;

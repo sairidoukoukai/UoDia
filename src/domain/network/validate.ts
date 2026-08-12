@@ -218,26 +218,64 @@ function checkPatternLength(network: NetworkDef): NetworkIssue[] {
 }
 
 /**
- * R-07: 営業所を含むパターンは回送であり、回送は営業所を含むこと。
+ * R-07: 営業パターンは営業所を含まず、回送かどうかが系統と一致すること。
  *
- * 営業所に営業便が発着したり、営業所を通らない回送が定義されたりすると、
- * 運用の入出庫判定（T-09）が成り立たなくなる。
+ * ## 軸を営業所から系統へ移した（#247、T-97）
+ *
+ * かつては「営業所を含む ⟺ 回送」だった。**停留所間の回送**（`箕面 → 豊中` など）
+ * を表せるようにするため、**回送の側の縛りを系統へ移した。**
+ *
+ * | | 前 | いま |
+ * | --- | --- | --- |
+ * | 営業パターン | 営業所を含まない | **そのまま** |
+ * | 回送パターン | 営業所を**含む** | **回送の系統に属する** |
+ *
+ * **営業パターンの側は変えていない。** 運用の入出庫判定（`domain/block/derive.ts`）
+ * が「営業所に居る ⇒ 出入庫」を前提にしており、**営業便が営業所を発着しないこと
+ * が、その前提を支えている。**
+ *
+ * **系統の宣言が無ければ、回送側は見ない。** `routes` は版数 3 で入った任意の
+ * 項目であり（`networkDefSchema`）、持たない定義を後から不正にはしない。
  */
 function checkDepotPatterns(network: NetworkDef): NetworkIssue[] {
   const depotIds = new Set(network.stops.filter((s) => s.isDepot).map((s) => s.stopId));
-
   const includesDepot = (pattern: StopPattern): boolean =>
     pattern.stopSequence.some((ps) => depotIds.has(ps.stopId));
 
-  return network.patterns
-    .filter((p) => includesDepot(p) !== p.isDeadhead)
-    .map((p) => ({
-      rule: 'R-07' as const,
-      message: p.isDeadhead
-        ? `回送パターン ${p.patternId} が営業所を含んでいません`
-        : `営業パターン ${p.patternId} が営業所を含んでいます`,
-      target: { kind: 'pattern' as const, patternId: p.patternId },
-    }));
+  const issue = (pattern: StopPattern, message: string): NetworkIssue => ({
+    rule: 'R-07' as const,
+    message,
+    target: { kind: 'pattern' as const, patternId: pattern.patternId },
+  });
+
+  const issues: NetworkIssue[] = network.patterns
+    .filter((p) => !p.isDeadhead && includesDepot(p))
+    .map((p) => issue(p, `営業パターン ${p.patternId} が営業所を含んでいます`));
+
+  const routes = network.routes;
+  if (routes === undefined) return issues;
+
+  const deadheadRoutes = new Set(routes.filter((r) => r.isDeadhead).map((r) => r.routeName));
+  // 系統の宣言そのものが無いパターンは R-11 が拾う。ここでは扱わない。
+  const declared = new Set(routes.map((r) => r.routeName));
+
+  for (const pattern of network.patterns) {
+    if (!declared.has(pattern.routeName)) continue;
+
+    const inDeadheadRoute = deadheadRoutes.has(pattern.routeName);
+    if (inDeadheadRoute === pattern.isDeadhead) continue;
+
+    issues.push(
+      issue(
+        pattern,
+        pattern.isDeadhead
+          ? `回送パターン ${pattern.patternId} の系統「${pattern.routeName}」が回送の系統ではありません`
+          : `営業パターン ${pattern.patternId} が回送の系統「${pattern.routeName}」に属しています`,
+      ),
+    );
+  }
+
+  return issues;
 }
 
 /**

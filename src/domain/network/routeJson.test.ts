@@ -53,15 +53,39 @@ describe('route.json — スキーマ適合', () => {
     expect(parseWithSchema(networkDefSchema, JSON.parse(rawJson)).ok).toBe(true);
   });
 
-  it('仕様書 付録 A のとおり停留所 7 件・区間 15 件・パターン 14 件を持つ', () => {
+  it('停留所 7 件・区間 15 件・パターン 16 件を持つ', () => {
     expect(network.stops).toHaveLength(7);
     expect(network.segments).toHaveLength(15);
-    expect(network.patterns).toHaveLength(14);
+    // 版数 4 で停留所間の回送を 2 本足した（#247、T-97）。
+    expect(network.patterns).toHaveLength(16);
   });
 
-  it('営業パターン 8 件・回送パターン 6 件', () => {
+  it('営業パターン 8 件・回送パターン 8 件', () => {
     expect(network.patterns.filter((p) => !p.isDeadhead)).toHaveLength(8);
-    expect(network.patterns.filter((p) => p.isDeadhead)).toHaveLength(6);
+    expect(network.patterns.filter((p) => p.isDeadhead)).toHaveLength(8);
+  });
+
+  it('**回送は 2 つの系統に分かれる**（車庫との出入りと、停留所間。#247）', () => {
+    const byRoute = new Map<string, number>();
+    for (const pattern of network.patterns.filter((p) => p.isDeadhead)) {
+      byRoute.set(pattern.routeName, (byRoute.get(pattern.routeName) ?? 0) + 1);
+    }
+
+    expect(Object.fromEntries(byRoute)).toEqual({ 回送: 6, 区間回送: 2 });
+  });
+
+  it('**回送の系統に印が付いている**（R-07 が照らす先）', () => {
+    const deadheadRoutes = (network.routes ?? []).filter((route) => route.isDeadhead);
+    expect(deadheadRoutes.map((route) => route.routeName).sort()).toEqual(['区間回送', '回送']);
+  });
+
+  it('**停留所間の回送は営業所を含まない**（それが表したかったこと）', () => {
+    const between = network.patterns.filter((p) => p.routeName === '区間回送');
+    expect(between).toHaveLength(2);
+
+    for (const pattern of between) {
+      expect(pattern.stopSequence.map((entry) => entry.stopId)).not.toContain('9_0');
+    }
   });
 });
 
@@ -301,8 +325,8 @@ describe('route.json — 方向と経路の整合', () => {
 describe('route.json — GTFS に要る静的データ（T-70、#198）', () => {
   const network = loadNetwork();
 
-  it('版数 3 である', () => {
-    expect(network.version).toBe(3);
+  it('版数 4 である（#247 で停留所間の回送を足した）', () => {
+    expect(network.version).toBe(4);
   });
 
   it('事業者は大阪大学である（**同好会ではない**）', () => {

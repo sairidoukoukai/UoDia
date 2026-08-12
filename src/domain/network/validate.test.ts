@@ -298,7 +298,8 @@ describe('validateNetwork — R-07: 営業所と回送の対応', () => {
     expect(rulesOf(network)).toContain('R-07');
   });
 
-  it('営業所を含まない回送パターンを検出する', () => {
+  /** `OUT` を、営業所を含まない回送に差し替える（停留所間の回送）。 */
+  function withBetweenStopsDeadhead(): ReturnType<typeof makeValidNetwork> {
     const network = makeValidNetwork();
     network.patterns = network.patterns.map((p) =>
       p.patternId === 'OUT'
@@ -311,24 +312,54 @@ describe('validateNetwork — R-07: 営業所と回送の対応', () => {
           })
         : p,
     );
-    expect(rulesOf(network)).toContain('R-07');
+    return network;
+  }
+
+  it('**営業所を含まない回送を咎めない**（#247、T-97。かつては咎めていた）', () => {
+    // 停留所間の回送（`箕面 → 豊中` など）を表せるようにするため、回送側の
+    // 縛りを営業所から系統へ移した。
+    expect(rulesOf(withBetweenStopsDeadhead())).not.toContain('R-07');
   });
 
-  it('メッセージが違反の向きを言い分ける', () => {
-    const network = makeValidNetwork();
-    network.patterns = network.patterns.map((p) =>
-      p.patternId === 'OUT'
-        ? makePattern({
-            patternId: 'OUT',
-            directionId: 0,
-            isDefault: false,
-            isDeadhead: true,
-            stops: ['A', 'B'],
-          })
-        : p,
+  it('**系統の宣言が無ければ回送側を見ない**（`routes` は任意の項目）', () => {
+    const network = withBetweenStopsDeadhead();
+    expect(network.routes).toBeUndefined();
+    expect(rulesOf(network)).not.toContain('R-07');
+  });
+
+  it('**回送が営業の系統に属していれば検出する**', () => {
+    const network = withBetweenStopsDeadhead();
+    network.routes = [{ routeName: 'R', color: '000000', textColor: 'ffffff', isDeadhead: false }];
+    network.patterns = network.patterns.map((p) => ({ ...p, routeName: 'R' }));
+
+    expect(rulesOf(network)).toContain('R-07');
+    expect(validateNetwork(network).find((i) => i.rule === 'R-07')?.message).toContain(
+      '回送の系統ではありません',
     );
-    const issue = validateNetwork(network).find((i) => i.rule === 'R-07');
-    expect(issue?.message).toContain('営業所を含んでいません');
+  });
+
+  it('**営業が回送の系統に属していれば検出する**（逆向きも見る）', () => {
+    const network = makeValidNetwork();
+    network.routes = [{ routeName: 'R', color: '000000', textColor: 'ffffff', isDeadhead: true }];
+    network.patterns = network.patterns.map((p) => ({ ...p, routeName: 'R' }));
+
+    expect(validateNetwork(network).find((i) => i.rule === 'R-07')?.message).toContain(
+      '回送の系統',
+    );
+  });
+
+  it('回送の系統に属していれば咎めない', () => {
+    const network = withBetweenStopsDeadhead();
+    network.routes = [
+      { routeName: 'R', color: '000000', textColor: 'ffffff', isDeadhead: false },
+      { routeName: 'D', color: '888888', textColor: '000000', isDeadhead: true },
+    ];
+    network.patterns = network.patterns.map((p) => ({
+      ...p,
+      routeName: p.isDeadhead ? 'D' : 'R',
+    }));
+
+    expect(rulesOf(network)).not.toContain('R-07');
   });
 });
 
