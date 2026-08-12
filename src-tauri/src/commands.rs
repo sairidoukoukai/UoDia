@@ -87,21 +87,6 @@ pub fn save_project_file(path: String, content: String) -> Result<(), String> {
     atomic::write_atomic(Path::new(&path), &content)
 }
 
-/// `route.json` を読む。初回は同梱リソースから設定ディレクトリへ複製する。
-///
-/// **新しい文書を始めるための種である**（T-89、#235）。書き戻す口は持たない
-/// ——路線は `.uodia` の中にあり、路線を直すことは文書を直すことである。
-#[tauri::command]
-pub fn read_route_def(app: AppHandle) -> Result<String, String> {
-    let path = paths::ensure_route_file(&app)?;
-    std::fs::read_to_string(&path)
-        .map_err(|e| format!("route.json を読み込めません: {}: {e}", path.display()))
-}
-
-/// 設定を読む（T-39）。まだ保存していなければ `None`。
-///
-/// **読めなくても失敗にしない**のは呼び出し側（TS）の判断であり、ここでは
-/// 素直に返す。壊れた設定で起動できなくなるのは代償が大きい。
 #[tauri::command]
 pub fn read_settings() -> Result<Option<String>, String> {
     atomic::read_optional(&paths::settings_path()?)

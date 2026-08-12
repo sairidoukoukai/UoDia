@@ -1,23 +1,23 @@
 /**
  * ポータブル版を装う（T-94、仕様書（ポータブル版）§5）。
  *
- * ## リソースの置き場所は OS ごとに違う
+ * ## 同梱リソースは無くなった（T-96）
  *
- * Tauri は同梱リソースを実行ファイルからの相対で探す（`tauri-utils` の
- * `resource_dir_from`）。**3 つとも違う。**
+ * かつては `route.json` を Tauri のリソースとして隣に置いていた。**置き場所が
+ * OS ごとに違い**、外すと起動して初めて分かる種類の失敗になっていた。
  *
- * | OS | 探す先 |
- * | --- | --- |
- * | Windows | 実行ファイルと同じ階層 |
- * | Linux | `<実行ファイルの階層>/../lib/<productName>` |
- * | macOS | `<実行ファイルの階層>/../Resources`（`.app` の中） |
+ * **`route.json` は実行ファイルの中にある**（`frontendDist` に埋まる）。Web 版が
+ * `?url` で取り込んでおり、デスクトップ版も同じ道を通るようになった
+ * （`src/platform/networkSeed.ts`）。**同じものを 2 か所から配るのをやめた。**
  *
- * **`resources/` に置くのは誤りである。** どの OS もそこを見ない。仕様書の初版は
- * そう書いていたが、実装のときに読み違いだと分かった（版数 1.1 で訂正）。
+ * 結果、**Linux の `bin/` も要らなくなった**——あれはリソースを
+ * `../lib/<productName>` から読むためだけの入れ子だった。
  *
- * **Linux の `lib/` は `productName` で決まる**（`UoDia`。小文字ではない）。
- * `tauri.conf.json` を直すとここも変わるため、**置いたものが読まれる場所に
- * あるかを最後に確かめる**（{@link verify}）。
+ * ## `OFL.txt` は根に置く
+ *
+ * Noto Sans JP は OFL-1.1 であり、フォントは実行ファイルの中に埋まっている。
+ * ライセンス本文もヘルプから読めるが（`?raw` で埋まっている）、**開かない人にも
+ * 見えるところに 1 つ置く。**
  *
  * ## 目印はもう入れない（T-95）
  *
@@ -25,25 +25,22 @@
  * なった以上、見分ける相手が居ない**（#245）。
  */
 
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 
-/** `tauri.conf.json` の `productName`。**Linux の `lib/` の名前を決める。** */
-const PRODUCT_NAME = JSON.parse(
-  readFileSync(join(root, 'src-tauri/tauri.conf.json'), 'utf8'),
-).productName;
-
 /** 版数。書庫の名前に入れる。 */
 const VERSION = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version;
-
-/** 同梱するもの。`bundle.resources` と同じ対応にする。 */
-const RESOURCES = [
-  ['data/route.json', 'route.json'],
-  ['assets/fonts/OFL.txt', 'OFL.txt'],
-];
 
 /**
  * Linux のアプリ一覧に出すための雛形（T-95）。
@@ -59,8 +56,8 @@ const DESKTOP_ENTRY = [
   'Type=Application',
   'Name=UoDia',
   'Comment=再履バスのダイヤグラム設計ソフトウェア',
-  'Exec=/path/to/UoDia/bin/uodia',
-  'Icon=/path/to/UoDia/lib/UoDia/icon.png',
+  'Exec=/path/to/UoDia/uodia',
+  'Icon=/path/to/UoDia/icon.png',
   'Categories=Utility;',
   'Terminal=false',
   '',
@@ -116,7 +113,7 @@ function readme(platform) {
 
 const START = {
   windows: 'UoDia.exe をダブルクリックで起動します。',
-  linux: 'bin/uodia を実行します。',
+  linux: 'uodia を実行します。',
   macos: 'UoDia.app を開きます。',
 };
 
@@ -131,54 +128,79 @@ export function layout(platform, binary, out) {
   rmSync(out, { recursive: true, force: true });
   mkdirSync(out, { recursive: true });
 
+  // **実行ファイルは根の直下に置く。** 同梱リソースが無くなり、入れ子にする
+  // 理由が消えた（macOS の `.app` だけは中身ごと 1 つの塊である）。
   if (platform === 'windows') {
-    // **リソースは実行ファイルと同じ階層。** Windows だけは `resource_dir` が
-    // 実行ファイルの階層をそのまま返す。
     cpSync(binary, join(out, 'UoDia.exe'));
-    for (const [from, to] of RESOURCES) cpSync(join(root, from), join(out, to));
   } else if (platform === 'linux') {
-    // **`bin/` に置く。** リソースを `../lib/<productName>` から読むため、
-    // 実行ファイルを根の直下には置けない。
-    mkdirSync(join(out, 'bin'), { recursive: true });
-    mkdirSync(join(out, 'lib', PRODUCT_NAME), { recursive: true });
-    cpSync(binary, join(out, 'bin', 'uodia'));
-    for (const [from, to] of RESOURCES) {
-      cpSync(join(root, from), join(out, 'lib', PRODUCT_NAME, to));
-    }
+    cpSync(binary, join(out, 'uodia'));
+    cpSync(join(root, 'src-tauri/icons/128x128.png'), join(out, 'icon.png'));
+    writeFileSync(join(out, 'uodia.desktop'), DESKTOP_ENTRY);
   } else {
-    // **`.app` はそのまま置く。** リソースは既に `Contents/Resources` にある。
     cpSync(binary, join(out, 'UoDia.app'), { recursive: true });
   }
 
-  if (platform === 'linux') {
-    cpSync(join(root, 'src-tauri/icons/128x128.png'), join(out, 'lib', PRODUCT_NAME, 'icon.png'));
-    writeFileSync(join(out, 'uodia.desktop'), DESKTOP_ENTRY);
-  }
-
+  cpSync(join(root, 'assets/fonts/OFL.txt'), join(out, 'OFL.txt'));
   writeFileSync(join(out, 'README.txt'), readme(platform));
 }
 
 /**
- * 置いたものが、Tauri が読む場所にあるかを確かめる。
+ * 配る形になっているかを確かめる。
  *
- * **`productName` を変えると Linux の `lib/` の名前が変わる。** 気づかないまま
- * 配ると、**起動して初めて「route.json を読み込めません」と出る。** ここで
- * 落としておけば、配る前に気づく。
+ * **同梱リソースの置き場所を見る工程は無くなった**（T-96）。リソースが 1 つも
+ * 無いためであり、確かめるものが減ったのではなく、**外す余地そのものが消えた。**
+ *
+ * 代わりに**実行ファイルの中を見る**（{@link verifyEmbedded}）。路線もフォントも
+ * そこに埋まっており、埋まっていなければ**起動して初めて分かる。**
  */
 export function verify(platform, out) {
-  const expected =
+  const binary =
     platform === 'windows'
-      ? [join(out, 'route.json'), join(out, 'OFL.txt')]
+      ? join(out, 'UoDia.exe')
       : platform === 'linux'
-        ? [join(out, 'lib', PRODUCT_NAME, 'route.json'), join(out, 'lib', PRODUCT_NAME, 'OFL.txt')]
-        : [join(out, 'UoDia.app', 'Contents', 'Resources', 'route.json')];
+        ? join(out, 'uodia')
+        : join(out, 'UoDia.app');
 
-  const missing = expected.filter((path) => !existsSync(path));
+  const missing = [join(out, 'OFL.txt'), join(out, 'README.txt'), binary].filter(
+    (path) => !existsSync(path),
+  );
   if (missing.length > 0) {
-    throw new Error(`同梱リソースが読まれる場所にありません:\n  ${missing.join('\n  ')}`);
+    throw new Error(`配る形になっていません:\n  ${missing.join('\n  ')}`);
   }
 
-  if (!existsSync(join(out, 'README.txt'))) throw new Error('README.txt がありません');
+  if (platform !== 'macos') verifyEmbedded(binary);
+}
+
+/**
+ * 路線とフォントが実行ファイルに埋まっているかを確かめる。
+ *
+ * **中身は読めない**（Tauri は資産を圧縮して埋める）。読むのは `dist/` が出した
+ * **資産の名前**であり、それが実行ファイルの中に現れるかを見る。
+ *
+ * **これが外れると、起動して初めて「route.json を取得できません」と出る。**
+ * 配る前に落としておく。
+ *
+ * macOS は `.app` の中の実行ファイルを掘る必要があり、名前も違う。**そこまでは
+ * 見ない**——3 つとも同じ `dist/` から作られるため、1 つで外れれば全部で外れる。
+ */
+function verifyEmbedded(binary) {
+  const assets = readdirSync(join(root, 'dist/assets'));
+  const wanted = [
+    assets.find((name) => /^route-.*\.json$/.test(name)),
+    assets.find((name) => /^NotoSansJP-.*\.otf$/.test(name)),
+  ];
+
+  if (wanted.some((name) => name === undefined)) {
+    throw new Error(
+      'dist/assets に路線かフォントがありません（先に build:web を走らせてください）',
+    );
+  }
+
+  const bytes = readFileSync(binary, 'latin1');
+  const missing = wanted.filter((name) => !bytes.includes(name));
+  if (missing.length > 0) {
+    throw new Error(`実行ファイルに埋まっていません:\n  ${missing.join('\n  ')}`);
+  }
 }
 
 /** 書庫の名前（§5）。 */

@@ -37,10 +37,6 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ],
-    "resources": {
-      "../data/route.json": "route.json",
-      "../assets/fonts/OFL.txt": "OFL.txt"
-    }
+    ]
   }
 }
