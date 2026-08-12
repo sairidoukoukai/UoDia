@@ -14,7 +14,7 @@ import { useMemo, type ReactElement } from 'react';
 import { patternStyles, readableOn } from '@/features/diagram';
 import { useThemeColor } from '@/features/settings';
 import { DIRECTION_LABEL } from '@/features/timetable';
-import { selectNetwork, selectView, useAppStore } from '@/store';
+import { NO_PATTERN_STYLES, selectNetwork, selectView, useAppStore } from '@/store';
 import { withHidden } from './filters';
 
 /** 空の一覧。**毎回作らない**——参照が変わると購読が動く。 */
@@ -34,7 +34,7 @@ export function PatternList(): ReactElement {
    * 色と線種。**スジと同じ道具で決める**（`patternStyles`）——別々に決めると、
    * 一覧とスジが違う姿になる（#147）。
    */
-  const choices = useAppStore((state) => state.settings.patternStyles);
+  const choices = useAppStore((state) => selectView(state)?.patternStyles ?? NO_PATTERN_STYLES);
   const styles = useMemo(
     () => (network === null ? null : patternStyles(network.def.patterns, choices)),
     [network, choices],

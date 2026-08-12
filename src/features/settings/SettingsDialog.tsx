@@ -15,15 +15,18 @@
  */
 
 import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
-import { DIAGRAM_ZOOM_LIMITS } from '@/domain/model';
+import { DIAGRAM_ZOOM_LIMITS, type ViewSettings } from '@/domain/model';
 import { DASH_KINDS, DASH_KIND_LABEL, defaultDashKindOf, patternStyles } from '@/features/diagram';
 import type { PlatformAdapter } from '@/platform';
 import {
   BACKUP_INTERVAL_LIMITS,
   MAX_HISTORY_LIMIT,
   MIN_HISTORY_LIMIT,
+  NO_GRID_STYLE_OVERRIDES,
+  NO_PATTERN_STYLES,
   selectNetwork,
   selectTrips,
+  selectView,
   selectVisibleStops,
   useAppStore,
   type ThemeMode,
@@ -520,6 +523,19 @@ function DisplayTab(): ReactElement {
 }
 
 /**
+ * 表示の上書きを書き換える（T-90、#235）。
+ *
+ * **履歴に積む。** 運用の色（`blockColors`）と同じ扱いである——文書の見え方を
+ * 決める操作であり、取り消せるべきものである。`setSettings` は履歴に載らないが、
+ * あれが変えるのは「道具の使い方」であって文書ではない。
+ */
+function editView(label: string, recipe: (view: ViewSettings) => void): void {
+  useAppStore.getState().editProject(label, (project) => {
+    recipe(project.view);
+  });
+}
+
+/**
  * 停車パターンの色と線種（§6.5.3、#147）。
  *
  * **色と線種は独立に選ぶ。** 片方だけ変えても、もう片方は `route.json` のまま
@@ -527,8 +543,7 @@ function DisplayTab(): ReactElement {
  */
 function PatternStyles(): ReactElement {
   const network = useAppStore(selectNetwork);
-  const choices = useAppStore((state) => state.settings.patternStyles);
-  const setSettings = useAppStore((state) => state.setSettings);
+  const choices = useAppStore((state) => selectView(state)?.patternStyles ?? NO_PATTERN_STYLES);
 
   /*
    * **回送も並べる**（#179、2026-08-05 改め）。
@@ -574,10 +589,9 @@ function PatternStyles(): ReactElement {
                   aria-label={`${pattern.patternId} の色`}
                   value={styles?.get(pattern.patternId)?.color ?? pattern.color}
                   onChange={(event) => {
-                    setSettings({
-                      patternStyles: withPatternStyle(choices, pattern.patternId, {
-                        color: event.target.value,
-                      }),
+                    const color = event.target.value;
+                    editView('パターンの色の変更', (view) => {
+                      view.patternStyles = withPatternStyle(choices, pattern.patternId, { color });
                     });
                   }}
                 />
@@ -588,10 +602,10 @@ function PatternStyles(): ReactElement {
                   value={choices[pattern.patternId]?.dash ?? ''}
                   onChange={(event) => {
                     const dash = DASH_KINDS.find((kind) => kind === event.target.value);
-                    setSettings({
-                      patternStyles: withPatternStyle(choices, pattern.patternId, {
+                    editView('パターンの線種の変更', (view) => {
+                      view.patternStyles = withPatternStyle(choices, pattern.patternId, {
                         dash: dash ?? null,
-                      }),
+                      });
                     });
                   }}
                 >
@@ -615,8 +629,8 @@ function PatternStyles(): ReactElement {
                     type="button"
                     aria-label={`${pattern.patternId} の上書きをやめる`}
                     onClick={() => {
-                      setSettings({
-                        patternStyles: withoutPatternStyle(choices, pattern.patternId),
+                      editView('パターンの上書きをやめる', (view) => {
+                        view.patternStyles = withoutPatternStyle(choices, pattern.patternId);
                       });
                     }}
                   >
@@ -637,7 +651,9 @@ function PatternStyles(): ReactElement {
           type="button"
           disabled={count === 0}
           onClick={() => {
-            setSettings({ patternStyles: clearedPatternStyles(choices) });
+            editView('すべての上書きをやめる', (view) => {
+              view.patternStyles = clearedPatternStyles(choices);
+            });
           }}
         >
           すべての上書きをやめる
@@ -656,14 +672,17 @@ function PatternStyles(): ReactElement {
  */
 function StopGridStyles(): ReactElement {
   const stops = useAppStore(selectVisibleStops);
-  const overrides = useAppStore((state) => state.settings.stopGridStyles);
-  const setSettings = useAppStore((state) => state.setSettings);
+  const overrides = useAppStore(
+    (state) => selectView(state)?.stopGridStyles ?? NO_GRID_STYLE_OVERRIDES,
+  );
 
   const choose = (stopId: string, value: string): void => {
     // 選ばれた文字が線種かどうかを**照らして**決める。素の文字を線種として
     // 通すと、`<option>` を書き換えたときに型の上では気づけない。
     const style = GRID_STYLES.find((entry) => entry === value) ?? null;
-    setSettings({ stopGridStyles: withGridStyleOverride(overrides, stopId, style) });
+    editView('停留所の線種の変更', (view) => {
+      view.stopGridStyles = withGridStyleOverride(overrides, stopId, style);
+    });
   };
 
   const count = overrideCount(overrides);
@@ -716,7 +735,9 @@ function StopGridStyles(): ReactElement {
           type="button"
           disabled={count === 0}
           onClick={() => {
-            setSettings({ stopGridStyles: clearedGridStyles(overrides) });
+            editView('停留所の線種の上書きをやめる', (view) => {
+              view.stopGridStyles = clearedGridStyles(overrides);
+            });
           }}
         >
           すべての上書きをやめる

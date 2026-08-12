@@ -11,6 +11,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { Project, Trip } from '@/domain/model';
 import { createProject } from '@/domain/io';
 import { loadNetworkDef, type NetworkIndex } from '@/domain/network';
+import type { DashKind } from '@/domain/model';
 import { fromHM } from '@/domain/time';
 import { createAppStore, type AppState } from '@/store';
 import { selectDiagramScene, type SceneTheme } from './scene';
@@ -69,6 +70,17 @@ function state(): AppState {
 
 function tripIds(): readonly string[] {
   return selectDiagramScene(state(), theme).trips.map((trip) => trip.tripId);
+}
+
+/** 表示の上書きを当てる（T-90 でプロジェクトへ移った）。 */
+function setOverrides(view: {
+  readonly stopGridStyles?: Readonly<Record<string, 'bold' | 'normal' | 'dashed'>>;
+  readonly patternStyles?: Readonly<Record<string, { color?: string; dash?: DashKind }>>;
+}): void {
+  store.getState().editProject('上書き', (project) => {
+    if (view.stopGridStyles !== undefined) project.view.stopGridStyles = view.stopGridStyles;
+    if (view.patternStyles !== undefined) project.view.patternStyles = view.patternStyles;
+  });
 }
 
 beforeEach(() => {
@@ -131,7 +143,7 @@ describe('停留所の線種', () => {
   });
 
   it('**上書きした停留所だけが変わる**', () => {
-    store.getState().setSettings({ stopGridStyles: { '1_0': 'dashed' } });
+    setOverrides({ stopGridStyles: { '1_0': 'dashed' } });
 
     expect(gridStyleOf('1_0')).toBe('dashed');
     // 上書きしていない停留所は路線図のまま。
@@ -139,7 +151,7 @@ describe('停留所の線種', () => {
   });
 
   it('**route.json は書き換わらない**（路線の事実と見やすさは別物である）', () => {
-    store.getState().setSettings({ stopGridStyles: { '1_0': 'dashed' } });
+    setOverrides({ stopGridStyles: { '1_0': 'dashed' } });
 
     expect(network.def.stops.find((stop) => stop.stopId === '1_0')?.gridStyle).toBe('bold');
     expect(state().project?.network.stops.find((stop) => stop.stopId === '1_0')?.gridStyle).toBe(
@@ -148,7 +160,7 @@ describe('停留所の線種', () => {
   });
 
   it('**知らない停留所 ID が残っていても落ちない**（route.json の改訂で消えうる）', () => {
-    store.getState().setSettings({ stopGridStyles: { もう無い停留所: 'dashed' } });
+    setOverrides({ stopGridStyles: { もう無い停留所: 'dashed' } });
 
     expect(gridStyleOf('1_0')).toBe('bold');
     expect(selectDiagramScene(state(), theme).stops).toHaveLength(5);
@@ -180,7 +192,7 @@ describe('スジの色と線種', () => {
 
   it('**パターンの色を上書きできる**', () => {
     setTrips([makeTrip('t1', 'S1', [8, 0]), makeTrip('t2', 'S3', [9, 0])]);
-    store.getState().setSettings({ patternStyles: { S1: { color: '#123456' } } });
+    setOverrides({ patternStyles: { S1: { color: '#123456' } } });
 
     expect(tripOf('t1')?.color).toBe('#123456');
     // 上書きしていないパターンは路線図のまま。
@@ -189,7 +201,7 @@ describe('スジの色と線種', () => {
 
   it('**線種だけ上書きしても色は変わらない**（色と線種は独立）', () => {
     setTrips([makeTrip('t1', 'S1', [8, 0])]);
-    store.getState().setSettings({ patternStyles: { S1: { dash: 'dashDot' } } });
+    setOverrides({ patternStyles: { S1: { dash: 'dashDot' } } });
 
     expect(tripOf('t1')?.lineDash).toEqual([10, 4, 2, 4]);
     expect(tripOf('t1')?.color).toBe(network.findPattern('S1')?.color);
@@ -198,7 +210,7 @@ describe('スジの色と線種', () => {
   it('**回送の線種も上書きできる**（#179）', () => {
     // その線をどう見分けたいかはその人の目の話であり、営業パターンと変わらない。
     setTrips([makeTrip('t1', 'S1', [8, 0], { pullOut: true })]);
-    store.getState().setSettings({ patternStyles: { 'DT-out': { dash: 'solid' } } });
+    setOverrides({ patternStyles: { 'DT-out': { dash: 'solid' } } });
 
     const deadhead = selectDiagramScene(state(), theme).trips.find((trip) => trip.isDeadhead);
     expect(deadhead?.lineDash).toEqual([]);
@@ -212,7 +224,7 @@ describe('スジの色と線種', () => {
   });
 
   it('**route.json は書き換わらない**', () => {
-    store.getState().setSettings({ patternStyles: { S1: { color: '#123456' } } });
+    setOverrides({ patternStyles: { S1: { color: '#123456' } } });
 
     expect(network.findPattern('S1')?.color).not.toBe('#123456');
     expect(state().project?.network.patterns.find((p) => p.patternId === 'S1')?.color).not.toBe(

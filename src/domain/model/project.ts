@@ -15,7 +15,7 @@
 
 import { z } from 'zod';
 import { fromHM } from '@/domain/time';
-import { networkDefSchema } from './network';
+import { dashKindSchema, gridStyleSchema, networkDefSchema } from './network';
 import {
   calendarDateSchema,
   directionIdSchema,
@@ -280,6 +280,18 @@ export function clampSplitRatio(ratio: number): number {
 }
 
 /**
+ * パターンごとの上書き（#147）。**色と線種は独立に選ぶ。**
+ *
+ * T-90 で設定からプロジェクトへ移した。片方だけ選んだときに、もう片方まで
+ * 路線から離れてしまわないよう、どちらも任意にしてある。
+ */
+export const patternStyleChoiceSchema = z.object({
+  color: z.string().optional(),
+  dash: dashKindSchema.optional(),
+});
+export type PatternStyleChoice = z.infer<typeof patternStyleChoiceSchema>;
+
+/**
  * 表示設定（仕様書 §5.10）。プロジェクトに保存され、開き直しても再現される。
  *
  * すべての項目に既定値を与えている。古いファイルに項目が欠けていても、
@@ -329,6 +341,28 @@ export const viewSettingsSchema = z.object({
    * 選んだ色は動かない。**
    */
   blockColors: z.record(idSchema, hexColorSchema).default({}),
+  /**
+   * 停留所の線種の上書き（仕様書 §6.5.3、#133。T-90 で設定から移した）。
+   *
+   * **路線の事実と、その人の見やすさは別物である。** どの停留所が幹線か
+   * （`network.stops[].gridStyle`）は書き換えてよい事実ではない。一方で
+   * 「この線が細くて見失う」はその人の目の話であり、直す先は路線ではない。
+   * よって上書きの表を別に持つ。
+   *
+   * **入っていない停留所は路線の値をそのまま使う。** 全停留所ぶんを持つと、
+   * 路線側で線種を直したときに古い値で上書きし続ける。
+   *
+   * **設定ではなくプロジェクトに置く**（#235、T-90）。路線が文書ごとになった
+   * 以上、`stopId` は文書ごとの名前である——設定に持つと、**別の文書の別の
+   * 停留所に同じ上書きが当たる。**
+   */
+  stopGridStyles: z.record(idSchema, gridStyleSchema).default({}),
+  /**
+   * 停車パターンの色と線種の上書き（仕様書 §6.5.3、#147。T-90 で移した）。
+   *
+   * 停留所の線種と同じ理屈である。**色と線種は独立に持つ**（片方だけ選べる）。
+   */
+  patternStyles: z.record(idSchema, patternStyleChoiceSchema).default({}),
 });
 export type ViewSettings = z.infer<typeof viewSettingsSchema>;
 

@@ -55,7 +55,7 @@ function makeTrip(tripId: string, patternId: string, hours: number): Trip {
 function mount(writable = true): void {
   // **毎回同じところから始める。** ストアは 1 つしかなく、前の検証で変えた設定が
   // 残ると、順番によって結果が変わる。
-  useAppStore.getState().setSettings({ theme: 'system', stopGridStyles: {}, patternStyles: {} });
+  useAppStore.getState().setSettings({ theme: 'system' });
   useAppStore.getState().setSeedNetworkDef(network.def);
   useAppStore
     .getState()
@@ -319,8 +319,9 @@ describe('表示タブ（§6.5.3）', () => {
 
   /** 停留所の線種（#133）。 */
   describe('停留所の線種', () => {
+    // **上書きは文書にある**（T-90、#235）。
     const overrides = (): Readonly<Record<string, string>> =>
-      useAppStore.getState().settings.stopGridStyles;
+      useAppStore.getState().project?.view.stopGridStyles ?? {};
 
     function openDisplayTab(): void {
       mount();
@@ -442,7 +443,7 @@ describe('停車パターンの色と線種', () => {
     });
   }
 
-  const styles = (): unknown => useAppStore.getState().settings.patternStyles;
+  const styles = (): unknown => useAppStore.getState().project?.view.patternStyles;
 
   it('**回送のパターンも並べる**（#179）', () => {
     openDisplayTab();

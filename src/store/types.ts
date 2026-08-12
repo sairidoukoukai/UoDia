@@ -32,10 +32,10 @@
  * しか見ておらず、**区間を変えても未保存にならなかった。**
  */
 
-import type { DiagramView, GridStyle, NetworkDef, Project, Trip } from '@/domain/model';
+import type { DiagramView, NetworkDef, Project, Trip } from '@/domain/model';
 import type { FileHandle } from '@/platform';
 import type { History } from './history';
-import type { PatternStyleChoice, ThemeMode } from './settings';
+import type { ThemeMode } from './settings';
 
 /**
  * 矩形選択で囲んでいる範囲（仕様書 §6.3.1、T-28）。
@@ -175,26 +175,13 @@ export interface AppSettings {
    * <kbd>Ctrl</kbd>+<kbd>0</kbd>（拡大率を既定に戻す）が戻す先である。
    */
   readonly defaultDiagramView: DiagramView;
-  /**
-   * 停留所の線種の上書き（仕様書 §6.5.3、#133）。
-   *
-   * **路線の事実と、その人の見やすさは別物である。** どの停留所が幹線か
-   * （`route.json` の `gridStyle`）は書き換えてよい事実ではない。一方で
-   * 「この線が細くて見失う」はその人の目の話であり、直す先は `route.json`
-   * ではない。よって上書きの表を別に持つ。
-   *
-   * **入っていない停留所は `route.json` の値をそのまま使う。** 全停留所ぶんを
-   * 持つと、`route.json` 側で線種を直したときに古い値で上書きし続ける。
-   */
-  readonly stopGridStyles: Readonly<Record<string, GridStyle>>;
-  /**
-   * 停車パターンの色と線種の上書き（仕様書 §6.5.3、#147）。
-   *
-   * 停留所の線種（`stopGridStyles`）と同じ理屈で設定に置く——どのパターンが
-   * 直行かは路線の事実であり、その線が見分けやすいかはその人の目の話である。
-   * **色と線種は独立に持つ**（片方だけ選べる）。
-   */
-  readonly patternStyles: Readonly<Record<string, PatternStyleChoice>>;
+  /*
+    停留所の線種と停車パターンの上書きは**プロジェクトへ移した**（T-90、#235）。
+    `project.view.stopGridStyles` / `project.view.patternStyles` にある。
+
+    路線が文書ごとになった以上、`stopId` も `patternId` も文書ごとの名前で
+    ある。設定に持つと、**別の文書の別の停留所に同じ上書きが当たる。**
+  */
   /**
    * 停車パターンの編集を開いてよいか（仕様書 §6.5.4、T-36）。
    *

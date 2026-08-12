@@ -720,3 +720,35 @@ describe('路線を文書が持つ（#235、T-89）', () => {
     expect(loadOrThrow(saved).project.network).toEqual(network.def);
   });
 });
+
+describe('表示の上書きを文書が持つ（#235、T-90）', () => {
+  it('**選んだ色と線種が `.uodia` に入る**', () => {
+    const project = makeProject();
+    const styled: Project = {
+      ...project,
+      view: {
+        ...project.view,
+        patternStyles: { S1: { color: '#123456', dash: 'dashDot' } },
+        stopGridStyles: { '1_0': 'dashed' },
+      },
+    };
+
+    const back = loadOrThrow(serializeProject(styled)).project;
+    expect(back.view.patternStyles).toEqual({ S1: { color: '#123456', dash: 'dashDot' } });
+    expect(back.view.stopGridStyles).toEqual({ '1_0': 'dashed' });
+  });
+
+  it('**上書きしていなければ空のまま**（路線の値をそのまま使う）', () => {
+    const back = loadOrThrow(serializeProject(makeProject())).project;
+    expect(back.view.patternStyles).toEqual({});
+    expect(back.view.stopGridStyles).toEqual({});
+  });
+
+  it('**版数 4 のファイルからは引き継がない**（移行で写さない。実装計画書 v2.2 §3.3）', () => {
+    const v4 = withFormatVersion(serializeProject(makeProject()), 4);
+    const back = loadOrThrow(v4).project;
+
+    expect(back.view.patternStyles).toEqual({});
+    expect(back.view.stopGridStyles).toEqual({});
+  });
+});

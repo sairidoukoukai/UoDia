@@ -93,6 +93,8 @@ function makeProject(): Project {
       activeDirection: 0,
       diagram: { pxPerMinute: 3, pxPerAxisUnit: 8, scrollTime: 25200, scrollAxis: 0 },
       colorMode: 'pattern',
+      stopGridStyles: {},
+      patternStyles: {},
       hiddenPatternIds: [],
       hiddenBlockIds: [],
       hiddenDirections: [],

@@ -9,7 +9,6 @@ export {
   persistedSettingsSchema,
   serializeSettings,
   themeModeSchema,
-  type PatternStyleChoice,
   type PersistedSettings,
   type ThemeMode,
 } from './settings';

@@ -31,11 +31,13 @@ import {
   selectTripNumbers,
   selectTrips,
   selectVisibleStops,
+  NO_GRID_STYLE_OVERRIDES,
+  NO_PATTERN_STYLES,
   type AppState,
-  type PatternStyleChoice,
   type SelectionRect,
   type TripShift,
 } from '@/store';
+import type { PatternStyleChoice } from '@/domain/model';
 import { readableOn } from './color';
 import { buildBlockLinks, type BlockLinkEntry, type SceneBlockLink } from './blockLinks';
 import { patternStyles, SOLID } from './tripStyle';
@@ -441,9 +443,11 @@ const sceneOf = memoizeByIdentity(
  */
 export function selectDiagramScene(state: AppState, theme: SceneTheme): DiagramScene {
   const network = selectNetwork(state);
-  const stops =
-    network === null ? NO_STOPS : stopsOf(selectVisibleStops(state), state.settings.stopGridStyles);
   const view = state.project?.view;
+  const stops =
+    network === null
+      ? NO_STOPS
+      : stopsOf(selectVisibleStops(state), view?.stopGridStyles ?? NO_GRID_STYLE_OVERRIDES);
 
   // **拡大率とスクロール位置は見ない。** 同じ `view` の中にあるが、変わっても
   // 描くものは変わらない。ここで見ると、パンするたびにスジを組み直すことになる。
@@ -467,7 +471,7 @@ export function selectDiagramScene(state: AppState, theme: SceneTheme): DiagramS
           view?.colorMode ?? 'pattern',
           selectTripNumbers(state),
           theme.background,
-          state.settings.patternStyles,
+          view?.patternStyles ?? NO_PATTERN_STYLES,
           view?.blockColors ?? NO_BLOCK_COLORS,
         ),
     network === null
@@ -480,7 +484,7 @@ export function selectDiagramScene(state: AppState, theme: SceneTheme): DiagramS
           filter,
           view?.colorMode ?? 'pattern',
           theme.background,
-          state.settings.patternStyles,
+          view?.patternStyles ?? NO_PATTERN_STYLES,
           view?.blockColors ?? NO_BLOCK_COLORS,
         ),
     state.ui.selectedTripIds,

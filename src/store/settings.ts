@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { dashKindSchema, diagramViewSchema, gridStyleSchema, type GridStyle } from '@/domain/model';
+import { diagramViewSchema, type GridStyle, type PatternStyleChoice } from '@/domain/model';
 
 /**
  * 設定の既定値と範囲（仕様書 §6.5.2、§6.5.3、T-35）。
@@ -41,13 +41,6 @@ export function clampBackupInterval(ms: number): number {
   return Math.min(BACKUP_INTERVAL_LIMITS.max, Math.max(BACKUP_INTERVAL_LIMITS.min, Math.round(ms)));
 }
 
-/** パターンごとの上書き（#147）。**色と線種は独立に選ぶ。** */
-export const patternStyleChoiceSchema = z.object({
-  color: z.string().optional(),
-  dash: dashKindSchema.optional(),
-});
-export type PatternStyleChoice = z.infer<typeof patternStyleChoiceSchema>;
-
 /**
  * 保存する設定（T-39）。
  *
@@ -59,25 +52,15 @@ export const persistedSettingsSchema = z.object({
   theme: themeModeSchema.default(DEFAULT_THEME),
   backupIntervalMs: z.number().default(DEFAULT_BACKUP_INTERVAL_MS),
   defaultDiagramView: diagramViewSchema.default({}),
-  /**
-   * 停留所の線種の上書き（§6.5.3、#133）。
-   *
-   * **知らない停留所 ID が残っていても構わない。** `route.json` の改訂で
-   * 停留所が消えることはあり、そのたびに設定が読めなくなるのでは代償が
-   * 大きい。当てるときに引き当たらないだけである。
-   */
-  stopGridStyles: z.record(z.string(), gridStyleSchema).default({}),
-  /**
-   * 停車パターンの色と線種の上書き（§6.5.3、#147）。
-   *
-   * **色と線種は独立に持つ。** 片方だけ選んだときに、もう片方まで
-   * `route.json` から離れてしまわないようにする。
-   */
-  patternStyles: z.record(z.string(), patternStyleChoiceSchema).default({}),
 });
 export type PersistedSettings = z.infer<typeof persistedSettingsSchema>;
 
-/** 上書きが 1 つも無い状態。**同じ参照を返す**——記憶化の鍵になる。 */
+/**
+ * 上書きが 1 つも無い状態。**同じ参照を返す**——記憶化の鍵になる。
+ *
+ * 上書きそのものはプロジェクトへ移った（T-90）が、**空を表す値はここに残る**
+ * ——文書を開いていないときに何を渡すかは、文書の側では決められない。
+ */
 export const NO_GRID_STYLE_OVERRIDES: Readonly<Record<string, GridStyle>> = Object.freeze({});
 
 /** パターンの上書きが 1 つも無い状態。 */
@@ -100,23 +83,20 @@ export function parseSettings(json: string | null): PersistedSettings {
   }
 }
 
-/** 設定を書き出す。並びを固定して、同じ内容からは同じバイト列が出るようにする。 */
+/**
+ * 設定を書き出す。並びを固定して、同じ内容からは同じバイト列が出るようにする。
+ *
+ * 表示の上書きはここに無い（T-90、#235）。**プロジェクトへ移した**ため、
+ * 並べ替えるものも無くなった。
+ */
 export function serializeSettings(settings: PersistedSettings): string {
   return `${JSON.stringify(
     {
       backupIntervalMs: settings.backupIntervalMs,
       defaultDiagramView: settings.defaultDiagramView,
-      // 停留所の並びも固定する。上書きを足した順で書くと、同じ内容から違う
-      // バイト列が出て、**中身が変わっていないのに書き込みが走る**。
-      patternStyles: sortedByKey(settings.patternStyles),
-      stopGridStyles: sortedByKey(settings.stopGridStyles),
       theme: settings.theme,
     },
     null,
     2,
   )}\n`;
-}
-
-function sortedByKey<T>(styles: Readonly<Record<string, T>>): Record<string, T> {
-  return Object.fromEntries(Object.entries(styles).sort(([a], [b]) => a.localeCompare(b)));
 }
