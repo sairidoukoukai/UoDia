@@ -13,6 +13,9 @@ src-tauri/gen/
 coverage/
 .nyc_output/
 
+# wrangler が手元に作る作業領域
+.wrangler/
+
 # エディタ・OS
 .vscode/*
 !.vscode/extensions.json
