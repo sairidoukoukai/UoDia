@@ -69,7 +69,7 @@ let store: AppStoreHook;
 /** 便を 1 つ持つプロジェクトを載せたストア。 */
 function boot(withTrip = true): void {
   store = createAppStore();
-  store.getState().setNetworkDef(network.def);
+  store.getState().setSeedNetworkDef(network.def);
   store.getState().setProject(createProject(network, { name: '春ダイヤ', now: NOW }));
 
   if (!withTrip) return;

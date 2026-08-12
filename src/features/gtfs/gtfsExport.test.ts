@@ -90,7 +90,7 @@ beforeEach(() => {
   errors = [];
   platform = createMemoryPlatform();
   store = createAppStore();
-  store.getState().setNetworkDef(network.def);
+  store.getState().setSeedNetworkDef(network.def);
   store.getState().setProject(createProject(network, { now: new Date('2026-08-09T00:00:00Z') }));
   store.getState().editProject('用意する', (project) => {
     const [service] = project.services;

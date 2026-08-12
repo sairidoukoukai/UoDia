@@ -59,7 +59,6 @@ export {
 export {
   applyPatterns,
   applySegmentEdits,
-  saveNetworkDef,
   type ApplyResult,
   type SettingsStore,
 } from './settingsService';

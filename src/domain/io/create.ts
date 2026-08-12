@@ -3,6 +3,9 @@
  *
  * ダイヤを 1 件だけ含む空のプロジェクトを作る。0 件だと「どのダイヤを編集して
  * いるのか」が定まらず、最初の便を追加する前に利用者がダイヤの作成を強いられる。
+ *
+ * **渡された路線を文書へ写す**（#235、T-89）。以降その文書は、渡された路線が
+ * あとで変わっても影響を受けない。
  */
 
 import { CURRENT_FORMAT_VERSION, projectSchema, type Project } from '@/domain/model';
@@ -35,6 +38,10 @@ export function createProject(network: NetworkIndex, options: CreateProjectOptio
       createdAt: timestamp,
       updatedAt: timestamp,
     },
+    // **路線を写して持つ**（#235、T-89）。新しい文書は、その時点で読まれて
+    // いる路線から始まる——起動直後なら同梱のもの、文書を開いていればその
+    // 文書のものである（`fileService.newProject`）。
+    network: network.def,
     document: {
       name: options.name ?? '',
       author: options.author ?? '',

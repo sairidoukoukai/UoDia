@@ -22,7 +22,7 @@ import { createProject, loadProject, serializeProject, touchProject } from '@/do
 import type { Project } from '@/domain/model';
 import { formatIssues } from '@/domain/model';
 import type { FileHandle, PlatformAdapter, RecentFile } from '@/platform';
-import { selectIsDirty, selectNetwork, type AppStoreHook } from '@/store';
+import { selectIsDirty, selectNetwork, selectSeedNetwork, type AppStoreHook } from '@/store';
 import { DISCARD_QUESTIONS, type DiscardQuestion, type FileDialogs } from './prompts';
 import { suggestFileName } from './title';
 
@@ -78,13 +78,16 @@ export function createFileService(options: FileServiceOptions): FileService {
 
   /** 読み込んだ内容を状態に載せる。 */
   async function acceptContent(content: string, handle: FileHandle): Promise<boolean> {
-    const network = selectNetwork(store.getState());
-    if (network === null) {
+    // **渡すのは種である**（T-89）。版数 5 以降のファイルは自分の路線を持って
+    // おり、これは版数 4 以下を引き上げるときにだけ使われる。開いている文書の
+    // 路線を渡すと、**古いファイルが直前に開いていた文書の路線で埋まる。**
+    const seed = selectSeedNetwork(store.getState());
+    if (seed === null) {
       await dialogs.showError('ネットワーク定義が読み込まれていないため、ファイルを開けません');
       return false;
     }
 
-    const result = loadProject(content, network);
+    const result = loadProject(content, seed);
     if (!result.ok) {
       await dialogs.showError(describeLoadFailure(result));
       return false;
@@ -153,7 +156,9 @@ export function createFileService(options: FileServiceOptions): FileService {
     async newProject(): Promise<boolean> {
       if (!(await ensureSaved(DISCARD_QUESTIONS.new))) return false;
 
-      const network = selectNetwork(store.getState());
+      // **開いている文書の路線を引き継ぐ**（T-89）。新経路を足した文書から
+      // 新規作成すれば、その路線で始まる。何も開いていなければ種から始まる。
+      const network = selectNetwork(store.getState()) ?? selectSeedNetwork(store.getState());
       if (network === null) {
         await dialogs.showError('ネットワーク定義が読み込まれていないため、新規作成できません');
         return false;

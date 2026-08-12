@@ -1,12 +1,21 @@
 /**
  * プロジェクト（`.uodia` ファイル）のスキーマ。仕様書 §5.6〜§5.10、§7.2。
  *
- * 停留所・区間・パターンの定義は含まない（`route.json` から読む）。
- * 1 便あたりの永続化データは 6 フィールドのみで、100 便でも数十 KB に収まる。
+ * **運行経路の定義を中に持つ**（#235、T-89。版数 5 で改め）。停留所・区間・
+ * パターンは、かつて `route.json` から読んでいた——**文書の外にあって、文書の
+ * 意味を決めていた。**
+ *
+ * 便が保存しているのは基準時刻 1 点だけであり、残りの停留所の時刻は
+ * `segments.runMinutes` から導出される。**路線が違えば、同じファイルが別の
+ * 時刻表になる。** 中に持たせることで、文書だけで同じ絵が出る。
+ *
+ * 1 便あたりの永続化データは 6 フィールドのみで、路線を足しても 100 便で
+ * 数十 KB に収まる（路線は 13KB）。
  */
 
 import { z } from 'zod';
 import { fromHM } from '@/domain/time';
+import { dashKindSchema, gridStyleSchema, networkDefSchema } from './network';
 import {
   calendarDateSchema,
   directionIdSchema,
@@ -17,7 +26,7 @@ import {
 } from './primitives';
 
 /** 現在のファイル形式の版数。破壊的変更のたびに繰り上げる（仕様書 §7.3）。 */
-export const CURRENT_FORMAT_VERSION = 4;
+export const CURRENT_FORMAT_VERSION = 5;
 
 /**
  * 基準時刻（仕様書 §5.6）。**便の時刻を決める唯一の入力。**
@@ -271,6 +280,18 @@ export function clampSplitRatio(ratio: number): number {
 }
 
 /**
+ * パターンごとの上書き（#147）。**色と線種は独立に選ぶ。**
+ *
+ * T-90 で設定からプロジェクトへ移した。片方だけ選んだときに、もう片方まで
+ * 路線から離れてしまわないよう、どちらも任意にしてある。
+ */
+export const patternStyleChoiceSchema = z.object({
+  color: z.string().optional(),
+  dash: dashKindSchema.optional(),
+});
+export type PatternStyleChoice = z.infer<typeof patternStyleChoiceSchema>;
+
+/**
  * 表示設定（仕様書 §5.10）。プロジェクトに保存され、開き直しても再現される。
  *
  * すべての項目に既定値を与えている。古いファイルに項目が欠けていても、
@@ -320,6 +341,28 @@ export const viewSettingsSchema = z.object({
    * 選んだ色は動かない。**
    */
   blockColors: z.record(idSchema, hexColorSchema).default({}),
+  /**
+   * 停留所の線種の上書き（仕様書 §6.5.3、#133。T-90 で設定から移した）。
+   *
+   * **路線の事実と、その人の見やすさは別物である。** どの停留所が幹線か
+   * （`network.stops[].gridStyle`）は書き換えてよい事実ではない。一方で
+   * 「この線が細くて見失う」はその人の目の話であり、直す先は路線ではない。
+   * よって上書きの表を別に持つ。
+   *
+   * **入っていない停留所は路線の値をそのまま使う。** 全停留所ぶんを持つと、
+   * 路線側で線種を直したときに古い値で上書きし続ける。
+   *
+   * **設定ではなくプロジェクトに置く**（#235、T-90）。路線が文書ごとになった
+   * 以上、`stopId` は文書ごとの名前である——設定に持つと、**別の文書の別の
+   * 停留所に同じ上書きが当たる。**
+   */
+  stopGridStyles: z.record(idSchema, gridStyleSchema).default({}),
+  /**
+   * 停車パターンの色と線種の上書き（仕様書 §6.5.3、#147。T-90 で移した）。
+   *
+   * 停留所の線種と同じ理屈である。**色と線種は独立に持つ**（片方だけ選べる）。
+   */
+  patternStyles: z.record(idSchema, patternStyleChoiceSchema).default({}),
 });
 export type ViewSettings = z.infer<typeof viewSettingsSchema>;
 
@@ -327,6 +370,13 @@ export type ViewSettings = z.infer<typeof viewSettingsSchema>;
 export const projectSchema = z.object({
   meta: metaSchema,
   document: documentInfoSchema,
+  /**
+   * 運行経路の定義（#235、T-89。版数 5 で足した）。
+   *
+   * **既定値を持たない。** 路線の無い文書は、便の時刻を決められない——
+   * 省略できる形にすると、**開けるが何も描けないファイル**を作れてしまう。
+   */
+  network: networkDefSchema,
   services: z.array(serviceSchema),
   view: viewSettingsSchema.default({}),
 });

@@ -81,7 +81,7 @@ function rowNamed(directionId: 0 | 1, label: string): readonly string[] {
 
 beforeEach(() => {
   store = createAppStore();
-  store.getState().setNetworkDef(network.def);
+  store.getState().setSeedNetworkDef(network.def);
   store.getState().setProject(createProject(network, { now: new Date('2026-08-09T00:00:00Z') }));
 });
 

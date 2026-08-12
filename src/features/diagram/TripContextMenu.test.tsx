@@ -51,7 +51,7 @@ let closed = 0;
 let keptFocus: boolean | undefined;
 
 function mount(selection: readonly string[] = ['t1']): void {
-  useAppStore.getState().setNetworkDef(network.def);
+  useAppStore.getState().setSeedNetworkDef(network.def);
   useAppStore
     .getState()
     .setProject(makeProject([makeTrip('t1', 'S1', 8), makeTrip('t2', 'S1', 9, 'B')]));
