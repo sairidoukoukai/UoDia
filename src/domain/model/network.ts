@@ -219,6 +219,16 @@ export const routeInfoSchema = z.object({
   /** よみがな・英語名（`translations.txt`）。回送はよみがなを持たない。 */
   kana: z.string().min(1).optional(),
   en: z.string().min(1).optional(),
+  /**
+   * 回送の系統か（#247、T-97）。**既定は営業の系統である。**
+   *
+   * 回送かどうかは停車パターンが持つ（`StopPattern.isDeadhead`）。ここにある
+   * のは**系統の側の宣言**であり、2 つが食い違えば R-07 が拾う。
+   *
+   * **系統で分けるのは、車庫との出入りと停留所間の回送を分けるためである。**
+   * どちらも回送だが、走る先も描き方も違う（実装計画書 v2.3 §1.2）。
+   */
+  isDeadhead: z.boolean().default(false),
 });
 export type RouteInfo = z.infer<typeof routeInfoSchema>;
 

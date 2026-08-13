@@ -4,10 +4,19 @@
  * ネットワーク定義の読込（T-06）と同じく、**どの段階で失敗したかを型で区別する**。
  * 加えて、開けはするが伝えるべきことがある場合を `warnings` として返す。
  *
- * 壊れた参照でファイルを開けなくするのは避ける。`route.json` を書き換えたあとに
- * 古いプロジェクトを開く、という状況は普通に起こり、そこで「開けません」とだけ
+ * 壊れた参照でファイルを開けなくするのは避ける。路線を書き換えたあとに古い
+ * プロジェクトを開く、という状況は普通に起こり、そこで「開けません」とだけ
  * 言われても利用者は手を打てない。既定値へ倒したうえで、何をどう倒したかを
  * 警告として並べる。
+ *
+ * ## 参照を直す相手は、そのファイル自身の路線である（T-89）
+ *
+ * 版数 5 で路線が文書の中へ入った（#235）。**渡された路線ではなく、読み込んだ
+ * 文書が持っている路線**を相手に参照を直す。渡された路線を使うと、**開いた
+ * 瞬間にその環境の路線へ引き寄せられる**——文書を自己完結させた意味が消える。
+ *
+ * 渡された路線が要るのは**版数 4 以下を引き上げるとき**だけである（そのファイル
+ * には路線が入っていない）。
  */
 
 import {
@@ -18,10 +27,10 @@ import {
   type Service,
   type Trip,
 } from '@/domain/model';
-import type { NetworkIndex } from '@/domain/network';
-import { originStopId, originTime, terminalStopId, terminalTime } from '@/domain/trip';
+import { buildNetworkIndex, type NetworkIndex } from '@/domain/network';
+import { depotIds, originStopId, originTime, terminalStopId, terminalTime } from '@/domain/trip';
 import { parseJson } from '@/domain/util';
-import { MIGRATIONS, migrateProjectData, type Migration } from './migrate';
+import { migrateProjectData, migrationsFor, type Migration } from './migrate';
 
 /** 読込時の警告の種類。 */
 export type ProjectWarningId =
@@ -53,10 +62,10 @@ export type LoadProjectResult =
 
 export interface LoadProjectOptions {
   /**
-   * 適用する変換の一覧。既定は {@link MIGRATIONS}。
+   * 適用する変換の一覧。既定は {@link migrationsFor} が作るもの。
    *
-   * 差し替えられるようにしてあるのは、変換が 1 つも無い今の段階でも読込全体を
-   * 通して確かめられるようにするためである（{@link migrateProjectData} と同じ理由）。
+   * 差し替えられるようにしてあるのは、変換の途中の版を通して確かめられるように
+   * するためである（{@link migrateProjectData} と同じ理由）。
    */
   readonly migrations?: readonly Migration[];
   /** 引き上げ先の版数。既定は現在の形式版数。 */
@@ -67,11 +76,12 @@ export interface LoadProjectOptions {
  * `.uodia` の内容を読み込む。
  *
  * @param json ファイルの中身
- * @param network 参照整合性の検査に使うネットワーク定義
+ * @param seedNetwork **版数 4 以下を引き上げるときに埋める路線**（T-89）。版数 5
+ *   以降のファイルでは使われない——参照を直す相手は、そのファイル自身の路線である
  */
 export function loadProject(
   json: string,
-  network: NetworkIndex,
+  seedNetwork: NetworkIndex,
   options: LoadProjectOptions = {},
 ): LoadProjectResult {
   const parsed = parseJson(json);
@@ -79,7 +89,7 @@ export function loadProject(
     return { ok: false, stage: 'json', message: parsed.message };
   }
 
-  return loadProjectData(parsed.value, network, options);
+  return loadProjectData(parsed.value, seedNetwork, options);
 }
 
 /**
@@ -91,7 +101,7 @@ export function loadProject(
  */
 export function loadProjectData(
   raw: unknown,
-  network: NetworkIndex,
+  seedNetwork: NetworkIndex,
   options: LoadProjectOptions = {},
 ): LoadProjectResult {
   const formatVersion = readFormatVersion(raw);
@@ -106,7 +116,7 @@ export function loadProjectData(
   const migrated = migrateProjectData(
     raw,
     formatVersion,
-    options.migrations ?? MIGRATIONS,
+    options.migrations ?? migrationsFor(seedNetwork.def),
     options.targetVersion,
   );
   if (!migrated.ok) {
@@ -124,7 +134,10 @@ export function loadProjectData(
   }));
 
   warnings.push(...findUnknownKeys(migrated.data, parsed.value).map(unknownKeyWarning));
-  warnings.push(...checkRouteVersion(parsed.value, network));
+  warnings.push(...checkRouteVersion(parsed.value));
+
+  // **文書自身の路線を相手にする**（T-89）。渡された路線ではない。
+  const network = buildNetworkIndex(parsed.value.network);
 
   const repaired = repairReferences(parsed.value, network, warnings);
   // 畳むのは修復のあとである。パターンの参照が直っていなければ、その便が回送
@@ -152,15 +165,24 @@ function describeMigrationFailure(
     : `版 ${version} からの変換手順がありません`;
 }
 
-/** `route.json` の版数がプロジェクトの想定と一致するか（仕様書 §7.3）。 */
-function checkRouteVersion(project: Project, network: NetworkIndex): ProjectWarning[] {
-  if (project.meta.routeVersion === network.def.version) return [];
+/**
+ * `meta.routeVersion` が、その文書の路線の版数と一致するか（仕様書 §7.3）。
+ *
+ * **突き合わせる相手が変わった**（T-89）。かつては共有の `route.json` と比べて
+ * おり、「保存したあとに路線が書き換わった」ことを知らせる警告だった。路線が
+ * 文書の中へ入った以上、**そういうことは起こらない。**
+ *
+ * それでも残すのは、**手で書き換えた文書**では食い違いうるためである。中の
+ * 2 つの値が食い違っていることは、それ自体が伝えるに値する。
+ */
+function checkRouteVersion(project: Project): ProjectWarning[] {
+  if (project.meta.routeVersion === project.network.version) return [];
   return [
     {
       id: 'W-01',
       message:
-        `ネットワーク定義が変更されています（プロジェクト: 版 ${String(project.meta.routeVersion)}、` +
-        `現在: 版 ${String(network.def.version)}）。時刻が再計算されます`,
+        `路線の版数が食い違っています（meta: 版 ${String(project.meta.routeVersion)}、` +
+        `network: 版 ${String(project.network.version)}）。時刻が再計算されます`,
       path: 'meta.routeVersion',
     },
   ];
@@ -247,10 +269,21 @@ interface RepairContext {
 }
 
 /**
- * 保存されている回送便を営業便の `pullOut` / `pullIn` へ畳む（仕様書 §7.3、T-51）。
+ * 出入庫の回送便を営業便の `pullOut` / `pullIn` へ畳む（仕様書 §7.3、T-51）。
  *
- * 版数 2 以前のファイルには回送便が便として入っている。版数 3 では回送便を
- * 保存しないため、接している営業便の真偽値に移し替えて取り除く。
+ * 版数 2 以前のファイルには出入庫が便として入っている。版数 3 以降は真偽値で
+ * 持つため、接している営業便に移し替えて取り除く。
+ *
+ * ## 畳むのは営業所に接する回送だけである（T-98、#247）
+ *
+ * かつては `isDeadhead` の便を**すべて**畳んでいた。**当時は回送＝出入庫しか
+ * 無かった**ため、それで正しかった。
+ *
+ * 停留所間の回送（`箕面 → 豊中` など）が入ったことで、**この手順が移行と関係の
+ * 無い便を消すようになった**——畳めないものとして W-06 を出し、取り除いていた。
+ *
+ * > **開くたびに走る手順が、開くたびに便を消していた。** 気づけたのは、回送の
+ * > 種類が増えたからである。
  *
  * 接点は**停留所と時刻の一致**で見る。0 分折返しの制約により、繋がっている回送は
  * 必ず営業便の始発・終着とぴたり一致する（§6.1.7）。運用番号が違えば繋がって
@@ -278,14 +311,26 @@ function foldServiceDeadheads(
   warnings: ProjectWarning[],
   path: string,
 ): Service {
-  const isDeadhead = (trip: Trip): boolean =>
-    network.patternIndex(trip.patternId)?.pattern.isDeadhead === true;
+  const depots = depotIds(network);
 
-  const deadheads = service.trips.filter(isDeadhead);
-  // 回送便が 1 つも無ければ写しを作らない。版数 3 のファイルはここを素通りする。
+  /**
+   * 営業所に接する回送か（T-98、#247）。
+   *
+   * **畳むのはこれだけである。** 停留所間の回送（`箕面 → 豊中` など）は便として
+   * 保存されるものであり、**畳む先が無い**——2 便の間にあり、どちらか一方から
+   * は決まらない（実装計画書 v2.3 §3.1）。
+   */
+  const foldable = (trip: Trip): boolean => {
+    const pattern = network.patternIndex(trip.patternId);
+    if (pattern?.pattern.isDeadhead !== true) return false;
+    return depots.has(pattern.originStopId) || depots.has(pattern.terminalStopId);
+  };
+
+  const deadheads = service.trips.filter(foldable);
+  // 畳む回送が 1 つも無ければ写しを作らない。版数 3 のファイルはここを素通りする。
   if (deadheads.length === 0) return service;
 
-  const kept = service.trips.filter((trip) => !isDeadhead(trip)).map((trip) => ({ ...trip }));
+  const kept = service.trips.filter((trip) => !foldable(trip)).map((trip) => ({ ...trip }));
 
   for (const [index, deadhead] of deadheads.entries()) {
     if (!fold(deadhead, kept, network)) {

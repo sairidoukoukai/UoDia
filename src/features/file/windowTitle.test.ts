@@ -19,7 +19,7 @@ let platform: MemoryPlatform;
 
 beforeEach(() => {
   store = createAppStore();
-  store.getState().setNetworkDef(network.def);
+  store.getState().setSeedNetworkDef(network.def);
   platform = createMemoryPlatform();
 });
 

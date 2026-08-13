@@ -21,7 +21,7 @@
  */
 
 import type { DashKind, ServiceType, StopPattern } from '@/domain/model';
-import type { PatternStyleChoice } from '@/store';
+import type { PatternStyleChoice } from '@/domain/model';
 
 /** 各駅タイプ（`local`）。箕面学舎に停まる便。 */
 const LOCAL_DASH: readonly number[] = [];

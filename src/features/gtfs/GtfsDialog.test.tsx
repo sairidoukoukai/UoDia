@@ -42,7 +42,7 @@ function makePlatform(): PlatformAdapter {
 function mount(): void {
   // **毎回同じところから始める。** ストアは 1 つしかなく、前の検証で変えた定義が
   // 残ると、順番によって結果が変わる。
-  useAppStore.getState().setNetworkDef(network.def);
+  useAppStore.getState().setSeedNetworkDef(network.def);
   useAppStore
     .getState()
     .setProject(createProject(network, { now: new Date('2026-01-01T00:00:00Z') }));

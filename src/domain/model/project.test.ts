@@ -29,9 +29,27 @@ function makeTrip(overrides: Partial<Trip> = {}): Trip {
   };
 }
 
+/**
+ * 最小の路線（T-89）。**版数 5 でプロジェクトが持つようになった。**
+ *
+ * スキーマの検証であるため `route.json` は読まない。**必須の項目だけ**を置く
+ * ——事業者と系統は版数 2 以前を表せるように省略できる。
+ */
+function makeNetwork(): ProjectInput['network'] {
+  return {
+    version: 1,
+    name: 'テスト用',
+    timeGrain: 300,
+    stops: [],
+    segments: [],
+    patterns: [],
+  };
+}
+
 /** 仕様書 §7.2 のファイル例に相当する最小のプロジェクト。 */
 function makeProjectInput(): ProjectInput {
   return {
+    network: makeNetwork(),
     meta: {
       format: 'uodia',
       formatVersion: 1,

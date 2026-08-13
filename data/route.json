@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "name": "大阪大学 学内連絡バス",
   "timeGrain": 300,
   "agency": {
@@ -520,6 +520,44 @@
           "handling": "alightOnly"
         }
       ]
+    },
+    {
+      "patternId": "XM-T",
+      "patternName": "箕面発豊中",
+      "routeName": "区間回送",
+      "directionId": 1,
+      "color": "#9a9a9a",
+      "isDefault": false,
+      "isDeadhead": true,
+      "stopSequence": [
+        {
+          "stopId": "2_0",
+          "handling": "boardOnly"
+        },
+        {
+          "stopId": "1_0",
+          "handling": "alightOnly"
+        }
+      ]
+    },
+    {
+      "patternId": "XT-M",
+      "patternName": "豊中発箕面",
+      "routeName": "区間回送",
+      "directionId": 0,
+      "color": "#9a9a9a",
+      "isDefault": false,
+      "isDeadhead": true,
+      "stopSequence": [
+        {
+          "stopId": "1_0",
+          "handling": "boardOnly"
+        },
+        {
+          "stopId": "2_0",
+          "handling": "alightOnly"
+        }
+      ]
     }
   ],
   "routes": [
@@ -575,7 +613,15 @@
       "routeName": "回送",
       "color": "B0B0B0",
       "textColor": "000000",
-      "en": "Out of Service"
+      "en": "Out of Service",
+      "isDeadhead": true
+    },
+    {
+      "routeName": "区間回送",
+      "color": "909090",
+      "textColor": "000000",
+      "en": "Out of Service (between stops)",
+      "isDeadhead": true
     }
   ]
 }

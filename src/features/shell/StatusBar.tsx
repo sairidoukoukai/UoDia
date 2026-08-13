@@ -50,9 +50,13 @@ export function StatusBar(props: StatusBarProps): ReactElement {
         バーを畳んだため（メニューへ集約）、常に見えている場所はここになった。
       */}
       <span className="status-bar__item status-bar__item--tool">{TOOL_LABEL[tool]}</span>
-      <span className="status-bar__item">{trips.length} 便</span>
-      <span className="status-bar__item">{blocks?.blocks.length ?? 0} 運用</span>
-      <span className="status-bar__item">{dirty ? '未保存' : '保存済み'}</span>
+      <span className="status-bar__item status-bar__item--trips">{trips.length} 便</span>
+      <span className="status-bar__item status-bar__item--blocks">
+        {blocks?.blocks.length ?? 0} 運用
+      </span>
+      <span className="status-bar__item status-bar__item--save">
+        {dirty ? '未保存' : '保存済み'}
+      </span>
 
       {/* 起きたことを伝える欄。読み上げにも届くようにする（§9.4）。 */}
       <span className="status-bar__message" role="status">

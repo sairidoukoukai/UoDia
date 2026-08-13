@@ -150,7 +150,6 @@ describe('capabilities — 何ができるかを事前に伝える', () => {
     expect(makeEnvironment(true).platform.capabilities).toEqual({
       saveInPlace: true,
       recentFiles: true,
-      networkDefWritable: false,
     });
   });
 
@@ -158,12 +157,7 @@ describe('capabilities — 何ができるかを事前に伝える', () => {
     expect(makeEnvironment(false).platform.capabilities).toEqual({
       saveInPlace: false,
       recentFiles: false,
-      networkDefWritable: false,
     });
-  });
-
-  it('route.json はどちらの環境でも書き戻せない（仕様書 §6.5.5）', () => {
-    expect(makeEnvironment(true).platform.capabilities.networkDefWritable).toBe(false);
   });
 });
 
@@ -318,12 +312,6 @@ describe('route.json', () => {
     const { platform, store } = makeEnvironment(true);
     await store.set('networkDef', '{"version":2,"name":"編集済み"}');
     expect(await platform.loadNetworkDef()).toBe('{"version":2,"name":"編集済み"}');
-  });
-
-  it('**書き戻そうとすると理由を添えて失敗する**', async () => {
-    await expect(makeEnvironment(true).platform.saveNetworkDef('中身')).rejects.toThrow(
-      '書き戻せません',
-    );
   });
 });
 

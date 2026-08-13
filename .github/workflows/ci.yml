@@ -56,10 +56,10 @@ jobs:
       - name: テスト（カバレッジ付き）
         run: npm run test:coverage
 
-      - name: Web 版のビルド
+      - name: Web版のビルド
         run: npm run build:web
 
-      # デスクトップ版はより古い WebView に合わせた対象環境でビルドされる
+      # デスクトップ版はより古いWebViewに合わせた対象環境でビルドされる
       # （vite.config.ts）。Web 単体のビルドだけが通って気づけない差異
       # （トップレベル await など）を、Rust を伴わずに検出する。
       - name: デスクトップ版と同じ対象環境でのビルド確認
@@ -75,6 +75,71 @@ jobs:
           path: coverage/
           retention-days: 14
           if-no-files-found: ignore
+
+  responsive:
+    name: 狭幅画面
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: 依存のインストール
+        run: npm ci
+
+      - name: Chromiumのインストール
+        run: npm exec playwright install -- --with-deps chromium
+
+      - name: 狭幅画面の検査
+        run: npm run test:e2e
+
+      - name: 失敗時のブラウザ記録
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: responsive-test-results
+          path: test-results/
+          retention-days: 14
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------
+  # Web 版の配置（Cloudflare Workers）。**main への push のときだけ**走る。
+  #
+  # 品質ゲートを通してから置く（`needs: check`）。置いた先は 1 つしかなく、
+  # 落ちたものを置けば、そこがそのまま落ちたままになる。
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: Web 版の配置
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: 依存のインストール
+        run: npm ci
+
+      # `check` のビルドを使い回さない。あちらは相対パス（既定）で書き出して
+      # おり、独自ドメインの直下に置くものとは中身が違う。
+      - name: ビルド
+        run: npm run build:cloudflare
+
+      # 事前圧縮（`build:web:dist`）は通さない。Cloudflare は配るときに自分で
+      # 圧縮する。`.gz` と `.br` を一緒に上げても、誰も取りに来ない資産が
+      # 倍に増えるだけである。
+      - name: 配置
+        run: npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
   # ---------------------------------------------------------------------------
   # デスクトップ版のビルド。Rust のコンパイルを伴い時間がかかるため、
@@ -94,10 +159,18 @@ jobs:
         include:
           - os: ubuntu-22.04
             label: Linux
+            portable: linux
+            binary: src-tauri/target/release/uodia
           - os: windows-latest
             label: Windows
+            portable: windows
+            # cargo が作るのは**クレート名**（`uodia.exe`）である。書庫へ入れる
+            # ときに `UoDia.exe` へ改める（`package-portable.mjs`）。
+            binary: src-tauri/target/release/uodia.exe
           - os: macos-latest
             label: macOS
+            portable: macos
+            binary: src-tauri/target/release/bundle/macos/UoDia.app
     steps:
       - uses: actions/checkout@v4
 
@@ -141,8 +214,17 @@ jobs:
       - name: Rust の Lint
         run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 
+      # **インストーラーは作らない**（T-95、#245）。配るのはポータブル版だけで
+      # ある。macOS だけ `.app` を作る——素のバイナリは `Info.plist` を持たず、
+      # ダブルクリックで正しく起動しない。
       - name: ビルド
-        run: npm run build:desktop
+        shell: bash
+        run: |
+          if [ "${{ matrix.portable }}" = "macos" ]; then
+            npm run build:desktop:macos
+          else
+            npm run build:desktop
+          fi
 
       # 仕様書 §9.1 の「バイナリサイズ 30MB 以内」を機械が見る。**入れ物ではなく
       # 実行ファイルを測る**——インストーラは圧縮の効き方が OS ごとに違い、
@@ -151,17 +233,22 @@ jobs:
         shell: bash
         run: node scripts/check-bundle-size.mjs
 
-      # 出来た配布物を残す。**PR では走らないジョブ**であり（push のみ）、
-      # 手元に 3 OS を揃えられない以上、ここが唯一の確かめる手立てになる。
+      # ポータブル版を組み立てて残す。**PR では走らないジョブ**であり（push
+      # のみ）、手元に 3 OS を揃えられない以上、ここが唯一の確かめる手立てに
+      # なる。`verify` が同梱リソースの置き場所を見る。
+      - name: ポータブル版を組み立てる
+        shell: bash
+        run: |
+          node scripts/package-portable.mjs \
+            "${{ matrix.portable }}" "${{ matrix.binary }}" portable-out
+
       - name: 配布物の保存
         uses: actions/upload-artifact@v4
         with:
           name: uodia-${{ matrix.label }}
-          path: |
-            src-tauri/target/release/bundle/**/*
-            !src-tauri/target/release/bundle/**/*.txt
+          path: portable-out/**/*
           retention-days: 14
-          if-no-files-found: warn
+          if-no-files-found: error
 
   # ---------------------------------------------------------------------------
   # 配布（T-41）。**タグを打ったときだけ**走る。
@@ -174,7 +261,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     # 品質ゲートを通ってから作る。下書きとはいえ、型検査すら通らないものを
     # 配布物の形にして残す意味は無い。
-    needs: check
+    needs: [check, responsive]
     runs-on: ${{ matrix.os }}
     permissions:
       contents: write
@@ -184,10 +271,21 @@ jobs:
         include:
           - os: ubuntu-22.04
             label: Linux
+            portable: linux
+            arch: x64
+            binary: src-tauri/target/release/uodia
           - os: windows-latest
             label: Windows
+            portable: windows
+            arch: x64
+            # cargo が作るのは**クレート名**（`uodia.exe`）である。書庫へ入れる
+            # ときに `UoDia.exe` へ改める（`package-portable.mjs`）。
+            binary: src-tauri/target/release/uodia.exe
           - os: macos-latest
             label: macOS
+            portable: macos
+            arch: aarch64
+            binary: src-tauri/target/release/bundle/macos/UoDia.app
     steps:
       - uses: actions/checkout@v4
 
@@ -221,13 +319,59 @@ jobs:
       - name: 依存のインストール
         run: npm ci
 
+      # **インストーラーは作らない**（T-95、#245）。配るのはポータブル版だけで
+      # ある。macOS だけ `.app` を作る——素のバイナリは `Info.plist` を持たず、
+      # ダブルクリックで正しく起動しない。
+      - name: ビルド
+        shell: bash
+        run: |
+          if [ "${{ matrix.portable }}" = "macos" ]; then
+            npm run build:desktop:macos
+          else
+            npm run build:desktop
+          fi
+
+      # -----------------------------------------------------------------------
+      # ポータブル版（T-94・T-95、仕様書（ポータブル版））。
+      #
+      # 組み立てのあと `verify` が走る。**同梱リソースが読まれる場所にあるか**を
+      # 確かめる工程であり、`productName` を変えたときにここで落ちる（Linux の
+      # `lib/` の名前がそれで決まる）。配ってから「route.json を読み込めません」
+      # と言われるより早い。
+      # -----------------------------------------------------------------------
+      - name: ポータブル版を組み立てる
+        shell: bash
+        run: |
+          node scripts/package-portable.mjs \
+            "${{ matrix.portable }}" "${{ matrix.binary }}" portable-out
+
+      - name: 書庫にする
+        shell: bash
+        run: |
+          name=$(node -e "import('./scripts/package-portable.mjs').then(m=>console.log(m.archiveName('${{ matrix.portable }}','${{ matrix.arch }}')))")
+          echo "PORTABLE_ARCHIVE=$name" >> "$GITHUB_ENV"
+          if [ "${{ matrix.portable }}" = "linux" ]; then
+            tar -czf "$name" -C portable-out .
+          else
+            (cd portable-out && 7z a -tzip "../$name" . >/dev/null)
+          fi
+          ls -l "$name"
+
       # **下書きとして作る。** 中身を見てから公開できるようにするためであり、
-      # 3 つの OS のビルドが揃うのを待つ意味もある。
-      - uses: tauri-apps/tauri-action@v0
+      # 3 つの OS のビルドが揃うのを待つ意味もある。**公開は人の判断である。**
+      #
+      # 3 つの機械が同時に走るため、最初の 1 つだけが作る（`|| true`）。
+      - name: 下書きを用意する
+        shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tagName: ${{ github.ref_name }}
-          releaseName: UoDia ${{ github.ref_name }}
-          releaseDraft: true
-          prerelease: false
+        run: |
+          gh release view "${{ github.ref_name }}" >/dev/null 2>&1 || \
+            gh release create "${{ github.ref_name }}" \
+              --draft --title "UoDia ${{ github.ref_name }}" --notes "" || true
+
+      - name: 下書きに載せる
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ github.ref_name }}" "$PORTABLE_ARCHIVE" --clobber

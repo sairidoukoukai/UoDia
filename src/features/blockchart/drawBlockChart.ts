@@ -35,6 +35,13 @@ import { axisToX, blockRowOffsets, chartHeight, rowToY, type BlockChartViewport 
 
 /** 棒の太さ（px）。 */
 const BAR_WIDTH = 4;
+/**
+ * 停留所間の回送の刻み（#247、T-99）。
+ *
+ * **棒が太い**（4px）ため、ダイヤグラムの回送の刻み（`DEADHEAD_DASH` = 5/4）を
+ * そのまま使うと潰れて見える。**線の太さに合わせて広げる。**
+ */
+const DEADHEAD_BAR_DASH: readonly number[] = [10, 6];
 /** 折り返しの縦線の太さ。**棒より細くする**——主役は棒である。 */
 const LINK_WIDTH = 1.5;
 /** 停留所線の太さ。 */
@@ -267,7 +274,13 @@ function drawLinks(
   ctx.stroke();
 }
 
-/** 便の棒。**水平に引く。** */
+/**
+ * 便の棒。**水平に引く。**
+ *
+ * **停留所間の回送は破線にする**（#247、T-99）。段は使うが、営業便ではない
+ * ——**形は同じで、線種だけが違う。** 刻みは道ごとにしか変えられないため、
+ * 実線と破線で 2 度に分けて引く。
+ */
 function drawBars(
   ctx: DrawContext,
   viewport: BlockChartViewport,
@@ -277,20 +290,29 @@ function drawBars(
 ): void {
   ctx.strokeStyle = block.color;
   ctx.lineWidth = BAR_WIDTH;
-  ctx.setLineDash([]);
-  ctx.beginPath();
 
-  for (const bar of block.bars) {
-    const left = xOf(bar.originStopId);
-    const right = xOf(bar.terminalStopId);
-    if (left === null || right === null) continue;
+  for (const deadhead of [false, true]) {
+    const drawn = block.bars.filter((bar) => bar.isDeadhead === deadhead);
+    if (drawn.length === 0) continue;
 
-    const y = rowToY(firstRow + bar.row, viewport);
-    ctx.moveTo(left, y);
-    ctx.lineTo(right, y);
+    ctx.setLineDash(deadhead ? [...DEADHEAD_BAR_DASH] : []);
+    ctx.beginPath();
+
+    for (const bar of drawn) {
+      const left = xOf(bar.originStopId);
+      const right = xOf(bar.terminalStopId);
+      if (left === null || right === null) continue;
+
+      const y = rowToY(firstRow + bar.row, viewport);
+      ctx.moveTo(left, y);
+      ctx.lineTo(right, y);
+    }
+
+    ctx.stroke();
   }
 
-  ctx.stroke();
+  // 次に引くもの（折返しの縦線・枠）へ刻みを持ち越さない。
+  ctx.setLineDash([]);
 }
 
 /**

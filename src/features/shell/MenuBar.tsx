@@ -1,24 +1,22 @@
 /**
- * メニューバー（仕様書 §8.1、T-37）。
+ * メニューバー（仕様書§8.1、T-37）。
  *
- * 並ぶ項目も鍵の綴りも `commands.ts` の表から作る。**メニューは表の見え方で
- * あって、別の定義ではない。**
+ * 並ぶ項目も鍵の綴りも`commands.ts`の表から作る。メニューは表を2種類の幅へ
+ * 映したものであり、操作の定義は増やさない。
  *
  * ## キーボードだけで辿れる（§9.4）
  *
- * <kbd>Tab</kbd> で見出しへ、<kbd>Enter</kbd> か <kbd>↓</kbd> で開き、
- * <kbd>↑</kbd><kbd>↓</kbd> で項目を選び、<kbd>←</kbd><kbd>→</kbd> で隣の
- * メニューへ移る。<kbd>Esc</kbd> で閉じ、**焦点は開いた見出しへ戻す**——閉じた
- * 拍子に焦点が画面の先頭へ飛ぶと、続けて操作できない。
+ * <kbd>Tab</kbd>で見出しへ、<kbd>Enter</kbd>か<kbd>↓</kbd>で開き、
+ * <kbd>↑</kbd><kbd>↓</kbd>で項目を選ぶ。広い画面では<kbd>←</kbd><kbd>→</kbd>で
+ * 隣のメニューへ移る。<kbd>Esc</kbd>で閉じ、焦点は開いたボタンへ戻す。
  *
  * ## 使えない項目も出す
  *
- * 動きの無い操作（設定ダイアログはまだ無い、取り消せるものが無い）は、隠さずに
- * **薄く出す**。消してしまうと、メニューの並びが押すたびに変わり、位置で覚え
- * られなくなる。
+ * 動きの無い操作は薄く出す。消すとメニューの並びが状態によって変わり、位置で
+ * 覚えられなくなる。
  */
 
-import { useEffect, useRef, useState, type ReactElement } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
 import {
   COMMANDS,
   MENUS,
@@ -42,16 +40,11 @@ export interface MenuExtra {
 export interface MenuBarProps {
   readonly actions: CommandActions;
   readonly extra?: readonly MenuExtra[];
-  /**
-   * 印を付ける操作（作図の道具・最大化。#144）。
-   *
-   * **押しボタンの「押されている」に当たるものである。** ツールバーを畳んだ
-   * 以上、いまどちらの道具を持っているかを知る場所がここしか無い。
-   */
+  /** 印を付ける操作（作図の道具・最大化。#144）。 */
   readonly checked?: Readonly<Partial<Record<CommandId, boolean>>>;
 }
 
-/** メニューに並ぶ 1 行（表の操作と、表に持てない項目を同じ形にする）。 */
+/** メニューに並ぶ1行。表の操作と、数が動く項目を同じ形にする。 */
 interface Item {
   readonly key: string;
   readonly label: string;
@@ -59,7 +52,7 @@ interface Item {
   readonly enabled: boolean;
   readonly separatorBefore: boolean;
   readonly run: (() => void) | null;
-  /** 印を付ける項目なら、今その状態か。印を付けない項目では `null`。 */
+  /** 印を付ける項目なら現在の状態。印を付けない項目では`null`。 */
   readonly checked: boolean | null;
 }
 
@@ -93,8 +86,13 @@ function itemsOf(menu: MenuId, props: MenuBarProps): readonly Item[] {
   return [...fromTable, ...extra];
 }
 
+type OpenMenu = MenuId | 'compact' | null;
+
+const NARROW_QUERY = '(max-width: 48rem)';
+
 export function MenuBar(props: MenuBarProps): ReactElement {
-  const [open, setOpen] = useState<MenuId | null>(null);
+  const [open, setOpen] = useState<OpenMenu>(null);
+  const compactOpen = open === 'compact';
   const barRef = useRef<HTMLDivElement>(null);
 
   // 外を押したら閉じる。押した先の操作はそのまま通す。
@@ -112,9 +110,34 @@ export function MenuBar(props: MenuBarProps): ReactElement {
     };
   }, [open]);
 
+  // 幅の境を跨いだら、隠れるメニューに焦点を残さない。
+  useEffect(() => {
+    const narrow = window.matchMedia(NARROW_QUERY);
+    const onChange = (event: MediaQueryListEvent): void => {
+      const bar = barRef.current;
+      const focusIsInBar = bar?.contains(document.activeElement) === true;
+      if (open === null && !focusIsInBar) return;
+
+      setOpen(null);
+      const selector = event.matches
+        ? '.menubar__compact-trigger'
+        : `[data-menu="${MENUS[0]?.id ?? 'file'}"]`;
+      bar?.querySelector<HTMLElement>(selector)?.focus();
+    };
+
+    narrow.addEventListener('change', onChange);
+    return () => {
+      narrow.removeEventListener('change', onChange);
+    };
+  }, [open]);
+
   /** 見出しへ焦点を戻す。閉じたあとに続けて操作できるようにする。 */
   const focusTitle = (menu: MenuId): void => {
     barRef.current?.querySelector<HTMLElement>(`[data-menu="${menu}"]`)?.focus();
+  };
+
+  const focusCompactTrigger = (): void => {
+    barRef.current?.querySelector<HTMLElement>('.menubar__compact-trigger')?.focus();
   };
 
   /** 隣のメニューへ移る。端では巻き戻す。 */
@@ -123,7 +146,7 @@ export function MenuBar(props: MenuBarProps): ReactElement {
     const next = MENUS[(index + step + MENUS.length) % MENUS.length];
     if (next === undefined) return;
 
-    setOpen(open === null ? null : next.id);
+    setOpen(open === null || open === 'compact' ? null : next.id);
     focusTitle(next.id);
   };
 
@@ -132,8 +155,53 @@ export function MenuBar(props: MenuBarProps): ReactElement {
     focusTitle(menu);
   };
 
+  const closeCompact = (): void => {
+    setOpen(null);
+    focusCompactTrigger();
+  };
+
+  const leaveMenu = (backwards: boolean): void => {
+    setOpen(null);
+    requestAnimationFrame(() => {
+      if (backwards) {
+        focusCompactTrigger();
+        return;
+      }
+      focusAfter(barRef.current);
+    });
+  };
+
   return (
     <div className="menubar" role="menubar" aria-label="メニュー" ref={barRef}>
+      <button
+        type="button"
+        role="menuitem"
+        className="menubar__compact-trigger"
+        aria-haspopup="menu"
+        aria-expanded={compactOpen}
+        onClick={() => {
+          setOpen(compactOpen ? null : 'compact');
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            event.preventDefault();
+            setOpen('compact');
+            return;
+          }
+          if (event.key === 'Escape' && compactOpen) {
+            event.preventDefault();
+            setOpen(null);
+          }
+        }}
+      >
+        メニュー
+        <span className="menubar__compact-mark" aria-hidden="true">
+          {compactOpen ? '▲' : '▼'}
+        </span>
+      </button>
+
+      {compactOpen && <CompactMenu props={props} onClose={closeCompact} onLeave={leaveMenu} />}
+
       {MENUS.map((menu) => (
         <div key={menu.id} className="menubar__menu">
           <button
@@ -162,14 +230,13 @@ export function MenuBar(props: MenuBarProps): ReactElement {
                 moveTo(menu.id, -1);
                 return;
               }
-              if (event.key === 'Escape' && open !== null) {
+              if (event.key === 'Escape' && open === menu.id) {
                 event.preventDefault();
                 setOpen(null);
               }
             }}
-            // 1 つ開いているあいだは、なぞるだけで隣が開く（普通のメニューの動き）。
             onPointerEnter={() => {
-              if (open !== null) setOpen(menu.id);
+              if (open !== null && open !== 'compact') setOpen(menu.id);
             }}
           >
             {menu.label}
@@ -203,69 +270,156 @@ interface MenuPanelProps {
 function MenuPanel(props: MenuPanelProps): ReactElement {
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // 開いたら先頭の**使える**項目へ焦点を移す。使えない項目に置くと、
-  // 開いた直後に Enter を押しても何も起きない。
   useEffect(() => {
     panelRef.current?.querySelector<HTMLElement>('button:not(:disabled)')?.focus();
   }, []);
 
-  const step = (from: HTMLElement, direction: number): void => {
-    const buttons = [
-      ...(panelRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled)') ?? []),
-    ];
-    const index = buttons.indexOf(from);
-    const next = buttons[(index + direction + buttons.length) % buttons.length];
-    next?.focus();
+  const move = (event: KeyboardEvent<HTMLButtonElement>): void => {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      stepFocus(panelRef.current, event.currentTarget, event.key === 'ArrowDown' ? 1 : -1);
+      return;
+    }
+    if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
+      event.preventDefault();
+      props.onMove(event.key === 'ArrowRight' ? 1 : -1);
+      return;
+    }
+    if (event.key === 'Escape' || event.key === 'Tab') {
+      event.preventDefault();
+      props.onClose();
+    }
   };
 
   return (
     <div className="menubar__panel" role="menu" aria-label={props.menu} ref={panelRef}>
       {props.items.map((item) => (
         <div key={item.key} className={item.separatorBefore ? 'menubar__group' : undefined}>
-          <button
-            type="button"
-            /*
-              印を付ける項目は `menuitemradio` として出す。**印は見た目だけの
-              ものではない**——読み上げにも「選択されている」と伝わる（§9.4）。
-            */
-            role={item.checked === null ? 'menuitem' : 'menuitemradio'}
-            aria-checked={item.checked ?? undefined}
-            className="menubar__item"
-            disabled={!item.enabled}
-            onClick={() => {
-              // 先に閉じる。押した先が焦点を取る操作（ダイアログ）でも、
-              // メニューが残って重ならない。
-              props.onClose();
-              item.run?.();
-            }}
-            onKeyDown={(event) => {
-              if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-                event.preventDefault();
-                step(event.currentTarget, event.key === 'ArrowDown' ? 1 : -1);
-                return;
-              }
-              if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
-                event.preventDefault();
-                props.onMove(event.key === 'ArrowRight' ? 1 : -1);
-                return;
-              }
-              if (event.key === 'Escape' || event.key === 'Tab') {
-                event.preventDefault();
-                props.onClose();
-              }
-            }}
-          >
-            {/* 印の場所は常に取っておく。付いた瞬間に文字がずれない。 */}
-            {item.checked !== null && (
-              <span className="menubar__check" aria-hidden="true">
-                {item.checked ? '●' : ''}
-              </span>
-            )}
-            <span className="menubar__label">{item.label}</span>
-            {item.accelerator !== null && <span className="menubar__key">{item.accelerator}</span>}
-          </button>
+          <MenuItemButton item={item} onSelect={props.onClose} onKeyDown={move} />
         </div>
       ))}
     </div>
   );
+}
+
+interface CompactMenuProps {
+  readonly props: MenuBarProps;
+  readonly onClose: () => void;
+  readonly onLeave: (backwards: boolean) => void;
+}
+
+function CompactMenu({ props, onClose, onLeave }: CompactMenuProps): ReactElement {
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    panelRef.current?.querySelector<HTMLElement>('button:not(:disabled)')?.focus();
+  }, []);
+
+  const move = (event: KeyboardEvent<HTMLButtonElement>): void => {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      stepFocus(panelRef.current, event.currentTarget, event.key === 'ArrowDown' ? 1 : -1);
+      return;
+    }
+    if (event.key === 'Home' || event.key === 'End') {
+      event.preventDefault();
+      focusEdge(panelRef.current, event.key === 'Home' ? 0 : -1);
+      return;
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      onClose();
+      return;
+    }
+    if (event.key === 'Tab') {
+      event.preventDefault();
+      onLeave(event.shiftKey);
+    }
+  };
+
+  return (
+    <div className="menubar__compact-panel" role="menu" aria-label="メニュー" ref={panelRef}>
+      {MENUS.map((menu) => {
+        const headingId = `menubar-compact-${menu.id}`;
+        return (
+          <div
+            key={menu.id}
+            className="menubar__compact-group"
+            role="group"
+            aria-labelledby={headingId}
+          >
+            <div id={headingId} className="menubar__compact-heading">
+              {menu.label}
+            </div>
+            {itemsOf(menu.id, props).map((item) => (
+              <div key={item.key} className={item.separatorBefore ? 'menubar__group' : undefined}>
+                <MenuItemButton item={item} onSelect={onClose} onKeyDown={move} />
+              </div>
+            ))}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+interface MenuItemButtonProps {
+  readonly item: Item;
+  readonly onSelect: () => void;
+  readonly onKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => void;
+}
+
+function MenuItemButton({ item, onSelect, onKeyDown }: MenuItemButtonProps): ReactElement {
+  return (
+    <button
+      type="button"
+      role={item.checked === null ? 'menuitem' : 'menuitemradio'}
+      aria-checked={item.checked ?? undefined}
+      className="menubar__item"
+      disabled={!item.enabled}
+      onClick={() => {
+        onSelect();
+        item.run?.();
+      }}
+      onKeyDown={onKeyDown}
+    >
+      {item.checked !== null && (
+        <span className="menubar__check" aria-hidden="true">
+          {item.checked ? '●' : ''}
+        </span>
+      )}
+      <span className="menubar__label">{item.label}</span>
+      {item.accelerator !== null && <span className="menubar__key">{item.accelerator}</span>}
+    </button>
+  );
+}
+
+function stepFocus(panel: HTMLElement | null, from: HTMLElement, direction: number): void {
+  const buttons = [...(panel?.querySelectorAll<HTMLElement>('button:not(:disabled)') ?? [])];
+  if (buttons.length === 0) return;
+  const index = buttons.indexOf(from);
+  const next = buttons[(index + direction + buttons.length) % buttons.length];
+  next?.focus();
+}
+
+function focusEdge(panel: HTMLElement | null, edge: 0 | -1): void {
+  const buttons = [...(panel?.querySelectorAll<HTMLElement>('button:not(:disabled)') ?? [])];
+  const target = edge === 0 ? buttons[0] : buttons.at(-1);
+  target?.focus();
+}
+
+function focusAfter(container: HTMLElement | null): void {
+  const focusable = [
+    ...document.querySelectorAll<HTMLElement>(
+      'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
+    ),
+  ];
+  let lastInside = -1;
+  focusable.forEach((element, index) => {
+    if (container?.contains(element) === true) lastInside = index;
+  });
+  focusable
+    .slice(lastInside + 1)
+    .find((element) => !element.hidden)
+    ?.focus();
 }

@@ -48,18 +48,42 @@ const networkOf = memoizeByIdentity((def: NetworkDef | null): NetworkIndex | nul
 );
 
 /**
- * ネットワーク定義の索引（T-07）。
+ * 種の索引（T-89）。**{@link networkOf} と分けてある。**
+ *
+ * `memoizeByIdentity` が覚えるのは直前の 1 回だけである。文書の路線と種を同じ
+ * 関数に通すと、**呼ぶたびに覚えたものが外れて索引を組み直す。**
+ */
+const seedNetworkOf = memoizeByIdentity((def: NetworkDef | null): NetworkIndex | null =>
+  def === null ? null : buildNetworkIndex(def),
+);
+
+/**
+ * ネットワーク定義の索引（T-07）。**路線は文書の中にある**（T-89）。
  *
  * 状態が持つのは素の定義であり（`types.ts`）、索引はここで組み立てる。定義が
  * 変わらないかぎり同じ索引を返すため、区間所要時間を編集したときだけ組み直る。
  *
  * 索引の構築は R-03・R-06・R-10 を前提とし、破られていれば例外を投げる。定義が
- * 状態に入る経路は `setNetworkDef`（`loadNetworkDef` が検証済み）と `execute`
+ * 状態に入る経路は `setProject`（`loadProject` が検証済み）と `execute`
  * （変更時に `validateNetwork` を通す）だけであり、**検証を通っていない定義は
  * ここに届かない**。
+ *
+ * **戻り値の形は #235 の前後で変わっていない。** 路線を読む側——描画・時刻の
+ * 導出・検証・GTFS——は 1 行も変わらず、変わったのはこの関数の中だけである。
  */
 export function selectNetwork(state: AppState): NetworkIndex | null {
-  return networkOf(state.networkDef);
+  return networkOf(state.project?.network ?? null);
+}
+
+/**
+ * 新しい文書を始めるための路線の索引（T-89）。
+ *
+ * **開いている文書の路線ではない**（{@link selectNetwork}）。使うのは 2 か所
+ * だけである——新規作成の出発点と、版数 4 以下のファイルを引き上げるときに
+ * 埋める路線。
+ */
+export function selectSeedNetwork(state: AppState): NetworkIndex | null {
+  return seedNetworkOf(state.seedNetworkDef);
 }
 
 /** undo できるか（メニュー項目の有効・無効に使う）。 */

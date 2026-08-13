@@ -19,7 +19,10 @@
 | [実装計画書 v1.1](docs/implementation-plan-v1.1.md) | v1.1 のタスク分解（T-56〜T-69）。issue #158〜#168 に対応 |
 | [仕様書 v2（追補）](docs/specification-v2.md) | 書き出し・運行日カレンダー・GTFS 出力。issue #163・#192〜#198 に対応。**草案（未確定事項ゼロ）。** |
 | [実装計画書 v2](docs/implementation-plan-v2.md) | v2 のタスク分解（T-70〜T-83） |
-| [実装計画書 v2.1](docs/implementation-plan-v2.1.md) | v2.0.0 を配ったあとに出た指摘（#219〜#222）に対するタスク分解（T-84〜T-87） |
+| [実装計画書 v2.1](docs/implementation-plan-v2.1.md) | v2.0.0 を配ったあとに出た指摘（#219〜#222）に対するタスク分解（T-84〜T-88） |
+| [実装計画書 v2.2](docs/implementation-plan-v2.2.md) | 運行経路を `.uodia` に取り込む（#235）タスク分解（T-89〜T-92） |
+| [実装計画書 v2.3](docs/implementation-plan-v2.3.md) | 停留所間の回送（#247）のタスク分解（T-97〜T-100） |
+| [仕様書（ポータブル版）](docs/specification-portable.md) | インストーラーを使わない配り方（T-93・T-94）。**草案。** |
 | [リファクタリング記録](docs/refactoring-log.md) | 構造だけを直した作業と、**その重複が生まれた理由** |
 
 ## 開発環境
@@ -45,6 +48,11 @@ npm install
 | `npm run build:web` | Web 版のビルド |
 | `npm run preview` | ビルドした Web 版を手元で開く（http://localhost:4173） |
 | `npm run build:web:dist` | Web 版のビルド + 事前圧縮（配布用） |
+| `npm run build:cloudflare` | 配信用のビルド（資産を絶対パスで指す） |
+| `npm run preview:cloudflare` | 配信と同じ経路で手元に出す（http://localhost:8787） |
+| `npm run deploy` | 配信用にビルドして`uodia.sairibus.com`へ置く |
+| `npm run lint:rust` | Rust の Lint。**CI と同じ引数**（`--all-targets -- -D warnings`） |
+| `npm run test:rust` | Rust のテスト |
 | `npm run build:desktop` | デスクトップ版のビルド（配布物も作る） |
 | `npm run test` | テスト実行 |
 | `npm run test:coverage` | カバレッジ付きテスト |
@@ -87,20 +95,30 @@ libEGL warning: egl: failed to create dri2 screen
 
 Web 版（`npm run dev`）は WSL でもそのまま動作する。ブラウザで確認するだけなら、こちらの方が起動が速い。
 
-## 配布物を作る（T-41）
+## 配布物を作る（T-41・T-95）
+
+**配るのはポータブル版だけである**（[仕様書](docs/specification-portable.md)）。インストーラー（`.deb` / `.msi` / `.dmg` ほか）は作らない。
 
 ```
-npm run build:desktop            # 3 OS それぞれの機械で走らせる
-node scripts/check-bundle-size.mjs   # 出来た配布物と実行ファイルの大きさ
+npm run build:desktop                # Windows / Linux（--no-bundle）
+npm run build:desktop:macos          # macOS（.app を作る）
+npm run package:portable linux src-tauri/target/release/uodia portable-out
+node scripts/check-bundle-size.mjs   # 実行ファイルの大きさ
 ```
 
 | OS | 出来るもの |
 | --- | --- |
-| Linux | `.deb` / `.rpm` / `.AppImage` |
-| Windows | `.msi` / `.exe`（NSIS） |
-| macOS | `.dmg` / `.app` |
+| Windows | `UoDia.exe` + `OFL.txt` + `README.txt` |
+| Linux | `uodia` + `icon.png` + `uodia.desktop` + 同上 |
+| macOS | `UoDia.app` + 同上 |
 
-**`route.json` は同梱される**（`bundle.resources`）。初回起動時に設定ディレクトリへ複製し、以後はそちらを読む——インストール先が書き込み不可のことがあり、隠し設定からの書き戻し（T-36）ができなくなるためである（`src-tauri/src/paths.rs`）。
+**展開したフォルダの外に何も書かない。** 設定・自動保存・最近使ったファイルは、根の下の `data/` に入る（`src-tauri/src/paths.rs`）。
+
+**同梱リソースは 1 つも無い**（T-96）。`route.json` もフォントも**実行ファイルの中**にあり、Web 版と同じ道で読む（`src/platform/networkSeed.ts`）。
+
+**組み立てのあとに検査が走る。** `dist/` が出した資産の名前が実行ファイルの中に現れるかを見る——埋まっていなければ、**起動して初めて「route.json を取得できません」と出る。**
+
+タグを打つと CI が 3 OS ぶんの書庫を作り、**下書き**の release に載せる。公開は人の判断で行う。
 
 **アイコンの版元は `src-tauri/icons/source.svg`** である。描き直したら次の 2 つで作り直す。
 
@@ -109,25 +127,41 @@ convert -background none src-tauri/icons/source.svg -resize 1024x1024 /tmp/uodia
 npx tauri icon /tmp/uodia.png
 ```
 
+## 置き場所
+
+**https://uodia.sairibus.com に置く**（2026-08-12決定。仕様書Q-3）。
+
+| 決め | 内容 |
+| --- | --- |
+| 配信 | Cloudflare Workers。スクリプトを持たず`dist/`を配るだけの Worker であり、設定は`wrangler.jsonc`にある |
+| 見られる人 | Cloudflare Accessで限定する。`workers.dev`と版ごとのプレビューURLは開けていない——別のホスト名であり、そこにAccessは掛からない |
+| 置き直し | `main`への push で CI が置き直す（`.github/workflows/ci.yml`の`deploy`）。品質ゲートを通ってから置く |
+| 手で置く | `npm run deploy`。`CLOUDFLARE_API_TOKEN`が要る |
+| 手元で確かめる | `npm run preview:cloudflare`。SPAフォールバックまで配信と同じ経路を通る |
+
+**配信用のビルドを分けてある**（`npm run build:cloudflare`）。独自ドメインの直下に置くため、資産を絶対パスで指す。相対のままだと、`/どこか/なにか`を直接開かれたときに資産のURLがずれる——当たらないURLには`index.html`が返るため、JavaScriptを求めてHTMLを受け取ることになる。
+
+**事前圧縮（`npm run build:web:dist`）はこの経路に通さない。** Cloudflareは配るときに自分でbrotliを掛ける。`.gz`と`.br`を一緒に上げても、誰も取りに来ない資産が倍に増える。
+
 ## 手元で動かす
 
-**どこにも置かない**（2026-08-03 決定。仕様書 Q-3）。Web 版もデスクトップ版も、**手元で動かす**ものとする。GitHub Pages を含め、静的ホスティングへの配置と自動デプロイは行わない。
+置き場所ができた後も、**手元だけで完結する道は残す。**
 
 | 版 | 動かし方 |
 | --- | --- |
 | Web | `npm run build:web` の後 `npm run preview` で http://localhost:4173 が開く。**サーバの用意も配置も要らない**。書きながら見るなら `npm run dev` |
 | デスクトップ | `npm run build:desktop` で出来た配布物を入れる。作らずに動かすなら `npm run dev:desktop` |
 
-**それでも「どこにでも置ける成果物」は作り続ける。**
+**「どこにでも置ける成果物」も作り続ける。**
 
 | 決め | 内容 |
 | --- | --- |
-| 置き場所 | **どこでもよい。** 資産は相対で書き出してあり、`https://例/tools/uodia/` のようなサブディレクトリでも動く |
+| 置き場所 | **どこでもよい。** `npm run build:web` の資産は相対で書き出してあり、`https://例/tools/uodia/` のようなサブディレクトリでも動く |
 | 絶対パスにしたいとき | `UODIA_BASE=/uodia/ npm run build:web` |
-| 圧縮 | `npm run build:web:dist` で `.gz` と `.br` も作る。対応するサーバはそれを配る |
+| 圧縮 | `npm run build:web:dist` で `.gz` と `.br` も作る。自分で圧縮しないサーバはそれを配る |
 | 初回に落ちる量 | **約 107KB**（gzip 後。目標は 1MB 以内） |
 
-置き場所が決まったときに作り直す羽目にならないためである。**置かないことと、置けないことは違う。**
+配信先が1つに決まっても、そこが唯一の動かし方になるわけではない。
 
 ### 配布物
 

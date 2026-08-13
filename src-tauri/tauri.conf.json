@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "UoDia",
-  "version": "2.1.1",
+  "version": "3.0.0",
   "identifier": "com.sairidoukoukai.uodia",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -26,8 +26,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
-    "publisher": "再履バス同好会",
+    "targets": ["app"],
     "copyright": "© 2026 再履バス同好会",
     "category": "Productivity",
     "shortDescription": "再履バスのダイヤグラム設計ソフトウェア",
@@ -38,20 +37,6 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ],
-    "resources": {
-      "../data/route.json": "route.json",
-      "../assets/fonts/OFL.txt": "OFL.txt"
-    },
-    "linux": {
-      "deb": {
-        "section": "utils"
-      }
-    },
-    "windows": {
-      "wix": {
-        "language": ["ja-JP"]
-      }
-    }
+    ]
   }
 }

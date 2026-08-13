@@ -100,15 +100,13 @@ export interface PlatformAdapter {
    */
   loadExportFont(): Promise<Uint8Array>;
 
-  /** `route.json` を読む。 */
-  loadNetworkDef(): Promise<string>;
   /**
-   * `route.json` を書き戻す。
+   * 同梱の `route.json` を読む。**新しい文書を始めるための種である**（T-89）。
    *
-   * 対応していない環境（{@link PlatformCapabilities.networkDefWritable} が
-   * `false`）で呼ぶと例外を投げる。仕様書 §6.5.5。
+   * 書き戻す口は持たない（T-92、#235）。路線は文書の中にあり、路線を直すことは
+   * 文書を直すことである——**保存の道は `.uodia` の 1 本だけ**になった。
    */
-  saveNetworkDef(content: string): Promise<void>;
+  loadNetworkDef(): Promise<string>;
 
   /**
    * 設定を読む。まだ保存していなければ `null`（仕様書 §6.5、T-39）。
@@ -190,6 +188,8 @@ export interface PlatformCapabilities {
    * ファイルへの参照を永続化できない環境では保持できない。
    */
   readonly recentFiles: boolean;
-  /** `route.json` を書き戻せるか（仕様書 §6.5.5）。 */
-  readonly networkDefWritable: boolean;
+  /*
+    `networkDefWritable` は落とした（T-92、#235）。路線が文書に入ったことで
+    書き戻す先が無くなり、**Web 版とデスクトップ版でできることが揃った。**
+  */
 }

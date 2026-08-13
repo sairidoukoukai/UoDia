@@ -15,6 +15,17 @@ vi.mock('@tauri-apps/api/core', () => ({
   invoke: (...args: unknown[]): Promise<unknown> => invoke(...args),
 }));
 
+/**
+ * 同梱の路線（T-96）。**Web 版と同じ道を通る**ため、Rust のコマンドではない。
+ *
+ * 実際の `fetch` は差し替える——ここで確かめたいのは「どの道を通るか」であり、
+ * 埋め込み資産が読めるかどうかではない。
+ */
+const loadSeed = vi.fn<() => Promise<string>>();
+vi.mock('./networkSeed', () => ({
+  loadBundledNetworkDef: (): Promise<string> => loadSeed(),
+}));
+
 /** 登録された購読。Rust からのイベントを手で起こせるようにする。 */
 const listeners: ((event: unknown) => void)[] = [];
 const unlisten = vi.fn();
@@ -122,23 +133,18 @@ describe('saveProject / saveProjectAs', () => {
 });
 
 describe('route.json', () => {
-  it('読める', async () => {
-    invoke.mockResolvedValue('{"version":1}');
-    expect(await createTauriPlatform().loadNetworkDef()).toBe('{"version":1}');
-    expect(invoke).toHaveBeenCalledWith('read_route_def');
-  });
+  it('**Rust を通らない**（Web 版と同じ埋め込み資産から読む。T-96）', async () => {
+    loadSeed.mockResolvedValue('{"version":1}');
 
-  it('書き戻せる', async () => {
-    invoke.mockResolvedValue(undefined);
-    await createTauriPlatform().saveNetworkDef('{"version":2}');
-    expect(invoke).toHaveBeenCalledWith('write_route_def', { content: '{"version":2}' });
+    expect(await createTauriPlatform().loadNetworkDef()).toBe('{"version":1}');
+    // かつては `read_route_def` を呼び、設定ディレクトリへ複製していた。
+    expect(invoke).not.toHaveBeenCalled();
   });
 
   it('デスクトップ版はすべての機能を備える', () => {
     expect(createTauriPlatform().capabilities).toEqual({
       saveInPlace: true,
       recentFiles: true,
-      networkDefWritable: true,
     });
   });
 });

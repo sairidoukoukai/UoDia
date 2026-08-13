@@ -32,11 +32,10 @@ describe('保存する分', () => {
   it('**隠し設定を有効にしたことは含めない**（§6.5.4）', () => {
     store.getState().setSettings({ patternsUnlocked: true });
 
+    // 表示の上書きも入らない——**プロジェクトへ移した**（T-90、#235）。
     expect(Object.keys(persistedOf(store)).sort()).toEqual([
       'backupIntervalMs',
       'defaultDiagramView',
-      'patternStyles',
-      'stopGridStyles',
       'theme',
     ]);
   });
@@ -109,39 +108,8 @@ describe('書き出し', () => {
   });
 });
 
-/** 停留所の線種の上書き（#133、§6.5.3）。 */
-describe('線種の上書き', () => {
-  it('書いて読み直すと同じものが返る', async () => {
-    const stop = watchSettings({ platform, store });
-    store.getState().setSettings({ stopGridStyles: { '1_0': 'dashed' } });
-    stop();
-
-    await loadSettings({ platform, store });
-    expect(store.getState().settings.stopGridStyles).toEqual({ '1_0': 'dashed' });
-  });
-
-  it('**足した順に関わらず同じバイト列になる**（同じ内容で書き込みを起こさない）', () => {
-    const first = watchSettings({ platform, store });
-    store.getState().setSettings({ stopGridStyles: { '1_0': 'dashed', '2_0': 'bold' } });
-    const written = stored;
-    store.getState().setSettings({ stopGridStyles: { '2_0': 'bold', '1_0': 'dashed' } });
-
-    expect(stored).toBe(written);
-    expect(platform.writeSettings).toHaveBeenCalledTimes(1);
-    first();
-  });
-
-  it('**知らない線種が入っていても起動できる**（設定ごと既定に倒す）', async () => {
-    stored = JSON.stringify({ stopGridStyles: { '1_0': 'とても太い線' } });
-    await loadSettings({ platform, store });
-
-    expect(store.getState().settings.stopGridStyles).toEqual({});
-  });
-
-  it('知らない停留所 ID はそのまま残す（route.json の改訂で消えうる）', async () => {
-    stored = JSON.stringify({ stopGridStyles: { もう無い停留所: 'dashed' } });
-    await loadSettings({ platform, store });
-
-    expect(store.getState().settings.stopGridStyles).toEqual({ もう無い停留所: 'dashed' });
-  });
-});
+/*
+  停留所の線種と停車パターンの上書きは、**設定に保存されない**（T-90、#235）。
+  プロジェクトへ移したため、書いて読み直す道はファイルの往復（`io.test.ts`）が
+  見る。ここにあった `describe('線種の上書き')` は落とした。
+*/

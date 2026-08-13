@@ -9,7 +9,6 @@ export {
   persistedSettingsSchema,
   serializeSettings,
   themeModeSchema,
-  type PatternStyleChoice,
   type PersistedSettings,
   type ThemeMode,
 } from './settings';
@@ -58,6 +57,7 @@ export {
   selectIsDirty,
   selectNetwork,
   selectRedoLabel,
+  selectSeedNetwork,
   selectSelectedTripIds,
   selectSelectedTrips,
   selectServices,

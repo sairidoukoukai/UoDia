@@ -58,6 +58,7 @@ export {
   weekdaySchema,
   WEEKDAYS,
   tripSchema,
+  patternStyleChoiceSchema,
   viewSettingsSchema,
   type Anchor,
   type ClosedRange,
@@ -71,6 +72,7 @@ export {
   type ServiceCalendar,
   type Trip,
   type Weekday,
+  type PatternStyleChoice,
   type ViewSettings,
 } from './project';
 

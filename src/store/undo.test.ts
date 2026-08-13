@@ -21,7 +21,13 @@ import { loadNetworkDef, type NetworkIndex } from '@/domain/network';
 import { fromHM } from '@/domain/time';
 import { setTimeAt, timeAt } from '@/domain/trip';
 import { MIN_HISTORY_LIMIT } from './history';
-import { selectNetwork, selectRedoLabel, selectTrips, selectUndoLabel } from './selectors';
+import {
+  selectIsDirty,
+  selectNetwork,
+  selectRedoLabel,
+  selectTrips,
+  selectUndoLabel,
+} from './selectors';
 import { createAppStore, type AppStore, type AppStoreHook } from './store';
 
 const routeJsonPath = fileURLToPath(new URL('../../data/route.json', import.meta.url));
@@ -67,7 +73,7 @@ function firstTrip(): Trip {
 
 beforeEach(() => {
   store = createAppStore();
-  state().setNetworkDef(network.def);
+  state().setSeedNetworkDef(network.def);
   state().setProject(makeProject([makeTrip('S1', 8, 0), makeTrip('T1', 9, 0)]));
 });
 
@@ -289,7 +295,7 @@ describe('ネットワーク定義の編集（受入条件）', () => {
   });
 
   it('**規則を破る変更は何も変えずに指摘を返す**', () => {
-    const before = state().networkDef;
+    const before = state().project?.network;
 
     const result = state().editNetwork('区間所要時間の変更', (def) => {
       const segment = def.segments[0];
@@ -299,7 +305,7 @@ describe('ネットワーク定義の編集（受入条件）', () => {
 
     expect(result.ok).toBe(false);
     expect(result.ok ? [] : result.issues.map((i) => i.rule)).toContain('R-01');
-    expect(state().networkDef).toBe(before);
+    expect(state().project?.network).toBe(before);
     expect(state().undo()).toBe(false);
   });
 
@@ -312,12 +318,13 @@ describe('ネットワーク定義の編集（受入条件）', () => {
     ).toEqual({ ok: true, changed: false });
   });
 
-  it('定義を読み込み直すと履歴を捨てる（パッチが意味を失うため）', () => {
+  it('**種を載せ直しても履歴は残る**（種は文書ではない。T-89）', () => {
     state().editProject('文書名の変更', (project) => {
       project.document.name = 'あ';
     });
-    state().setNetworkDef(network.def);
-    expect(state().undo()).toBe(false);
+    // 新規作成の出発点を差し替えただけであり、開いている文書は動いていない。
+    state().setSeedNetworkDef(network.def);
+    expect(state().undo()).toBe(true);
   });
 
   it('プロジェクトを開き直すと履歴を捨てる', () => {
@@ -332,7 +339,7 @@ describe('ネットワーク定義の編集（受入条件）', () => {
     state().setHistoryLimit(MIN_HISTORY_LIMIT);
     state().setProject(makeProject([]));
     expect(state().history.limit).toBe(MIN_HISTORY_LIMIT);
-    state().setNetworkDef(network.def);
+    state().setSeedNetworkDef(network.def);
     expect(state().history.limit).toBe(MIN_HISTORY_LIMIT);
   });
 });
@@ -373,5 +380,44 @@ describe('直接の書き換えを塞ぐ', () => {
     });
 
     expect(seen).toEqual(['あ']);
+  });
+});
+
+describe('路線は文書の一部である（#235、T-89）', () => {
+  it('**区間を変えると未保存になる**（受入条件）', () => {
+    // **これが #235 で閉じた穴である。** `editNetwork` と `editProject` は元から
+    // 同じ履歴に積まれていたのに、未保存の判定は `project` しか見ておらず、
+    // 保存先が分かれていたぶんだけ漏れていた。
+    expect(selectIsDirty(state())).toBe(false);
+
+    state().editNetwork('区間所要時間の変更', (def) => {
+      const segment = def.segments[0];
+      if (segment !== undefined) segment.runMinutes += 5;
+    });
+
+    expect(selectIsDirty(state())).toBe(true);
+  });
+
+  it('**区間の変更を取り消すと保存済みに戻る**', () => {
+    const before = state().project?.network.segments[0]?.runMinutes;
+
+    state().editNetwork('区間所要時間の変更', (def) => {
+      const segment = def.segments[0];
+      if (segment !== undefined) segment.runMinutes += 5;
+    });
+    expect(state().undo()).toBe(true);
+
+    // **値は戻る。** 未保存の印は戻らない——判定は参照で行っており（`selectIsDirty`）、
+    // 取り消しは同じ値を持つ別の物を作る。便の編集を取り消したときと同じである。
+    expect(state().project?.network.segments[0]?.runMinutes).toBe(before);
+  });
+
+  it('文書を開いていなければ路線も編集できない', () => {
+    state().setProject(null);
+    expect(
+      state().editNetwork('区間の変更', (def) => {
+        def.version += 1;
+      }),
+    ).toEqual({ ok: true, changed: false });
   });
 });

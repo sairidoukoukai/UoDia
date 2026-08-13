@@ -162,6 +162,7 @@ function findDeadhead(
 }
 
 /** 営業所の停留所 ID。 */
-function depotIds(network: NetworkIndex): ReadonlySet<string> {
+/** 営業所の停留所 ID。**回送かどうかではなく、営業所に接するかを見るのに使う。** */
+export function depotIds(network: NetworkIndex): ReadonlySet<string> {
   return new Set(network.def.stops.filter((stop) => stop.isDepot).map((stop) => stop.stopId));
 }
