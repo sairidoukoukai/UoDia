@@ -393,13 +393,25 @@ describe('translations.txt（§6.5.6）', () => {
     expect(new Set(ours)).toEqual(new Set(theirs));
   });
 
-  it('**系統の訳語が実例と一致する**', () => {
-    const ours = linesOf(build(), 'translations.txt').filter((line) => line.startsWith('routes,'));
+  it('**実例にある系統の訳語をすべて出す**', () => {
+    const ours = new Set(
+      linesOf(build(), 'translations.txt').filter((line) => line.startsWith('routes,')),
+    );
     const theirs = example('translations.txt')
       .split('\n')
       .filter((line) => line.startsWith('routes,'));
 
-    expect(new Set(ours)).toEqual(new Set(theirs));
+    // **一致ではなく包含で見る**（#247、T-100）。実例に無い系統を足したため
+    // ——停留所間の回送（`区間回送`）は、実例が作られた時点に存在しない。
+    for (const line of theirs) expect(ours).toContain(line);
+  });
+
+  it('**足した系統の訳語も出る**（自分の系統から引く）', () => {
+    const ours = linesOf(build(), 'translations.txt');
+
+    expect(ours).toContain('routes,route_long_name,en,Out of Service (between stops),,箕面発豊中');
+    // 車庫との出入りは今までどおり `回送` 系統の訳語を使う。
+    expect(ours).toContain('routes,route_long_name,en,Out of Service,,箕面発車庫');
   });
 
   it('**回送は英語名だけを持つ**（実例によみがなが無い）', () => {
