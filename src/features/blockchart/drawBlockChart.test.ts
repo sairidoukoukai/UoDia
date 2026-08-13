@@ -437,6 +437,7 @@ describe('段の高さ（§5.5.6）', () => {
             originTime: fromHM(9, 0),
             terminalTime: fromHM(9, 30),
             layoverMinutes: null,
+            isDeadhead: false,
           },
         ],
         pullOut: null,
@@ -459,5 +460,88 @@ describe('段の位置', () => {
   it('段の中心を返す', () => {
     const viewport = viewportFor(scene());
     expect(rowToY(1, viewport) - rowToY(0, viewport)).toBeCloseTo(viewport.rowHeight, 6);
+  });
+});
+
+describe('停留所間の回送（#247、T-99）', () => {
+  /**
+   * 箕面止まりのあと、空車で豊中へ移り、豊中から出る運用。
+   *
+   * 出庫 → 豊中 9:00 → 箕面着 → **回送で豊中へ** → 豊中 12:00 → 箕面着 → 入庫
+   */
+  function addWithBetweenStops(): void {
+    addTrip('M2', '1_0', 9, 0, 'A', { pullOut: true });
+    addTrip('XM-T', '2_0', 10, 0, 'A');
+    addTrip('M2', '1_0', 12, 0, 'A', { pullIn: true });
+  }
+
+  /** 破線で引かれた棒。 */
+  function deadheadBars(recorder: Recorder): readonly { readonly y1: number }[] {
+    return recorder.segments.filter((segment) => isHorizontal(segment) && segment.dash.length > 0);
+  }
+
+  it('**棒として描かれる**（受入条件）', () => {
+    addWithBetweenStops();
+    const { recorder } = draw();
+
+    // 営業 2 本 + 回送 1 本。**出入庫は棒にならない。**
+    expect(recorder.segments.filter(isHorizontal)).toHaveLength(3);
+  });
+
+  it('**段を 1 つ使う**（図の高さが便の数だけで決まる。§5.5.2）', () => {
+    addWithBetweenStops();
+    expect(totalRows(scene())).toBe(3);
+  });
+
+  it('**線種で営業便と見分けられる**（受入条件）', () => {
+    addWithBetweenStops();
+    const { recorder } = draw();
+
+    expect(deadheadBars(recorder)).toHaveLength(1);
+    // 営業便は実線のまま。
+    expect(
+      recorder.segments.filter((segment) => isHorizontal(segment) && segment.dash.length === 0),
+    ).toHaveLength(2);
+  });
+
+  it('**回送は営業便の間に来る**（時刻順に挟まる）', () => {
+    addWithBetweenStops();
+    const { recorder } = draw();
+
+    // **記録の順ではなく位置で見る。** 実線と破線を 2 度に分けて引くため、
+    // 記録の順は段の順と一致しない。
+    const revenue = recorder.segments
+      .filter((segment) => isHorizontal(segment) && segment.dash.length === 0)
+      .map((segment) => segment.y1)
+      .sort((a, b) => a - b);
+    const deadhead = deadheadBars(recorder)[0]?.y1 ?? 0;
+
+    expect(deadhead).toBeGreaterThan(revenue[0] ?? 0);
+    expect(deadhead).toBeLessThan(revenue[1] ?? 0);
+  });
+
+  it('**出入庫は今までどおりマークで、段を使わない**（受入条件）', () => {
+    addWithBetweenStops();
+    const { recorder } = draw();
+
+    // 出庫と入庫の三角が 2 つ。段は 3 つのまま。
+    expect(recorder.polygons).toHaveLength(2);
+    expect(totalRows(scene())).toBe(3);
+  });
+
+  it('**刻みを次の道へ持ち越さない**（枠や軸が破線にならない）', () => {
+    addWithBetweenStops();
+    const { recorder } = draw();
+
+    // 停留所の軸（太さ 1）は実線のままである。
+    const axis = recorder.segments.filter((segment) => segment.lineWidth === 1);
+    expect(axis.every((segment) => segment.dash.length === 0)).toBe(true);
+  });
+
+  it('停留所間の回送が無ければ、今までどおり実線だけ', () => {
+    addTrip('S3', '1_0', 9, 0, 'A');
+    addTrip('T3', '4_0', 10, 0, 'A');
+
+    expect(deadheadBars(draw().recorder)).toHaveLength(0);
   });
 });

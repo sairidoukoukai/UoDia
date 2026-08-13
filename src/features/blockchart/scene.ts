@@ -11,19 +11,21 @@
  * | `Block.trips`（始発時刻順） | **段の並び。** 上から順に 1 段ずつ下りる |
  * | `originStopId` / `terminalStopId` | **棒の左端と右端**（横軸が停留所であるため） |
  * | `originTime` / `terminalTime` | 棒に添える時刻 |
- * | `isDeadhead` | **回送を棒にしない**ための判定（§5.5.3） |
+ * | `isDeadhead` | **出入庫を棒にしない**ための判定（§5.5.3） |
  * | `layoverMinutes` | 折返しの待ち。**段の間隔には使わない**。添える字に使う |
  * | `pullOutTime` / `pullInTime` | 出庫・入庫のマーク |
  * | `standbys` | **途中入庫のマーク**（T-88） |
  *
- * ## 回送は段を持たない
+ * ## 出入庫は段を持たない（停留所間の回送は持つ）
  *
  * **出庫と入庫は棒にしない**（§5.5.3）。棒で描くと、車庫（横軸のどこにも無い）
  * まで棒を伸ばすことになり、**横軸が停留所であるという決めが崩れる。** 印として、
  * 入る段の終着の下と、出る段の始発の上に置く。
  *
- * `deriveBlocks` は回送を行路に含めて返すため、**ここで落とす。** 落とした結果
- * 段が 1 つも残らない運用（回送だけの運用）は、描くものが無いので出さない。
+ * **停留所間の回送は棒にする**（#247、T-99）。両端とも横軸にあり、**棒にしない
+ * 理由が無い**——例外の理由が消えたのだから、例外も消す。
+ *
+ * 段が 1 つも残らない運用（出入庫だけの運用）は、描くものが無いので出さない。
  *
  * ## 車庫へ行ったことを落とさない（T-88、#230）
  *
@@ -48,6 +50,7 @@ import { assignBlockColors, type Block, type BlockTrip } from '@/domain/block';
 import type { Stop } from '@/domain/model';
 import type { NetworkIndex } from '@/domain/network';
 import type { Seconds } from '@/domain/time';
+import { depotIds } from '@/domain/trip';
 import { memoizeByIdentity, selectBlocks, selectNetwork, type AppState } from '@/store';
 import type { SceneTheme } from '@/features/diagram';
 
@@ -68,6 +71,13 @@ export interface ChartBar {
   readonly terminalStopId: string;
   readonly originTime: Seconds;
   readonly terminalTime: Seconds;
+  /**
+   * 回送か（#247、T-99）。**停留所間の回送だけが段になる。**
+   *
+   * 出入庫は段を持たない（マークで表す。§5.5.3）。ここが `true` になるのは
+   * **営業所に接しない回送**だけである。
+   */
+  readonly isDeadhead: boolean;
   /**
    * 直前の便の終着からこの便の始発までの分。先頭の段は `null`。
    *
@@ -144,21 +154,36 @@ const chartStopsOf = memoizeByIdentity((network: NetworkIndex): readonly ChartSt
     .sort((a, b) => a.axisPosition - b.axisPosition),
 );
 
-/** 営業便だけを段にする。 */
-function barsOf(trips: readonly BlockTrip[]): ChartBar[] {
+/**
+ * その便が段を持つか（#247、T-99）。
+ *
+ * **出入庫は持たない**（マークで表す。§5.5.3）。棒にすると車庫まで棒を伸ばす
+ * ことになり、横軸が停留所であるという決めが崩れる。
+ *
+ * **停留所間の回送は持つ。** 両端とも横軸にあり、**棒にしない理由が無い**——
+ * 例外の理由が消えたのだから、例外も消す（実装計画書 v2.3 §3.3）。
+ */
+function hasRow(trip: BlockTrip, depots: ReadonlySet<string>): boolean {
+  if (!trip.isDeadhead) return true;
+  return !depots.has(trip.originStopId) && !depots.has(trip.terminalStopId);
+}
+
+/** 段になる便を並べる。 */
+function barsOf(trips: readonly BlockTrip[], depots: ReadonlySet<string>): ChartBar[] {
   const bars: ChartBar[] = [];
 
   for (const trip of trips) {
-    if (trip.isDeadhead) continue;
+    if (!hasRow(trip, depots)) continue;
     bars.push({
       tripId: trip.trip.tripId,
-      // **段は営業便だけで数える。** 回送を数に入れると、出入庫のある運用だけ
-      // 段が 1 つ余分に空く。
+      // **段は出入庫を数えない。** 数に入れると、出入庫のある運用だけ段が
+      // 1 つ余分に空く。
       row: bars.length,
       originStopId: trip.originStopId,
       terminalStopId: trip.terminalStopId,
       originTime: trip.originTime,
       terminalTime: trip.terminalTime,
+      isDeadhead: trip.isDeadhead,
       // 先頭の段の折返しは持たない。**その前は出庫であって折返しではない。**
       layoverMinutes: bars.length === 0 ? null : trip.layoverMinutes,
     });
@@ -195,12 +220,18 @@ function pullInOf(block: Block, bars: readonly ChartBar[]): ChartBlock['pullIn']
  * （`domain/trip/deadhead.ts`）、`route.json` に回送パターンを直接書いた便も
  * 同じ待機を作る。**綴りから元の便を割り出す形にすると、後者で外れる。**
  */
-function standbysOf(block: Block, bars: readonly ChartBar[]): ChartStandby[] {
+function standbysOf(
+  block: Block,
+  bars: readonly ChartBar[],
+  depots: ReadonlySet<string>,
+): ChartStandby[] {
   const barsBefore = new Map<string, number>();
   let counted = 0;
   for (const trip of block.trips) {
     barsBefore.set(trip.trip.tripId, counted);
-    if (!trip.isDeadhead) counted += 1;
+    // **段の数え方を `barsOf` と揃える。** 片方だけが停留所間の回送を数えると、
+    // 印が 1 段ずれる。
+    if (hasRow(trip, depots)) counted += 1;
   }
 
   const standbys: ChartStandby[] = [];
@@ -244,32 +275,41 @@ function withoutStandbyLayovers(
   return bars.map((bar) => (fromDepot.has(bar.row) ? { ...bar, layoverMinutes: null } : bar));
 }
 
-const chartBlocksOf = memoizeByIdentity((blocks: readonly Block[]): readonly ChartBlock[] => {
-  // **色は画面と同じ関数から取る**（仕様書 §5.8）。別に決めると、画面で青い
-  // 運用が紙では緑になる。
-  const colors = assignBlockColors(blocks.map((block) => block.blockId));
+const chartBlocksOf = memoizeByIdentity(
+  (blocks: readonly Block[], depots: ReadonlySet<string>): readonly ChartBlock[] => {
+    // **色は画面と同じ関数から取る**（仕様書 §5.8）。別に決めると、画面で青い
+    // 運用が紙では緑になる。
+    const colors = assignBlockColors(blocks.map((block) => block.blockId));
 
-  const chart: ChartBlock[] = [];
-  for (const block of blocks) {
-    const bars = barsOf(block.trips);
-    // **営業便が 1 本も無い運用は出さない**（受入条件）。回送だけの運用は
-    // 描くものが無く、運用番号だけが並ぶ空の帯になる。
-    if (bars.length === 0) continue;
+    const chart: ChartBlock[] = [];
+    for (const block of blocks) {
+      const bars = barsOf(block.trips, depots);
+      // **営業便が 1 本も無い運用は出さない**（受入条件）。回送だけの運用は
+      // 描くものが無く、運用番号だけが並ぶ空の帯になる。
+      if (bars.length === 0) continue;
 
-    const standbys = standbysOf(block, bars);
+      const standbys = standbysOf(block, bars, depots);
 
-    chart.push({
-      blockId: block.blockId,
-      color: colors.get(block.blockId) ?? '#888888',
-      bars: withoutStandbyLayovers(bars, standbys),
-      pullOut: pullOutOf(block, bars),
-      pullIn: pullInOf(block, bars),
-      standbys,
-    });
-  }
+      chart.push({
+        blockId: block.blockId,
+        color: colors.get(block.blockId) ?? '#888888',
+        bars: withoutStandbyLayovers(bars, standbys),
+        pullOut: pullOutOf(block, bars),
+        pullIn: pullInOf(block, bars),
+        standbys,
+      });
+    }
 
-  return chart;
-});
+    return chart;
+  },
+);
+
+/** 車庫の停留所 ID。**同じ参照を返す**（`memoizeByIdentity` の鍵になる）。 */
+const depotIdsOf = memoizeByIdentity((network: NetworkIndex): ReadonlySet<string> =>
+  depotIds(network),
+);
+
+const NO_DEPOTS: ReadonlySet<string> = new Set();
 
 const sceneOf = memoizeByIdentity(
   (
@@ -290,7 +330,9 @@ export function selectBlockChartScene(state: AppState, theme: SceneTheme): Block
 
   return sceneOf(
     network === null ? NO_STOPS : chartStopsOf(network),
-    derivation === null ? NO_BLOCKS : chartBlocksOf(derivation.blocks),
+    derivation === null
+      ? NO_BLOCKS
+      : chartBlocksOf(derivation.blocks, network === null ? NO_DEPOTS : depotIdsOf(network)),
     theme,
   );
 }
