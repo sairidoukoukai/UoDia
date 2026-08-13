@@ -223,8 +223,9 @@ describe('loadNetworkDef — 索引を返す', () => {
     expect(index.patternIndex(patternId)?.totalMinutes).toBe(expected);
   });
 
-  it('回送 6 種はすべて 20 分', () => {
-    for (const p of index.def.patterns.filter((x) => x.isDeadhead)) {
+  it('車庫との回送 6 種はすべて 20 分', () => {
+    // 停留所間の回送（`区間回送`）は道なりの時間であり、20 分とは限らない（#247）。
+    for (const p of index.def.patterns.filter((x) => x.routeName === '回送')) {
       expect(index.patternIndex(p.patternId)?.totalMinutes, p.patternId).toBe(20);
     }
   });

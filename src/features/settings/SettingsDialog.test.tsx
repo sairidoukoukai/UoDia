@@ -528,7 +528,11 @@ describe('隠し設定（§6.5.4、T-36。受入条件）', () => {
       button('停車パターン').click();
     });
 
-    // S3（豊中 → 箕面 → コンベ前 → 微研 → 工学部）から、コンベ前と微研を外す。
+    // S3（豊中 → 箕面 → コンベ前 → 微研 → 工学部）から、箕面とコンベ前を外す。
+    // **残るのは 豊中 → 微研** であり、この対は区間表に無い。
+    //
+    // かつてはコンベ前と微研を外して `箕面 → 工学部` を残していた。#247 で
+    // 停留所間の回送を 6 通りに揃えたとき、**その対が区間表に入った。**
     act(() => {
       const list = [
         ...container.querySelectorAll<HTMLButtonElement>('.settings__pattern-list button'),
@@ -536,14 +540,14 @@ describe('隠し設定（§6.5.4、T-36。受入条件）', () => {
       list.find((item) => item.textContent.startsWith('S3'))?.click();
     });
     act(() => {
-      container.querySelector<HTMLButtonElement>('[aria-label="3_0 を外す"]')?.click();
+      container.querySelector<HTMLButtonElement>('[aria-label="2_0 を外す"]')?.click();
     });
     act(() => {
-      container.querySelector<HTMLButtonElement>('[aria-label="6_0 を外す"]')?.click();
+      container.querySelector<HTMLButtonElement>('[aria-label="3_0 を外す"]')?.click();
     });
 
     expect(container.textContent).toContain('[R-03]');
-    expect(container.textContent).toContain('2_0→4_0');
+    expect(container.textContent).toContain('1_0→6_0');
     expect(button('変更を適用').disabled).toBe(true);
   });
 });
