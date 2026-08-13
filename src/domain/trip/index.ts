@@ -18,6 +18,7 @@ export { numberTrips, DIRECTION_PREFIX } from './numbering';
 export {
   createPullIn,
   createPullOut,
+  depotIds,
   expandDeadheads,
   pullInPatternFor,
   pullOutPatternFor,
