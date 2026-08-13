@@ -752,3 +752,78 @@ describe('表示の上書きを文書が持つ（#235、T-90）', () => {
     expect(back.view.stopGridStyles).toEqual({});
   });
 });
+
+describe('停留所間の回送は畳まない（#247、T-98）', () => {
+  /** 箕面 → 豊中 の回送。**営業所に接しない。** */
+  const BETWEEN_STOPS = {
+    patternId: 'X-MT',
+    patternName: '箕面発豊中（回送）',
+    routeName: '区間回送',
+    directionId: 1 as const,
+    color: '#8a8a8a',
+    isDefault: false,
+    isDeadhead: true,
+    stopSequence: [
+      { stopId: '2_0', handling: 'boardOnly' as const },
+      { stopId: '1_0', handling: 'alightOnly' as const },
+    ],
+  };
+
+  /** その回送パターンを持つ路線と、それを使う便 1 本を含む文書。 */
+  function withBetweenStops(): Project {
+    const base = makeProject();
+    const trip = makeTrip({
+      tripId: 'x1',
+      patternId: 'X-MT',
+      anchor: { stopId: '2_0', time: fromHM(10, 0) },
+    });
+
+    return {
+      ...base,
+      network: { ...base.network, patterns: [...base.network.patterns, BETWEEN_STOPS] },
+      services: base.services.map((service) => ({
+        ...service,
+        trips: [...service.trips, trip],
+      })),
+    };
+  }
+
+  it('**開き直しても残る**（受入条件）', () => {
+    const { project, warnings } = loadOrThrow(serializeProject(withBetweenStops()));
+    const trips = project.services[0]?.trips ?? [];
+
+    expect(trips.map((trip) => trip.tripId)).toContain('x1');
+    // **W-06 を出さない。** 畳む先が無いことは、壊れていることではない。
+    expect(warnings.map((warning) => warning.id)).not.toContain('W-06');
+  });
+
+  it('**出入庫は今までどおり畳まれる**（同じファイルに両方あっても）', () => {
+    const base = withBetweenStops();
+    const pullOut = makeTrip({
+      tripId: 'd1',
+      patternId: 'DT-out',
+      anchor: { stopId: '9_0', time: fromHM(7, 40) },
+    });
+    const withBoth: Project = {
+      ...base,
+      services: base.services.map((service) => ({
+        ...service,
+        trips: [pullOut, ...service.trips],
+      })),
+    };
+
+    const { project } = loadOrThrow(serializeProject(withBoth));
+    const trips = project.services[0]?.trips ?? [];
+
+    // 出入庫は便として残らず、営業便の真偽値になる。
+    expect(trips.map((trip) => trip.tripId)).not.toContain('d1');
+    expect(trips.find((trip) => trip.tripId === 'trip-1')?.pullOut).toBe(true);
+    // 停留所間の回送は残る。
+    expect(trips.map((trip) => trip.tripId)).toContain('x1');
+  });
+
+  it('保存し直したファイルにも残る', () => {
+    const { project } = loadOrThrow(serializeProject(withBetweenStops()));
+    expect(serializeProject(project)).toContain('X-MT');
+  });
+});
