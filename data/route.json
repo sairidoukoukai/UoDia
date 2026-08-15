@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 5,
   "name": "大阪大学 学内連絡バス",
   "timeGrain": 300,
   "agency": {
@@ -200,6 +200,30 @@
       "toStopId": "9_0",
       "runMinutes": 20,
       "distanceMeters": 6900
+    },
+    {
+      "fromStopId": "1_0",
+      "toStopId": "4_0",
+      "runMinutes": 30,
+      "distanceMeters": 9800
+    },
+    {
+      "fromStopId": "4_0",
+      "toStopId": "1_0",
+      "runMinutes": 30,
+      "distanceMeters": 11600
+    },
+    {
+      "fromStopId": "2_0",
+      "toStopId": "4_0",
+      "runMinutes": 20,
+      "distanceMeters": 7400
+    },
+    {
+      "fromStopId": "4_0",
+      "toStopId": "2_0",
+      "runMinutes": 25,
+      "distanceMeters": 10000
     }
   ],
   "patterns": [
@@ -551,6 +575,82 @@
       "stopSequence": [
         {
           "stopId": "1_0",
+          "handling": "boardOnly"
+        },
+        {
+          "stopId": "2_0",
+          "handling": "alightOnly"
+        }
+      ]
+    },
+    {
+      "patternId": "XT-S",
+      "patternName": "豊中発工学部",
+      "routeName": "区間回送",
+      "directionId": 0,
+      "color": "#9a9a9a",
+      "isDefault": false,
+      "isDeadhead": true,
+      "stopSequence": [
+        {
+          "stopId": "1_0",
+          "handling": "boardOnly"
+        },
+        {
+          "stopId": "4_0",
+          "handling": "alightOnly"
+        }
+      ]
+    },
+    {
+      "patternId": "XS-T",
+      "patternName": "工学部発豊中",
+      "routeName": "区間回送",
+      "directionId": 1,
+      "color": "#9a9a9a",
+      "isDefault": false,
+      "isDeadhead": true,
+      "stopSequence": [
+        {
+          "stopId": "4_0",
+          "handling": "boardOnly"
+        },
+        {
+          "stopId": "1_0",
+          "handling": "alightOnly"
+        }
+      ]
+    },
+    {
+      "patternId": "XM-S",
+      "patternName": "箕面発工学部",
+      "routeName": "区間回送",
+      "directionId": 0,
+      "color": "#9a9a9a",
+      "isDefault": false,
+      "isDeadhead": true,
+      "stopSequence": [
+        {
+          "stopId": "2_0",
+          "handling": "boardOnly"
+        },
+        {
+          "stopId": "4_0",
+          "handling": "alightOnly"
+        }
+      ]
+    },
+    {
+      "patternId": "XS-M",
+      "patternName": "工学部発箕面",
+      "routeName": "区間回送",
+      "directionId": 1,
+      "color": "#9a9a9a",
+      "isDefault": false,
+      "isDeadhead": true,
+      "stopSequence": [
+        {
+          "stopId": "4_0",
           "handling": "boardOnly"
         },
         {

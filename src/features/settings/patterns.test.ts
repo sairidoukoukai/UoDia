@@ -196,9 +196,20 @@ describe('影響を受ける便の数（§6.5.4）', () => {
 
 describe('保存できない編集（受入条件）', () => {
   /** 区間表に無い対（箕面 → 工学部）を作る。 */
+  /**
+   * 区間表に無い停留所対を作る。
+   *
+   * S3（豊中・箕面・コンベ前・微研・工学部）から箕面とコンベ前を抜くと
+   * **豊中 → 微研** が残る。**この対は区間表に無い。**
+   *
+   * かつては箕面とコンベ前ではなく別の抜き方をしており、残る対が
+   * `2_0 → 4_0`（箕面 → 工学部）だった。#247 で停留所間の回送を 6 通りに
+   * 揃えたとき、**その対が区間表に入った**——テストが「無い対」として
+   * 使えなくなった。
+   */
   function withMissingSegment(): readonly StopPattern[] {
     return network.def.patterns.map((pattern) =>
-      pattern.patternId === 'S3' ? withStopRemoved(withStopRemoved(pattern, 2), 2) : pattern,
+      pattern.patternId === 'S3' ? withStopRemoved(withStopRemoved(pattern, 1), 1) : pattern,
     );
   }
 
@@ -207,7 +218,7 @@ describe('保存できない編集（受入条件）', () => {
     const missing = issues.filter((issue) => issue.rule === 'R-03');
 
     expect(missing).toHaveLength(1);
-    expect(missing[0]?.message).toContain('2_0→4_0');
+    expect(missing[0]?.message).toContain('1_0→6_0');
   });
 
   it('**当てても状態は変わらない**（保存できない）', () => {

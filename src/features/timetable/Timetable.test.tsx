@@ -287,6 +287,41 @@ describe('パターンの変更（T-52）', () => {
     });
   }
 
+  /** その列のパターン欄に並ぶ選択肢。 */
+  function optionsOf(index: number): string[] {
+    const fields = container.querySelectorAll<HTMLSelectElement>('.timetable__pattern');
+    const field = fields[index];
+    if (field === undefined) throw new Error(`${String(index)} 列目のパターン欄がありません`);
+    return [...field.options].map((option) => option.value);
+  }
+
+  it('**停留所間の回送が選べる**（#247）', () => {
+    // 2 便の間にあってどちらか一方からは決まらないため、**利用者が便として
+    // 置くもの**である。選択肢に出さないと、置く手立てが画面に無い。
+    mount();
+    newTrip(8, 0);
+
+    expect(optionsOf(0)).toEqual(expect.arrayContaining(['XT-M', 'XT-S', 'XM-S']));
+  });
+
+  it('**出入庫は選べない**（出区・入区の切り替えでしか作らない。§6.1.7）', () => {
+    mount();
+    newTrip(8, 0);
+
+    const options = optionsOf(0);
+    for (const depot of ['DT-out', 'DS-out', 'DM-out', 'DT-in', 'DS-in', 'DM-in']) {
+      expect(options).not.toContain(depot);
+    }
+  });
+
+  it('**選んだ停留所間の回送が便になる**（受入条件。#247）', () => {
+    mount();
+    newTrip(8, 0);
+    choosePattern(0, 'XT-M');
+
+    expect(trips()).toEqual([`XT-M:${String(fromHM(8, 0))}`]);
+  });
+
   it('**その列のパターンが変わり、取り消すと戻る**', () => {
     mount();
     newTrip(8, 0);

@@ -53,16 +53,16 @@ describe('route.json — スキーマ適合', () => {
     expect(parseWithSchema(networkDefSchema, JSON.parse(rawJson)).ok).toBe(true);
   });
 
-  it('停留所 7 件・区間 15 件・パターン 16 件を持つ', () => {
+  it('停留所 7 件・区間 19 件・パターン 20 件を持つ', () => {
     expect(network.stops).toHaveLength(7);
-    expect(network.segments).toHaveLength(15);
-    // 版数 4 で停留所間の回送を 2 本足した（#247、T-97）。
-    expect(network.patterns).toHaveLength(16);
+    // 版数 5 で停留所間の直通を 4 本足した（#247）。
+    expect(network.segments).toHaveLength(19);
+    expect(network.patterns).toHaveLength(20);
   });
 
-  it('営業パターン 8 件・回送パターン 8 件', () => {
+  it('営業パターン 8 件・回送パターン 12 件', () => {
     expect(network.patterns.filter((p) => !p.isDeadhead)).toHaveLength(8);
-    expect(network.patterns.filter((p) => p.isDeadhead)).toHaveLength(8);
+    expect(network.patterns.filter((p) => p.isDeadhead)).toHaveLength(12);
   });
 
   it('**回送は 2 つの系統に分かれる**（車庫との出入りと、停留所間。#247）', () => {
@@ -71,7 +71,42 @@ describe('route.json — スキーマ適合', () => {
       byRoute.set(pattern.routeName, (byRoute.get(pattern.routeName) ?? 0) + 1);
     }
 
-    expect(Object.fromEntries(byRoute)).toEqual({ 回送: 6, 区間回送: 2 });
+    expect(Object.fromEntries(byRoute)).toEqual({ 回送: 6, 区間回送: 6 });
+  });
+
+  it('**営業便の端どうしが、どの向きにも繋がる**（6 通り。#247）', () => {
+    // 区間便を組み合わせると、営業所を経由しない移動が要る。**繋げない対が
+    // 1 つでもあると、そこだけ運用を組めない。**
+    const ends = new Set<string>();
+    for (const pattern of network.patterns.filter((p) => !p.isDeadhead)) {
+      ends.add(pattern.stopSequence[0]?.stopId ?? '');
+      ends.add(pattern.stopSequence.at(-1)?.stopId ?? '');
+    }
+    expect([...ends].sort()).toEqual(['1_0', '2_0', '4_0']);
+
+    const between = new Set(
+      network.patterns
+        .filter((p) => p.routeName === '区間回送')
+        .map((p) => `${p.stopSequence[0]?.stopId ?? ''}→${p.stopSequence.at(-1)?.stopId ?? ''}`),
+    );
+
+    for (const from of ends) {
+      for (const to of ends) {
+        if (from === to) continue;
+        expect(between).toContain(`${from}→${to}`);
+      }
+    }
+    // 過不足なく 6 通り。**要らない対を先回りして作っていない。**
+    expect(between.size).toBe(6);
+  });
+
+  it('**停留所間の回送は直通で書く**（経由地を並べない）', () => {
+    // 経由地の扱い（`handling`）に正しい値が無い——`stop` も `boardOnly` も
+    // `alightOnly` も、誰も乗り降りしない回送では嘘になる。**車庫との回送も
+    // 直通で書いてある**（`9_0 → 4_0`）ので、それに揃える。
+    for (const pattern of network.patterns.filter((p) => p.isDeadhead)) {
+      expect(pattern.stopSequence).toHaveLength(2);
+    }
   });
 
   it('**回送の系統に印が付いている**（R-07 が照らす先）', () => {
@@ -81,7 +116,7 @@ describe('route.json — スキーマ適合', () => {
 
   it('**停留所間の回送は営業所を含まない**（それが表したかったこと）', () => {
     const between = network.patterns.filter((p) => p.routeName === '区間回送');
-    expect(between).toHaveLength(2);
+    expect(between).toHaveLength(6);
 
     for (const pattern of between) {
       expect(pattern.stopSequence.map((entry) => entry.stopId)).not.toContain('9_0');
@@ -142,8 +177,20 @@ describe('route.json — 停留所（仕様書 付録 A.1）', () => {
      * 箕面を経由しないぶん速い**ため、箕面を通る軸の上では必ず寝る（往復とも
      * 25 分 = 35 単位で、食い違い方は揃っている）。人科前→箕面も、箕面と
      * 工学部前の位置が先に決まっている以上、動かす余地が無い。
+     *
+     * **停留所間の回送の直通も、同じ理由を引き継ぐ**（#247）。3 本とも上の
+     * 区間を含む道の合計であり、**元が合わないものの和が合うことはない。**
+     *
+     * | 直通 | 通る道 | 合わない元 |
+     * | --- | --- | --- |
+     * | `1_0>4_0` | 豊中 → コンベ前 → 微研 → 工学部 | `1_0>3_0` |
+     * | `4_0>1_0` | 工学部 → 人科前 → 豊中 | `5_0>1_0` |
+     * | `4_0>2_0` | 工学部 → 人科前 → 箕面 | `5_0>2_0` |
+     *
+     * **`2_0>4_0` は入れていない。** 箕面 → コンベ前 → 微研 → 工学部 は
+     * 20 分 = 20 単位で合っており、**除ける理由が無い。**
      */
-    const unavoidable = new Set(['1_0>3_0', '5_0>1_0', '5_0>2_0']);
+    const unavoidable = new Set(['1_0>3_0', '5_0>1_0', '5_0>2_0', '1_0>4_0', '4_0>1_0', '4_0>2_0']);
 
     for (const segment of network.segments) {
       if (depotIds.has(segment.fromStopId) || depotIds.has(segment.toStopId)) continue;
@@ -226,10 +273,21 @@ describe('route.json — 全区間所要時間（仕様書 付録 A.4）', () =>
     expect(totalMinutes(patternId)).toBe(expected);
   });
 
-  it('回送 6 種はすべて 20 分', () => {
-    for (const p of network.patterns.filter((x) => x.isDeadhead)) {
+  it('車庫との回送 6 種はすべて 20 分', () => {
+    // 営業所は 3 拠点のいずれからも 20 分にある（#118）。
+    for (const p of network.patterns.filter((x) => x.routeName === '回送')) {
       expect(totalMinutes(p.patternId), p.patternId).toBe(20);
     }
+  });
+
+  it('**停留所間の回送は営業便と同じ所要時間である**（#247）', () => {
+    // 空車でも道は同じである。**回送だから速い、ということはない。**
+    expect(totalMinutes('XT-M')).toBe(20); // 豊中 → 箕面（M2 と同じ）
+    expect(totalMinutes('XM-T')).toBe(20); // 箕面 → 豊中（T2 と同じ）
+    expect(totalMinutes('XT-S')).toBe(30); // 豊中 → 工学部（コンベ前経由）
+    expect(totalMinutes('XS-T')).toBe(30); // 工学部 → 豊中（人科前経由）
+    expect(totalMinutes('XM-S')).toBe(20); // 箕面 → 工学部（S2 と同じ）
+    expect(totalMinutes('XS-M')).toBe(25); // 工学部 → 箕面（M4 と同じ。往復で非対称）
   });
 
   it('箕面〜吹田間は往復で 5 分非対称（経路が異なるため。仕様書 付録 A.4）', () => {
@@ -325,8 +383,8 @@ describe('route.json — 方向と経路の整合', () => {
 describe('route.json — GTFS に要る静的データ（T-70、#198）', () => {
   const network = loadNetwork();
 
-  it('版数 4 である（#247 で停留所間の回送を足した）', () => {
-    expect(network.version).toBe(4);
+  it('版数 5 である（#247 で停留所間の回送を 6 通りに揃えた）', () => {
+    expect(network.version).toBe(5);
   });
 
   it('事業者は大阪大学である（**同好会ではない**）', () => {

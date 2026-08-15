@@ -14,6 +14,7 @@
 import { useEffect, useRef, type ReactElement } from 'react';
 import type { Trip } from '@/domain/model';
 import { changeTripsPattern, pasteTrips, removeTrips } from '@/domain/service';
+import { isPlaceable } from '@/domain/trip';
 import { focusTripColumn } from '@/features/timetable';
 import { selectActiveService, selectNetwork, selectSelectedTrips, useAppStore } from '@/store';
 
@@ -133,10 +134,11 @@ export function TripContextMenu(props: TripContextMenuProps): ReactElement | nul
     onClose({ keepFocus: true });
   };
 
-  // 回送は選択肢に出さない。出区・入区の切り替えでしか作らない（§6.1.7）。
+  // **出入庫は選択肢に出さない**（§6.1.7）。停留所間の回送は出す（#247）——
+  // 判定は時刻表と同じ関数を通す（`isPlaceable`）。
   const direction = network.patternIndex(first.patternId)?.pattern.directionId;
   const patterns = network.def.patterns.filter(
-    (pattern) => pattern.directionId === direction && !pattern.isDeadhead,
+    (pattern) => pattern.directionId === direction && isPlaceable(pattern, network),
   );
 
   // **同じパターン・同じ運用番号のときだけ、その値を出す。** 揃っていない選択に
