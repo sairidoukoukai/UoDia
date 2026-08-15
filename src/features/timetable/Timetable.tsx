@@ -30,7 +30,7 @@ import { withSuggestedBlockId } from '@/domain/block';
 import { DIRECTIONS, type DirectionId, type StopPattern, type Trip } from '@/domain/model';
 import type { NetworkIndex } from '@/domain/network';
 import { diffMinutes } from '@/domain/time';
-import { originTime } from '@/domain/trip';
+import { isPlaceable, originTime } from '@/domain/trip';
 import {
   changeTripsPattern,
   createTrip,
@@ -395,15 +395,23 @@ export function Timetable(): ReactElement {
     setActiveDirection(id);
   };
 
-  /** 方向ごとに選べる停車パターン。表が 2 枚あるときは、それぞれ自分の方向を出す。 */
+  /**
+   * 方向ごとに選べる停車パターン。表が 2 枚あるときは、それぞれ自分の方向を出す。
+   *
+   * **出入庫は選択肢に出さない。** 出区・入区の切り替えでしか作らない（§6.1.7）
+   * ——営業便から完全に決まるものであり、便として置くと置いていかれる。
+   *
+   * **停留所間の回送は出す**（#247）。こちらは 2 便の間にあってどちらか一方からは
+   * 決まらないため、**利用者が便として置くもの**である。選択肢に出さないと、
+   * 置く手立てが画面に無い。
+   */
   const patternsOf = useMemo<readonly (readonly StopPattern[])[]>(
     () =>
       DIRECTIONS.map((id) =>
         network === null
           ? []
-          : // 回送は選択肢に出さない。出区・入区の切り替えでしか作らない（§6.1.7）。
-            network.def.patterns.filter(
-              (pattern) => pattern.directionId === id && !pattern.isDeadhead,
+          : network.def.patterns.filter(
+              (pattern) => pattern.directionId === id && isPlaceable(pattern, network),
             ),
       ),
     [network],

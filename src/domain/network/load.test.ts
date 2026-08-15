@@ -18,8 +18,8 @@ describe('loadNetworkDef — 正常系', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.network.def.stops).toHaveLength(7);
-    expect(result.network.def.segments).toHaveLength(15);
-    expect(result.network.def.patterns).toHaveLength(16);
+    expect(result.network.def.segments).toHaveLength(19);
+    expect(result.network.def.patterns).toHaveLength(20);
     expect(result.network.def.timeGrain).toBe(300);
   });
 });
@@ -65,13 +65,13 @@ describe('取扱区分（#202、T-83）', () => {
     expect(handlingOf('T3', '2_0')).toBe('stop');
   });
 
-  it('**版数 4 である**（#247 で停留所間の回送を足した）', () => {
+  it('**版数 5 である**（#247 で停留所間の回送を 6 通りに揃えた）', () => {
     const result = loadNetworkDef(validJson);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     // 版数 3 は T-83 の値の訂正までであり、形は変わっていなかった。版数 4 は
     // 系統に `isDeadhead` を足しているため、形が変わっている。
-    expect(result.network.def.version).toBe(4);
+    expect(result.network.def.version).toBe(5);
   });
 });
 
