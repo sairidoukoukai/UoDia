@@ -319,12 +319,20 @@ describe('スジ', () => {
 });
 
 describe('スジに添える値（T-26）', () => {
-  it('**便番号を持つ。回送は空文字**（番号を持たない）', () => {
+  it('**便番号を持つ。展開された出入庫は空文字**（番号を持たない）', () => {
     setTrips([makeTrip('t1', 'S1', [8, 0], { pullOut: true })]);
     const { trips } = selectDiagramScene(state(), theme);
 
     expect(trips.find((trip) => !trip.isDeadhead)?.tripNumber).not.toBe('');
     expect(trips.find((trip) => trip.isDeadhead)?.tripNumber).toBe('');
+  });
+
+  it('**置かれた回送は番号を持つ**（#259）', () => {
+    // XM-T は箕面学舎→豊中学舎の回送。保存された便であり、車庫に接しない。
+    setTrips([makeTrip('t1', 'S1', [8, 0]), makeTrip('x1', 'XM-T', [9, 0])]);
+    const { trips } = selectDiagramScene(state(), theme);
+
+    expect(trips.find((trip) => trip.tripId === 'x1')?.tripNumber).toBe('D1');
   });
 
   it('**回送は元の便を指す**（`sourceTripId`。選択の単位は保存されている便）', () => {

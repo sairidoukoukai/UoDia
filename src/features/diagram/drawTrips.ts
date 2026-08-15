@@ -409,7 +409,9 @@ function drawTripNumbers(
   const placed: Rect[] = [];
 
   for (const { trip, first } of drawn) {
-    // 回送スジは番号を持たない（仕様書 §6.1.6、T-51）。
+    // **番号を持たないものは飛ばす**（仕様書 §6.1.6）。展開された出入庫が
+    // これにあたる。置かれた回送は `D1` を持つため、ここを通って出る（#259）
+    // ——**時刻表に列があるものには、スジにも名前が要る。**
     if (trip.tripNumber === '') continue;
 
     const rect = labelRect(trip.tripNumber, first, viewport);

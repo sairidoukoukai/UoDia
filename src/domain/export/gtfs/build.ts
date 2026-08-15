@@ -118,7 +118,7 @@ export function buildGtfs(input: BuildGtfsInput): readonly GtfsFile[] {
   }
 
   const trips = expandDeadheads(service.trips, network);
-  const ids = tripIdsOf(service.trips, trips, network);
+  const ids = tripIdsOf(trips, network);
 
   return [
     toGtfsFile('agency.txt', agencyRows(network.def.agency)),
@@ -254,37 +254,20 @@ function routeInfoOf(def: NetworkDef, routeName: string) {
  * | | |
  * | --- | --- |
  * | 営業便 | **便番号**（`E6` / `W5`。仕様書 §6.1.6） |
- * | 回送便 | **`D1` `D2` …**。時刻順に振る（便番号を持たないため） |
+ * | 回送便 | **`D1` `D2` …**（同上。#259 で画面と揃えた） |
  *
- * @param stored 保存されている便（**回送を含まない**。番号付けはこちらで行う）
- * @param expanded 回送を展開した便
+ * **採番は 1 か所で行う**（`numberTrips`）。かつてはここが回送だけを別に振り
+ * 直しており、**画面と GTFS で同じ便に違う番号が付いていた。**
+ *
+ * @param expanded 回送を展開した便。**出入庫にも `trip_id` が要る**——
+ *   `numberTrips` は置かれた回送を先に振るため、保存されている便の番号は
+ *   画面（保存された便だけを見る）と変わらない
  */
 export function tripIdsOf(
-  stored: readonly Trip[],
   expanded: readonly Trip[],
   network: NetworkIndex,
 ): ReadonlyMap<string, string> {
-  const ids = new Map(numberTrips(stored, network));
-
-  // **回送は時刻順に振る。** 展開の順に振ると、便を 1 つ足しただけで既に配った
-  // フィードの `trip_id` がずれる。
-  const deadheads = expanded
-    .filter((trip) => network.findPattern(trip.patternId)?.isDeadhead === true)
-    .map((trip) => ({ trip, time: originSeconds(trip, network) }))
-    .sort((a, b) => a.time - b.time || a.trip.tripId.localeCompare(b.trip.tripId));
-
-  for (const [index, entry] of deadheads.entries()) {
-    ids.set(entry.trip.tripId, `D${String(index + 1)}`);
-  }
-
-  return ids;
-}
-
-/** 始発時刻（秒）。出せなければ最後に回す。 */
-function originSeconds(trip: Trip, network: NetworkIndex): number {
-  const pattern = network.patternIndex(trip.patternId);
-  if (pattern === undefined) return Number.POSITIVE_INFINITY;
-  return allTimes(trip, network).get(pattern.originStopId) ?? Number.POSITIVE_INFINITY;
+  return numberTrips(expanded, network);
 }
 
 /**

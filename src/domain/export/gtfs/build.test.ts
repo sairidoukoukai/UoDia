@@ -23,6 +23,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { createProject } from '@/domain/io';
 import type { Service, ServiceCalendar } from '@/domain/model';
 import { loadNetworkDef, type NetworkIndex } from '@/domain/network';
+import { numberTrips } from '@/domain/trip';
 import { addTripForTest } from './build.test-utils';
 import { buildGtfs, GTFS_SERVICE_ID } from './build';
 import type { GtfsFile } from './format';
@@ -244,6 +245,24 @@ describe('trips.txt（§6.5.4）', () => {
 
     expect(ids.filter((id) => id.startsWith('D')).sort()).toEqual(['D1', 'D2']);
     expect(ids.filter((id) => !id.startsWith('D'))).toHaveLength(3);
+  });
+
+  it('**置かれた回送の番号が画面と揃う**（先に振る。#259）', () => {
+    // 保存された回送を 1 本足す。**展開される出入庫より先に振られる**ため、
+    // 画面（保存された便だけを見る）と GTFS（展開したものも見る）で番号が
+    // 食い違わない。
+    service = {
+      ...service,
+      trips: addTripForTest(service.trips, 'XT-M', '1_0', 10, 0, 'C', network),
+    };
+    const ids = linesOf(build(), 'trips.txt')
+      .slice(1)
+      .map((line) => line.split(',')[2] ?? '');
+
+    // 置かれた回送が D1。展開された出区・入区が D2・D3。
+    expect(ids.filter((id) => id.startsWith('D')).sort()).toEqual(['D1', 'D2', 'D3']);
+    const placed = service.trips.find((trip) => trip.patternId === 'XT-M');
+    expect(numberTrips(service.trips, network).get(placed?.tripId ?? '')).toBe('D1');
   });
 
   it('**trip_headsign は終着停留所の名前**（パターン名ではない）', () => {

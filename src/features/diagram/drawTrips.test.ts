@@ -281,8 +281,15 @@ describe('回送スジ', () => {
     expect(draw([orphan]).segments).toEqual([]);
   });
 
-  it('番号は付けない（回送は便番号を持たない）', () => {
+  it('**展開された出入庫には番号を付けない**（番号を持たないため）', () => {
     expect(draw([pullOut()]).labels).toEqual([]);
+  });
+
+  it('**置かれた回送には番号を付ける**（#259）', () => {
+    // 停留所間の回送は保存された便であり、時刻表の列にもなる。**列があるものは
+    // 名前で指せる**——スジの側だけ無名にする理由が無い。
+    const [label] = draw([pullOut({ tripId: 'x1', sourceTripId: 'x1', tripNumber: 'D1' })]).labels;
+    expect(label?.text).toBe('D1');
   });
 
   it('**営業スジより細い**（運用で着色すると色も線種も似るため）', () => {
