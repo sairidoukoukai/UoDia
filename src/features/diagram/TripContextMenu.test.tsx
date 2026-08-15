@@ -169,12 +169,23 @@ describe('パターンの変更', () => {
     expect(trips()[0]?.patternId).toBe('S3');
   });
 
-  it('回送は選択肢に出さない（出区・入区でしか作らない）', () => {
+  it('**出入庫は選択肢に出さない**（出区・入区でしか作らない）', () => {
     mount();
     const options = [...container.querySelectorAll('option')].map((option) => option.value);
 
     expect(options).toContain('S1');
-    expect(options.some((value) => value.startsWith('D'))).toBe(false);
+    for (const depot of ['DT-out', 'DS-out', 'DM-out', 'DT-in', 'DS-in', 'DM-in']) {
+      expect(options).not.toContain(depot);
+    }
+  });
+
+  it('**停留所間の回送は選択肢に出す**（#247。時刻表と同じ判定を通る）', () => {
+    // 画面によってできたりできなかったりしないよう、判定は `isPlaceable` に
+    // 寄せてある。片方だけ直すと、同じ操作が右クリックからだけ通らなくなる。
+    mount();
+    const options = [...container.querySelectorAll('option')].map((option) => option.value);
+
+    expect(options).toEqual(expect.arrayContaining(['XT-M', 'XT-S', 'XM-S']));
   });
 
   it('**まちまちの選択では値を出さない**（開いただけで揃ったように見せない）', () => {

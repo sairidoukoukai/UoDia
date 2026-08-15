@@ -162,6 +162,29 @@ function findDeadhead(
 }
 
 /** 営業所の停留所 ID。 */
+/**
+ * 利用者が便として置けるパターンか（#247）。
+ *
+ * **出入庫は置けない。** 営業便から完全に決まるものであり（0 分折返しの制約）、
+ * 便として持つと営業便を動かしたときに置いていかれる。作るのは出区・入区の
+ * 切り替えである（仕様書 §6.1.7）。
+ *
+ * **停留所間の回送は置ける。** 2 便の間にあり、どちらか一方からは決まらない。
+ *
+ * **同じ判定を 2 か所に書かない。** 時刻表のパターン欄と、ダイヤグラムの
+ * 右クリックの両方がここを通る——片方だけ直すと、**同じ操作が画面によって
+ * できたりできなかったりする。**
+ */
+export function isPlaceable(pattern: StopPattern, network: NetworkIndex): boolean {
+  if (!pattern.isDeadhead) return true;
+
+  const index = network.patternIndex(pattern.patternId);
+  if (index === undefined) return false;
+
+  const depots = depotIds(network);
+  return !depots.has(index.originStopId) && !depots.has(index.terminalStopId);
+}
+
 /** 営業所の停留所 ID。**回送かどうかではなく、営業所に接するかを見るのに使う。** */
 export function depotIds(network: NetworkIndex): ReadonlySet<string> {
   return new Set(network.def.stops.filter((stop) => stop.isDepot).map((stop) => stop.stopId));

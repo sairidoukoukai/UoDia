@@ -19,6 +19,7 @@ export {
   createPullIn,
   createPullOut,
   depotIds,
+  isPlaceable,
   expandDeadheads,
   pullInPatternFor,
   pullOutPatternFor,
