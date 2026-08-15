@@ -1,6 +1,6 @@
 {
   "name": "uodia",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "private": true,
   "type": "module",
   "description": "大阪大学 学内連絡バス（再履バス）ダイヤグラム設計ソフトウェア",
