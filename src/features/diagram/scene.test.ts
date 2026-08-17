@@ -319,7 +319,9 @@ describe('スジ', () => {
 });
 
 describe('スジに添える値（T-26）', () => {
-  it('**便番号を持つ。展開された出入庫は空文字**（番号を持たない）', () => {
+  it('**便番号を持つ。展開された出入庫は空文字**（番号は持つが添えない）', () => {
+    // ヒゲが指す先は元の営業便であり、番号を置いても指せる先が増えない。
+    // **採番の対象からは外れていない**（#259）——番号は消費している。
     setTrips([makeTrip('t1', 'S1', [8, 0], { pullOut: true })]);
     const { trips } = selectDiagramScene(state(), theme);
 
@@ -333,6 +335,15 @@ describe('スジに添える値（T-26）', () => {
     const { trips } = selectDiagramScene(state(), theme);
 
     expect(trips.find((trip) => trip.tripId === 'x1')?.tripNumber).toBe('D1');
+  });
+
+  it('**出入庫が先に走っていれば番号が飛ぶ**（#259）', () => {
+    // 8:00 発の便に出区を付けると、その回送（7:40 発）が D1 を取る。
+    // **飛びは事実である**——間に出入庫が走っている。
+    setTrips([makeTrip('t1', 'S1', [8, 0], { pullOut: true }), makeTrip('x1', 'XM-T', [9, 0])]);
+    const { trips } = selectDiagramScene(state(), theme);
+
+    expect(trips.find((trip) => trip.tripId === 'x1')?.tripNumber).toBe('D2');
   });
 
   it('**回送は元の便を指す**（`sourceTripId`。選択の単位は保存されている便）', () => {

@@ -23,7 +23,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { createProject } from '@/domain/io';
 import type { Service, ServiceCalendar } from '@/domain/model';
 import { loadNetworkDef, type NetworkIndex } from '@/domain/network';
-import { numberTrips } from '@/domain/trip';
+import { expandDeadheads, numberTrips } from '@/domain/trip';
 import { addTripForTest } from './build.test-utils';
 import { buildGtfs, GTFS_SERVICE_ID } from './build';
 import type { GtfsFile } from './format';
@@ -263,10 +263,12 @@ describe('trips.txt（§6.5.4）', () => {
     const placedRow = rows.find((row) => row[0] === 'XT-M');
     expect(placedRow?.[2]).toBe('D3');
 
-    // **画面では同じ便が D1 である**——画面が採番に渡すのは保存された便だけで
-    // あり、出入庫は入らない。通しの時刻順を保つ代償として承知している。
+    // **画面でも D3 である。** 画面の側（`selectTripNumbers`）も展開してから
+    // 採番に渡しており、**入口が同じであるかぎり出口も同じ**になる。
     const placed = service.trips.find((trip) => trip.patternId === 'XT-M');
-    expect(numberTrips(service.trips, network).get(placed?.tripId ?? '')).toBe('D1');
+    expect(
+      numberTrips(expandDeadheads(service.trips, network), network).get(placed?.tripId ?? ''),
+    ).toBe('D3');
   });
 
   it('**trip_headsign は終着停留所の名前**（パターン名ではない）', () => {

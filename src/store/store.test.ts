@@ -507,6 +507,23 @@ describe('セレクタ — 派生値', () => {
     expect(numbers.get(trips[0]?.tripId ?? '')).toBe('E2');
   });
 
+  it('**回送の番号は出入庫も数えて振る**（画面と GTFS を揃える。#259）', () => {
+    // 8:00 発の営業便に出区を付け、10:00 発の区間回送を置く。**出区のほうが
+    // 早い**ため、区間回送は D2 になる——保存されていない便であっても、
+    // 展開すればそこに居る。GTFS が出す番号と同じである。
+    state().editProject('回送を置く', (project) => {
+      const service = project.services[0];
+      if (service === undefined) return;
+      const first = service.trips[0];
+      if (first !== undefined) first.pullOut = true;
+      service.trips.push(makeTrip('XT-M', 10, 0));
+    });
+    const trips = selectTrips(state());
+    const placed = trips.find((trip) => trip.patternId === 'XT-M');
+
+    expect(selectTripNumbers(state()).get(placed?.tripId ?? '')).toBe('D2');
+  });
+
   it('文書が開いていなければ導出しない', () => {
     const fresh = createAppStore();
     expect(selectBlocks(fresh.getState())).toBeNull();

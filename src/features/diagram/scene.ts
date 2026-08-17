@@ -324,7 +324,10 @@ const tripsOf = memoizeByIdentity(
         directionId: pattern.pattern.directionId,
         isDeadhead: pattern.pattern.isDeadhead,
         blockId: trip.blockId,
-        tripNumber: numbers.get(trip.tripId) ?? '',
+        // **展開された出入庫には出さない。** 番号は持っている（#259 で採番の
+        // 対象に入った）が、ヒゲは営業便の端に付く短い線であり、そこに番号を
+        // 添えても指す先が増えない。指すのは元の営業便である。
+        tripNumber: trip.tripId === source ? (numbers.get(trip.tripId) ?? '') : '',
         points,
       });
     }
