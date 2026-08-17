@@ -324,10 +324,10 @@ const tripsOf = memoizeByIdentity(
         directionId: pattern.pattern.directionId,
         isDeadhead: pattern.pattern.isDeadhead,
         blockId: trip.blockId,
-        // **展開された出入庫には出さない。** 番号は持っている（#259 で採番の
-        // 対象に入った）が、ヒゲは営業便の端に付く短い線であり、そこに番号を
-        // 添えても指す先が増えない。指すのは元の営業便である。
-        tripNumber: trip.tripId === source ? (numbers.get(trip.tripId) ?? '') : '',
+        // **展開された出入庫にも出す**（#259）。番号を消費する便が絵の上で
+        // 無名だと、置かれた回送の番号が `D2` `D5` と飛ぶ理由が見えない。
+        // **飛びの理由は絵の中にある**——間に走っているヒゲがそれである。
+        tripNumber: numbers.get(trip.tripId) ?? '',
         points,
       });
     }

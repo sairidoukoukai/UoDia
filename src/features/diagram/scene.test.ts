@@ -319,14 +319,14 @@ describe('スジ', () => {
 });
 
 describe('スジに添える値（T-26）', () => {
-  it('**便番号を持つ。展開された出入庫は空文字**（番号は持つが添えない）', () => {
-    // ヒゲが指す先は元の営業便であり、番号を置いても指せる先が増えない。
-    // **採番の対象からは外れていない**（#259）——番号は消費している。
+  it('**便番号を持つ。展開された出入庫も持つ**（#259）', () => {
+    // ヒゲは番号を消費する。**絵の上でも名乗る**——無名だと、置かれた回送の
+    // 番号が飛ぶ理由が読めない。
     setTrips([makeTrip('t1', 'S1', [8, 0], { pullOut: true })]);
     const { trips } = selectDiagramScene(state(), theme);
 
-    expect(trips.find((trip) => !trip.isDeadhead)?.tripNumber).not.toBe('');
-    expect(trips.find((trip) => trip.isDeadhead)?.tripNumber).toBe('');
+    expect(trips.find((trip) => !trip.isDeadhead)?.tripNumber).toBe('E1');
+    expect(trips.find((trip) => trip.isDeadhead)?.tripNumber).toBe('D1');
   });
 
   it('**置かれた回送は番号を持つ**（#259）', () => {

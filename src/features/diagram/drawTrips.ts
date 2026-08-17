@@ -409,9 +409,9 @@ function drawTripNumbers(
   const placed: Rect[] = [];
 
   for (const { trip, first } of drawn) {
-    // **番号を持たないものは飛ばす**（仕様書 §6.1.6）。展開された出入庫が
-    // これにあたる。置かれた回送は `D1` を持つため、ここを通って出る（#259）
-    // ——**時刻表に列があるものには、スジにも名前が要る。**
+    // **番号を持たないものは飛ばす**（仕様書 §6.1.6）。時刻の入っていない便が
+    // これにあたる。回送は出入庫のヒゲも含めて番号を持ち、ここを通って出る
+    // （#259）——**番号が飛んで見える理由が、絵の中に無いと読めない。**
     if (trip.tripNumber === '') continue;
 
     const rect = labelRect(trip.tripNumber, first, viewport);
