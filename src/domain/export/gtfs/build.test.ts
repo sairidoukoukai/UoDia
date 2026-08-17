@@ -247,20 +247,24 @@ describe('trips.txt（§6.5.4）', () => {
     expect(ids.filter((id) => !id.startsWith('D'))).toHaveLength(3);
   });
 
-  it('**置かれた回送の番号が画面と揃う**（先に振る。#259）', () => {
-    // 保存された回送を 1 本足す。**展開される出入庫より先に振られる**ため、
-    // 画面（保存された便だけを見る）と GTFS（展開したものも見る）で番号が
-    // 食い違わない。
+  it('**回送は出入庫も含めて通しで時刻順に振る**（#259）', () => {
+    // 保存された回送を 1 本足す。出区（7:40 発）・入区（9:30 着）より遅い。
     service = {
       ...service,
       trips: addTripForTest(service.trips, 'XT-M', '1_0', 10, 0, 'C', network),
     };
-    const ids = linesOf(build(), 'trips.txt')
+    const rows = linesOf(build(), 'trips.txt')
       .slice(1)
-      .map((line) => line.split(',')[2] ?? '');
+      .map((line) => line.split(','));
 
-    // 置かれた回送が D1。展開された出区・入区が D2・D3。
-    expect(ids.filter((id) => id.startsWith('D')).sort()).toEqual(['D1', 'D2', 'D3']);
+    expect(rows.map((row) => row[2] ?? '').filter((id) => id.startsWith('D'))).toHaveLength(3);
+
+    // **一番遅い回送であるため D3 になる。** 置かれた便かどうかは見ない。
+    const placedRow = rows.find((row) => row[0] === 'XT-M');
+    expect(placedRow?.[2]).toBe('D3');
+
+    // **画面では同じ便が D1 である**——画面が採番に渡すのは保存された便だけで
+    // あり、出入庫は入らない。通しの時刻順を保つ代償として承知している。
     const placed = service.trips.find((trip) => trip.patternId === 'XT-M');
     expect(numberTrips(service.trips, network).get(placed?.tripId ?? '')).toBe('D1');
   });

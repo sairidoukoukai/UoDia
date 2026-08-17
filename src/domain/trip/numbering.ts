@@ -29,12 +29,26 @@
  * **方向でも分けない。** 回送の向きは運用の都合であって、利用者が「上りの回送」
  * を探すことはない。
  *
- * ## 置かれた回送を先に振る
+ * ## 回送どうしは通しで時刻順に振る
  *
- * 出入庫は保存されず、要る場面で展開される（§6.1.7）。**置かれた回送を先に
- * 振ってから展開したものを続ける**ことで、**同じ便が画面でも GTFS でも同じ
- * 番号になる**——画面が見るのは保存された便だけであり、GTFS は展開したものも
- * 見る。時刻順に一括で振ると、出入庫の有無で画面の番号が動く。
+ * **出入庫と区別せず、始発時刻の昇順で 1 本の系列にする。** 番号を見れば早い便か
+ * 遅い便かが分かる——それが時刻順に振る意味であり、途中で規則が変わる系列は
+ * その意味を失う。
+ *
+ * **代わりに、同じ便が画面と GTFS で違う番号になることを許す。** 出入庫は保存
+ * されず、要る場面で展開される（§6.1.7）。画面が採番に渡すのは保存された便だけ
+ * であり、GTFS は展開したものも渡す。**間に出入庫が入れば、後ろの番号はその数だけ
+ * ずれる。**
+ *
+ * | | 画面（保存された便だけ） | GTFS（展開したものも） |
+ * | --- | --- | --- |
+ * | 7:00 の出区 | 渡らない | `D1` |
+ * | 10:00 の区間回送 | `D1` | `D2` |
+ *
+ * かつては**置かれた回送を先に振る**ことでこのずれを消していたが、**その代償は
+ * 系列が時刻順でなくなること**だった。ずれるのは GTFS の `trip_id` の側であり、
+ * 読むのは機械である。**人が口にするのは画面の番号のほうであり、そちらを時刻順に
+ * 保つ。**
  *
  * ## 便番号は持ち物ではない
  *
@@ -52,7 +66,6 @@
 import type { Trip } from '@/domain/model';
 import type { NetworkIndex } from '@/domain/network';
 import { compareTime, type Seconds } from '@/domain/time';
-import { isPlaceable } from './deadhead';
 import { originTime } from './times';
 
 /** 営業便の方向ごとの接頭辞。 */
@@ -79,9 +92,7 @@ export function numberTrips(trips: readonly Trip[], network: NetworkIndex): Map<
   }
   const eastbound: Departure[] = [];
   const westbound: Departure[] = [];
-
-  const placed: Departure[] = [];
-  const expanded: Departure[] = [];
+  const deadheads: Departure[] = [];
 
   for (const trip of trips) {
     const pattern = network.patternIndex(trip.patternId);
@@ -91,9 +102,9 @@ export function numberTrips(trips: readonly Trip[], network: NetworkIndex): Map<
 
     const departure = { tripId: trip.tripId, time };
     if (pattern.pattern.isDeadhead) {
-      // 置かれた回送（停留所間）と、展開された出入庫を分ける。**画面が見るのは
-      // 前者だけ**であり、先に振ることで番号が後者の有無に左右されない。
-      (isPlaceable(pattern.pattern, network) ? placed : expanded).push(departure);
+      // 置かれた回送も展開された出入庫も同じ系列に入れる。**分けない**——
+      // 番号が時刻順であることを、系列の途中で崩さない。
+      deadheads.push(departure);
     } else if (pattern.pattern.directionId === 0) {
       eastbound.push(departure);
     } else {
@@ -105,21 +116,13 @@ export function numberTrips(trips: readonly Trip[], network: NetworkIndex): Map<
   for (const [prefix, departures] of [
     [DIRECTION_PREFIX[0], eastbound],
     [DIRECTION_PREFIX[1], westbound],
+    [DEADHEAD_PREFIX, deadheads],
   ] as const) {
     // 同時刻の便があっても採番が入力の並びで変わらないよう、便 ID で決着させる。
     departures.sort((a, b) => compareTime(a.time, b.time) || a.tripId.localeCompare(b.tripId));
     departures.forEach(({ tripId }, index) => {
       numbers.set(tripId, `${prefix}${String(index + 1)}`);
     });
-  }
-
-  const byTime = (a: Departure, b: Departure): number =>
-    compareTime(a.time, b.time) || a.tripId.localeCompare(b.tripId);
-  placed.sort(byTime);
-  expanded.sort(byTime);
-
-  for (const [index, { tripId }] of [...placed, ...expanded].entries()) {
-    numbers.set(tripId, `${DEADHEAD_PREFIX}${String(index + 1)}`);
   }
 
   return numbers;

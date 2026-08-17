@@ -104,16 +104,23 @@ describe('回送便（T-51、#259）', () => {
     expect(numbersOf([trip('DS-out', 7, 0), trip('DT-in', 8, 0)])).toEqual(['D1', 'D2']);
   });
 
-  it('**置かれた回送を先に振る**（画面と GTFS で同じ番号にするため）', () => {
-    // 画面は保存された便だけを見る（停留所間の回送）。GTFS は展開した出入庫も
-    // 見る。**先に振っておけば、出入庫の有無で画面の番号が動かない。**
+  it('**出入庫と区別せず、通しで時刻順に振る**', () => {
     const placed = trip('XM-T', 10, 0);
     const depot = trip('DS-out', 7, 0);
 
-    // 出入庫のほうが早いが、置かれた回送が D1 を取る。
-    expect(numbersOf([depot, placed])).toEqual(['D2', 'D1']);
-    // 出入庫を外しても、置かれた回送の番号は動かない。
+    // 早いほうが D1。置かれた回送か出入庫かは見ない。
+    expect(numbersOf([depot, placed])).toEqual(['D1', 'D2']);
+  });
+
+  it('**間に出入庫が入れば後ろの番号がずれる**（承知のうえ）', () => {
+    // 画面が採番に渡すのは**保存された便だけ**、GTFS は**展開した出入庫も**渡す。
+    // 同じ区間回送が画面では D1、GTFS では D2 になる。**通しの時刻順を保つ代償**
+    // であり、ずれるのは機械が読む `trip_id` の側である。
+    const placed = trip('XM-T', 10, 0);
+    const depot = trip('DS-out', 7, 0);
+
     expect(numbersOf([placed])).toEqual(['D1']);
+    expect(numberTrips([depot, placed], network).get(placed.tripId)).toBe('D2');
   });
 });
 
