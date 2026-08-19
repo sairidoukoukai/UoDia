@@ -10,16 +10,19 @@
  * `route.json` を直すものにも**直す先は書く**——移れないことと、どこを直せば
  * よいか分からないことは別である。
  *
- * ## 実例と違えるところを書いておく
+ * ## 実例と違えるところは、この画面に出さない
  *
  * 出したものは実例（`docs/gtfs_example/`）と 1 バイト単位では一致しない
- * （仕様書 v2 §6.7）。**なぜ違うのかを、比べる人が読める場所に置く**——比べる人
- * がこの画面を開くとは限らないが、**置き場所がここ以外に無い。**
+ * （仕様書 v2 §6.7）。かつてはその一覧をここに畳んで置いていたが、**外した**
+ * （#261）。**この画面を開く人が読むものではない**——開くのはダイヤを配りたい
+ * 人であり、要るのは「出せるか、出せないなら何が足りないか」だけである。実例と
+ * 1 バイトずつ突き合わせるのは別の場面の仕事で、そのとき読まれるのは画面では
+ * なく仕様書 v2 §6.7 である。
  */
 
 import { useState, type ReactElement } from 'react';
 import { selectActiveService, useAppStore } from '@/store';
-import { DEVIATIONS, describeMissing, missingForGtfs, type ReadinessTab } from './readiness';
+import { describeMissing, missingForGtfs, type ReadinessTab } from './readiness';
 
 export interface ExportTabProps {
   /** 直す先のタブへ移る。 */
@@ -95,42 +98,6 @@ export function ExportTab(props: ExportTabProps): ReactElement {
           {busy ? '書き出しています…' : 'GTFS を書き出す'}
         </button>
       </div>
-
-      <Deviations />
     </section>
-  );
-}
-
-/**
- * 実例と違えるところ（仕様書 v2 §6.7）。
- *
- * **畳んでおく。** 普段の書き出しでは読む必要が無く、開いたままだと足りないものの
- * 一覧が下へ押し出される。
- */
-function Deviations(): ReactElement {
-  return (
-    <details className="gtfs__deviations">
-      <summary>既存の GTFS と違えているところ（{DEVIATIONS.length} 点）</summary>
-      <table>
-        <thead>
-          <tr>
-            <th scope="col">項目</th>
-            <th scope="col">既存</th>
-            <th scope="col">本ソフト</th>
-            <th scope="col">理由</th>
-          </tr>
-        </thead>
-        <tbody>
-          {DEVIATIONS.map((deviation) => (
-            <tr key={deviation.what}>
-              <th scope="row">{deviation.what}</th>
-              <td>{deviation.example}</td>
-              <td>{deviation.ours}</td>
-              <td>{deviation.why}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </details>
   );
 }

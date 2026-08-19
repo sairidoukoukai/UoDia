@@ -18,13 +18,7 @@ import type { NetworkDef, Service, ServiceCalendar } from '@/domain/model';
 import { loadNetworkDef, type NetworkIndex } from '@/domain/network';
 import { createTrip } from '@/domain/service';
 import { fromHM } from '@/domain/time';
-import {
-  DEVIATIONS,
-  canExportGtfs,
-  describeMissing,
-  missingForGtfs,
-  type MissingItem,
-} from './readiness';
+import { canExportGtfs, describeMissing, missingForGtfs, type MissingItem } from './readiness';
 
 const routeJsonPath = fileURLToPath(new URL('../../../data/route.json', import.meta.url));
 const loaded = loadNetworkDef(readFileSync(routeJsonPath, 'utf8'));
@@ -160,32 +154,5 @@ describe('揃っていないとき', () => {
     const missing = missingForGtfs({ network: def, service });
     expect(missing.length).toBeGreaterThan(1);
     expect(messagesOf(missing)).toContain('運行日がありません');
-  });
-});
-
-describe('実例と違えるところ（§6.7）', () => {
-  it('**7 つある**（仕様書は 5 点。あと 2 つは T-82 で見つけた）', () => {
-    expect(DEVIATIONS).toHaveLength(7);
-  });
-
-  it('どれも「何を・既存は・本ソフトは・なぜ」を持つ', () => {
-    for (const deviation of DEVIATIONS) {
-      expect(deviation.what).not.toBe('');
-      expect(deviation.example).not.toBe('');
-      expect(deviation.ours).not.toBe('');
-      expect(deviation.why).not.toBe('');
-    }
-  });
-
-  it('仕様書 §6.7 が挙げた項目が揃っている', () => {
-    expect(DEVIATIONS.map((deviation) => deviation.what)).toEqual([
-      'stop_sequence',
-      'pickup_type / drop_off_type',
-      '微生物研究所前',
-      'agency_id',
-      'route_text_color',
-      '改行',
-      '車庫の location_type',
-    ]);
   });
 });

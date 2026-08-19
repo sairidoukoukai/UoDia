@@ -187,20 +187,28 @@ describe('揃っているとき', () => {
   });
 });
 
-describe('実例と違えるところ（§6.7）', () => {
-  it('**画面に置いてある**（比べる人が読める場所）', () => {
+describe('実例と違えるところを出さない（#261）', () => {
+  it('**表そのものが無い**', () => {
     boot();
     render({ onGoTo: () => undefined });
 
-    expect(container.textContent).toContain('stop_sequence');
-    expect(container.textContent).toContain('route_text_color');
+    // 見出しも、中身の 1 項目も出ない。**この画面を開く人が読むものではない。**
+    expect(container.textContent).not.toContain('違えている');
+    expect(container.textContent).not.toContain('stop_sequence');
+    expect(container.textContent).not.toContain('route_text_color');
   });
 
-  it('**畳んである**（普段の書き出しでは読まない）', () => {
+  it('**畳んだものが 1 つも残っていない**', () => {
     boot();
     render({ onGoTo: () => undefined });
 
-    const details = container.querySelector('details');
-    expect(details?.open).toBe(false);
+    expect(container.querySelector('details')).toBeNull();
+  });
+
+  it('**足りないものと書き出しボタンは残る**（外したのは表だけ）', () => {
+    boot();
+    render({ onGoTo: () => undefined });
+
+    expect(button('GTFS を書き出す')).toBeTruthy();
   });
 });

@@ -1943,36 +1943,3 @@ body {
   margin: 0.8rem 0 0;
   font-size: 0.875rem;
 }
-
-/*
-  実例と違えるところ。**畳んでおく**——普段の書き出しでは読む必要が無い。
-  表は横に長いため、中で送る（窓の幅を押し広げない）。
-*/
-.gtfs__deviations {
-  margin-top: 1rem;
-  font-size: 0.8125rem;
-}
-
-.gtfs__deviations summary {
-  cursor: pointer;
-  color: var(--color-fg-muted);
-}
-
-.gtfs__deviations table {
-  width: 100%;
-  margin-top: 0.5rem;
-  border-collapse: collapse;
-}
-
-.gtfs__deviations th,
-.gtfs__deviations td {
-  padding: 0.2rem 0.4rem 0.2rem 0;
-  border-bottom: 1px solid var(--color-border);
-  text-align: left;
-  vertical-align: top;
-}
-
-.gtfs__deviations thead th {
-  color: var(--color-fg-muted);
-  font-weight: normal;
-}

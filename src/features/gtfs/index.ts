@@ -36,13 +36,11 @@ export {
 export { stopsWithoutCoordinates } from './coordinates';
 
 export {
-  DEVIATIONS,
   NETWORK_DEF_NAME,
   TAB_LABEL,
   canExportGtfs,
   describeMissing,
   missingForGtfs,
-  type Deviation,
   type FixLocation,
   type MissingItem,
   type ReadinessInput,
