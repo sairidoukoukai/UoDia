@@ -251,7 +251,7 @@ describe('trips.txt（§6.5.4）', () => {
     // 保存された回送を 1 本足す。出区（7:40 発）・入区（9:30 着）より遅い。
     service = {
       ...service,
-      trips: addTripForTest(service.trips, 'XT-M', '1_0', 10, 0, 'C', network),
+      trips: addTripForTest(service.trips, 'DT-M', '1_0', 10, 0, 'C', network),
     };
     const rows = linesOf(build(), 'trips.txt')
       .slice(1)
@@ -260,12 +260,12 @@ describe('trips.txt（§6.5.4）', () => {
     expect(rows.map((row) => row[2] ?? '').filter((id) => id.startsWith('D'))).toHaveLength(3);
 
     // **一番遅い回送であるため D3 になる。** 置かれた便かどうかは見ない。
-    const placedRow = rows.find((row) => row[0] === 'XT-M');
+    const placedRow = rows.find((row) => row[0] === 'DT-M');
     expect(placedRow?.[2]).toBe('D3');
 
     // **画面でも D3 である。** 画面の側（`selectTripNumbers`）も展開してから
     // 採番に渡しており、**入口が同じであるかぎり出口も同じ**になる。
-    const placed = service.trips.find((trip) => trip.patternId === 'XT-M');
+    const placed = service.trips.find((trip) => trip.patternId === 'DT-M');
     expect(
       numberTrips(expandDeadheads(service.trips, network), network).get(placed?.tripId ?? ''),
     ).toBe('D3');

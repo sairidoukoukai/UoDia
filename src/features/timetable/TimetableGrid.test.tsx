@@ -298,9 +298,9 @@ describe('見出し', () => {
   });
 
   it('**置かれた回送は列になり、D の番号が見出しに出る**（#247・#259）', () => {
-    // 列に並ぶのは吹田方面。XM-T（箕面→豊中）は豊中方面であるため、
-    // 同じ向きの XT-M（豊中学舎 → 箕面学舎・回送）で見る。
-    render([makeTrip('S1', 8, 0), makeTrip('XT-M', 9, 0)]);
+    // 列に並ぶのは吹田方面。DM-T（箕面→豊中）は豊中方面であるため、
+    // 同じ向きの DT-M（豊中学舎 → 箕面学舎・回送）で見る。
+    render([makeTrip('S1', 8, 0), makeTrip('DT-M', 9, 0)]);
     expect(columnHeaders()).toEqual(['便番号', 'E1', 'D1']);
   });
 
@@ -930,9 +930,9 @@ describe('前運用・次運用（T-51、仕様書 §6.1.7）', () => {
   });
 
   it('**停留所間の回送が繋がっていれば番号を出す**（#259）', () => {
-    // M2（豊中 8:00 → 箕面 8:20）の次に XM-T（箕面 9:00 → 豊中 9:20・回送）。
+    // M2（豊中 8:00 → 箕面 8:20）の次に DM-T（箕面 9:00 → 豊中 9:20・回送）。
     const revenue = makeTrip('M2', 8, 0, { blockId: 'A' });
-    const deadhead = makeTrip('XM-T', 9, 0, { blockId: 'A' });
+    const deadhead = makeTrip('DM-T', 9, 0, { blockId: 'A' });
     render([revenue], undefined, { allTrips: [revenue, deadhead] });
 
     // かつては空欄だった——「隣が回送＝運用が破綻」と見なしていたため。

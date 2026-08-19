@@ -1,5 +1,5 @@
 {
-  "version": 5,
+  "version": 6,
   "name": "大阪大学 学内連絡バス",
   "timeGrain": 300,
   "agency": {
@@ -546,7 +546,7 @@
       ]
     },
     {
-      "patternId": "XM-T",
+      "patternId": "DM-T",
       "patternName": "箕面発豊中",
       "routeName": "区間回送",
       "directionId": 1,
@@ -565,7 +565,7 @@
       ]
     },
     {
-      "patternId": "XT-M",
+      "patternId": "DT-M",
       "patternName": "豊中発箕面",
       "routeName": "区間回送",
       "directionId": 0,
@@ -584,7 +584,7 @@
       ]
     },
     {
-      "patternId": "XT-S",
+      "patternId": "DT-S",
       "patternName": "豊中発工学部",
       "routeName": "区間回送",
       "directionId": 0,
@@ -603,7 +603,7 @@
       ]
     },
     {
-      "patternId": "XS-T",
+      "patternId": "DS-T",
       "patternName": "工学部発豊中",
       "routeName": "区間回送",
       "directionId": 1,
@@ -622,7 +622,7 @@
       ]
     },
     {
-      "patternId": "XM-S",
+      "patternId": "DM-S",
       "patternName": "箕面発工学部",
       "routeName": "区間回送",
       "directionId": 0,
@@ -641,7 +641,7 @@
       ]
     },
     {
-      "patternId": "XS-M",
+      "patternId": "DS-M",
       "patternName": "工学部発箕面",
       "routeName": "区間回送",
       "directionId": 1,

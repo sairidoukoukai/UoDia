@@ -516,10 +516,10 @@ describe('セレクタ — 派生値', () => {
       if (service === undefined) return;
       const first = service.trips[0];
       if (first !== undefined) first.pullOut = true;
-      service.trips.push(makeTrip('XT-M', 10, 0));
+      service.trips.push(makeTrip('DT-M', 10, 0));
     });
     const trips = selectTrips(state());
-    const placed = trips.find((trip) => trip.patternId === 'XT-M');
+    const placed = trips.find((trip) => trip.patternId === 'DT-M');
 
     expect(selectTripNumbers(state()).get(placed?.tripId ?? '')).toBe('D2');
   });

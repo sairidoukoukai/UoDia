@@ -105,7 +105,7 @@ describe('回送便（T-51、#259）', () => {
   });
 
   it('**出入庫と区別せず、通しで時刻順に振る**', () => {
-    const placed = trip('XM-T', 10, 0);
+    const placed = trip('DM-T', 10, 0);
     const depot = trip('DS-out', 7, 0);
 
     // 早いほうが D1。置かれた回送か出入庫かは見ない。
@@ -116,7 +116,7 @@ describe('回送便（T-51、#259）', () => {
     // ここが**入口を揃えねばならない理由**である。展開した出入庫を数に入れるか
     // どうかで、同じ区間回送の番号が動く。画面（`selectTripNumbers`）も GTFS も
     // **展開してから渡す**ことで揃えている。
-    const placed = trip('XM-T', 10, 0);
+    const placed = trip('DM-T', 10, 0);
     const depot = trip('DS-out', 7, 0);
 
     expect(numbersOf([placed])).toEqual(['D1']);

@@ -471,7 +471,7 @@ describe('停留所間の回送（#247、T-99）', () => {
    */
   function addWithBetweenStops(): void {
     addTrip('M2', '1_0', 9, 0, 'A', { pullOut: true });
-    addTrip('XM-T', '2_0', 10, 0, 'A');
+    addTrip('DM-T', '2_0', 10, 0, 'A');
     addTrip('M2', '1_0', 12, 0, 'A', { pullIn: true });
   }
 

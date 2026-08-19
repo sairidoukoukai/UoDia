@@ -330,8 +330,8 @@ describe('スジに添える値（T-26）', () => {
   });
 
   it('**置かれた回送は番号を持つ**（#259）', () => {
-    // XM-T は箕面学舎→豊中学舎の回送。保存された便であり、車庫に接しない。
-    setTrips([makeTrip('t1', 'S1', [8, 0]), makeTrip('x1', 'XM-T', [9, 0])]);
+    // DM-T は箕面学舎→豊中学舎の回送。保存された便であり、車庫に接しない。
+    setTrips([makeTrip('t1', 'S1', [8, 0]), makeTrip('x1', 'DM-T', [9, 0])]);
     const { trips } = selectDiagramScene(state(), theme);
 
     expect(trips.find((trip) => trip.tripId === 'x1')?.tripNumber).toBe('D1');
@@ -340,7 +340,7 @@ describe('スジに添える値（T-26）', () => {
   it('**出入庫が先に走っていれば番号が飛ぶ**（#259）', () => {
     // 8:00 発の便に出区を付けると、その回送（7:40 発）が D1 を取る。
     // **飛びは事実である**——間に出入庫が走っている。
-    setTrips([makeTrip('t1', 'S1', [8, 0], { pullOut: true }), makeTrip('x1', 'XM-T', [9, 0])]);
+    setTrips([makeTrip('t1', 'S1', [8, 0], { pullOut: true }), makeTrip('x1', 'DM-T', [9, 0])]);
     const { trips } = selectDiagramScene(state(), theme);
 
     expect(trips.find((trip) => trip.tripId === 'x1')?.tripNumber).toBe('D2');
