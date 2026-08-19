@@ -114,6 +114,21 @@ describe('route.json — スキーマ適合', () => {
     expect(deadheadRoutes.map((route) => route.routeName).sort()).toEqual(['区間回送', '回送']);
   });
 
+  it('**回送の ID はすべて `D` で始まる**（#262）', () => {
+    // 出入庫は `DS-out` `DT-in` …、停留所間は `DM-T` `DT-S` …。**同じ「客を
+    // 乗せない便」が 2 つの綴りで並んでいた**（区間回送だけが `X` だった）。
+    // ID の一覧を上から読んで、**営業便か回送かが 1 文字目で分かる。**
+    for (const pattern of network.patterns.filter((p) => p.isDeadhead)) {
+      expect(pattern.patternId.startsWith('D'), pattern.patternId).toBe(true);
+    }
+  });
+
+  it('**営業便の ID は `D` で始まらない**（1 文字目が種別を決める）', () => {
+    for (const pattern of network.patterns.filter((p) => !p.isDeadhead)) {
+      expect(pattern.patternId.startsWith('D'), pattern.patternId).toBe(false);
+    }
+  });
+
   it('**停留所間の回送は営業所を含まない**（それが表したかったこと）', () => {
     const between = network.patterns.filter((p) => p.routeName === '区間回送');
     expect(between).toHaveLength(6);
@@ -282,12 +297,12 @@ describe('route.json — 全区間所要時間（仕様書 付録 A.4）', () =>
 
   it('**停留所間の回送は営業便と同じ所要時間である**（#247）', () => {
     // 空車でも道は同じである。**回送だから速い、ということはない。**
-    expect(totalMinutes('XT-M')).toBe(20); // 豊中 → 箕面（M2 と同じ）
-    expect(totalMinutes('XM-T')).toBe(20); // 箕面 → 豊中（T2 と同じ）
-    expect(totalMinutes('XT-S')).toBe(30); // 豊中 → 工学部（コンベ前経由）
-    expect(totalMinutes('XS-T')).toBe(30); // 工学部 → 豊中（人科前経由）
-    expect(totalMinutes('XM-S')).toBe(20); // 箕面 → 工学部（S2 と同じ）
-    expect(totalMinutes('XS-M')).toBe(25); // 工学部 → 箕面（M4 と同じ。往復で非対称）
+    expect(totalMinutes('DT-M')).toBe(20); // 豊中 → 箕面（M2 と同じ）
+    expect(totalMinutes('DM-T')).toBe(20); // 箕面 → 豊中（T2 と同じ）
+    expect(totalMinutes('DT-S')).toBe(30); // 豊中 → 工学部（コンベ前経由）
+    expect(totalMinutes('DS-T')).toBe(30); // 工学部 → 豊中（人科前経由）
+    expect(totalMinutes('DM-S')).toBe(20); // 箕面 → 工学部（S2 と同じ）
+    expect(totalMinutes('DS-M')).toBe(25); // 工学部 → 箕面（M4 と同じ。往復で非対称）
   });
 
   it('箕面〜吹田間は往復で 5 分非対称（経路が異なるため。仕様書 付録 A.4）', () => {
@@ -383,8 +398,8 @@ describe('route.json — 方向と経路の整合', () => {
 describe('route.json — GTFS に要る静的データ（T-70、#198）', () => {
   const network = loadNetwork();
 
-  it('版数 5 である（#247 で停留所間の回送を 6 通りに揃えた）', () => {
-    expect(network.version).toBe(5);
+  it('版数 6 である（#262 で区間回送の ID を `D` に改めた）', () => {
+    expect(network.version).toBe(6);
   });
 
   it('事業者は大阪大学である（**同好会ではない**）', () => {

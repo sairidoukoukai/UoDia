@@ -185,7 +185,7 @@ describe('パターンの変更', () => {
     mount();
     const options = [...container.querySelectorAll('option')].map((option) => option.value);
 
-    expect(options).toEqual(expect.arrayContaining(['XT-M', 'XT-S', 'XM-S']));
+    expect(options).toEqual(expect.arrayContaining(['DT-M', 'DT-S', 'DM-S']));
   });
 
   it('**まちまちの選択では値を出さない**（開いただけで揃ったように見せない）', () => {

@@ -702,6 +702,41 @@ describe('路線を文書が持つ（#235、T-89）', () => {
     expect(warnings.map((w) => w.id)).toContain('W-02');
   });
 
+  it('**旧い綴りの路線を持つファイルもそのまま開く**（#262 の受入条件）', () => {
+    // v3.1 で保存したファイルは、区間回送を `XT-M` と綴った路線を**抱えている**。
+    // `data/route.json` を `DT-M` に改めても、**文書は自分の路線を見る。**
+    const project = makeProject();
+    const old: Project = {
+      ...project,
+      network: {
+        ...project.network,
+        patterns: project.network.patterns.map((pattern) =>
+          pattern.patternId === 'DT-M' ? { ...pattern, patternId: 'XT-M' } : pattern,
+        ),
+      },
+      services: project.services.map((service) => ({
+        ...service,
+        trips: [
+          ...service.trips,
+          {
+            tripId: 'x1',
+            patternId: 'XT-M',
+            anchor: { stopId: '1_0', time: fromHM(10, 0) },
+            blockId: 'A',
+            pullOut: false,
+            pullIn: false,
+          },
+        ],
+      })),
+    };
+
+    const { project: loaded, warnings } = loadOrThrow(serializeProject(old));
+
+    // 参照は壊れていない（W-02 で既定パターンへ倒されていない）。
+    expect(warnings.map((w) => w.id)).not.toContain('W-02');
+    expect(loaded.services[0]?.trips.find((t) => t.tripId === 'x1')?.patternId).toBe('XT-M');
+  });
+
   it('**路線を書き換えても、保存済みのファイルは動かない**（受入条件）', () => {
     const saved = serializeProject(makeProject());
 

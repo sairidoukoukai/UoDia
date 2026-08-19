@@ -65,13 +65,15 @@ describe('取扱区分（#202、T-83）', () => {
     expect(handlingOf('T3', '2_0')).toBe('stop');
   });
 
-  it('**版数 5 である**（#247 で停留所間の回送を 6 通りに揃えた）', () => {
+  it('**版数 6 である**（#262 で区間回送の ID を `D` に改めた）', () => {
     const result = loadNetworkDef(validJson);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     // 版数 3 は T-83 の値の訂正までであり、形は変わっていなかった。版数 4 は
-    // 系統に `isDeadhead` を足しているため、形が変わっている。
-    expect(result.network.def.version).toBe(5);
+    // 系統に `isDeadhead` を足しているため、形が変わっている。版数 6 は形を
+    // 変えていないが、**ID は経路の意味そのもの**であり、綴りが変われば
+    // 既存の文書が指す先が変わる。黙って受け取らせない。
+    expect(result.network.def.version).toBe(6);
   });
 });
 
