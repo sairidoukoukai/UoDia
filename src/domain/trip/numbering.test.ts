@@ -87,14 +87,40 @@ describe('営業便 — 方向ごとの連番', () => {
   });
 });
 
-describe('回送便（T-51）', () => {
-  it('**回送便には番号を振らない**', () => {
-    expect(numbersOf([trip('DS-out', 7, 0), trip('DT-in', 9, 0)])).toEqual(['', '']);
+describe('回送便（T-51、#259）', () => {
+  it('**回送便には D の系列を振る**（#259。かつては振らなかった）', () => {
+    expect(numbersOf([trip('DS-out', 7, 0), trip('DT-in', 9, 0)])).toEqual(['D1', 'D2']);
   });
 
-  it('**回送便は営業便の連番を飛ばさない**（数に入れない）', () => {
+  it('**回送便は営業便の連番を飛ばさない**（別の系列である）', () => {
+    // 混ぜると、回送を 1 本置くだけで営業便の番号が繰り上がる。便番号は人が
+    // 口にする識別子であり、**回送を足して呼び名が変わるのは役に立たない。**
     const trips = [trip('S1', 8, 0), trip('DS-out', 8, 30), trip('S1', 9, 0)];
-    expect(numbersOf(trips)).toEqual(['E1', '', 'E2']);
+    expect(numbersOf(trips)).toEqual(['E1', 'D1', 'E2']);
+  });
+
+  it('**方向で分けない**（回送の向きは運用の都合である）', () => {
+    // DS-out は吹田方面、DT-in は豊中方面。**同じ系列に並ぶ。**
+    expect(numbersOf([trip('DS-out', 7, 0), trip('DT-in', 8, 0)])).toEqual(['D1', 'D2']);
+  });
+
+  it('**出入庫と区別せず、通しで時刻順に振る**', () => {
+    const placed = trip('XM-T', 10, 0);
+    const depot = trip('DS-out', 7, 0);
+
+    // 早いほうが D1。置かれた回送か出入庫かは見ない。
+    expect(numbersOf([depot, placed])).toEqual(['D1', 'D2']);
+  });
+
+  it('**渡すものが違えば番号も違う**（出入庫を展開してから渡すこと）', () => {
+    // ここが**入口を揃えねばならない理由**である。展開した出入庫を数に入れるか
+    // どうかで、同じ区間回送の番号が動く。画面（`selectTripNumbers`）も GTFS も
+    // **展開してから渡す**ことで揃えている。
+    const placed = trip('XM-T', 10, 0);
+    const depot = trip('DS-out', 7, 0);
+
+    expect(numbersOf([placed])).toEqual(['D1']);
+    expect(numberTrips([depot, placed], network).get(placed.tripId)).toBe('D2');
   });
 });
 

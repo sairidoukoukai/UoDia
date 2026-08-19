@@ -292,9 +292,16 @@ describe('見出し', () => {
     expect(blockField(0).placeholder).toBe('―');
   });
 
-  it('**列になるのは営業便だけ**（回送は前運用・次運用の欄に出る。T-51）', () => {
+  it('**展開された出入庫は列にならない**（前運用・次運用の欄に出る。T-51）', () => {
     render([makeTrip('S1', 8, 0, { pullOut: true }), makeTrip('S1', 9, 0)]);
     expect(columnHeaders()).toEqual(['便番号', 'E1', 'E2']);
+  });
+
+  it('**置かれた回送は列になり、D の番号が見出しに出る**（#247・#259）', () => {
+    // 列に並ぶのは吹田方面。XM-T（箕面→豊中）は豊中方面であるため、
+    // 同じ向きの XT-M（豊中学舎 → 箕面学舎・回送）で見る。
+    render([makeTrip('S1', 8, 0), makeTrip('XT-M', 9, 0)]);
+    expect(columnHeaders()).toEqual(['便番号', 'E1', 'D1']);
   });
 
   it('参照が壊れた列は目印を付ける', () => {
@@ -919,6 +926,26 @@ describe('前運用・次運用（T-51、仕様書 §6.1.7）', () => {
   it('繋がっていなければ空欄', () => {
     render([makeTrip('S1', 8, 0)]);
     expect(linkCells('前運用')).toEqual(['']);
+    expect(linkCells('次運用')).toEqual(['']);
+  });
+
+  it('**停留所間の回送が繋がっていれば番号を出す**（#259）', () => {
+    // M2（豊中 8:00 → 箕面 8:20）の次に XM-T（箕面 9:00 → 豊中 9:20・回送）。
+    const revenue = makeTrip('M2', 8, 0, { blockId: 'A' });
+    const deadhead = makeTrip('XM-T', 9, 0, { blockId: 'A' });
+    render([revenue], undefined, { allTrips: [revenue, deadhead] });
+
+    // かつては空欄だった——「隣が回送＝運用が破綻」と見なしていたため。
+    expect(linkCells('次運用')).toEqual(['D1']);
+  });
+
+  it('**隣が出入庫なら空欄のまま**（挟まっているのは破綻である）', () => {
+    // A は入庫を付けていないのに、次の便が出庫を付けている。**A は車庫へ
+    // 行っていない**——V-01 が拾う並びであり、繋がっているように見せない。
+    const first = makeTrip('S1', 8, 0, { blockId: 'A' });
+    const second = makeTrip('S1', 10, 0, { blockId: 'A', pullOut: true });
+    render([first], undefined, { allTrips: [first, second] });
+
     expect(linkCells('次運用')).toEqual(['']);
   });
 

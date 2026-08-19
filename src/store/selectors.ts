@@ -21,7 +21,7 @@ import {
 } from '@/domain/model';
 import { buildNetworkIndex, type NetworkIndex } from '@/domain/network';
 import type { FileHandle } from '@/platform';
-import { allTimes, numberTrips } from '@/domain/trip';
+import { allTimes, expandDeadheads, numberTrips } from '@/domain/trip';
 import type { Seconds } from '@/domain/time';
 import {
   validateCalendar,
@@ -274,7 +274,9 @@ export function selectAllTripTimes(state: AppState): ReadonlyMap<string, Map<str
 
 const tripNumbersOf = memoizeByIdentity(
   (trips: readonly Trip[], network: NetworkIndex | null): ReadonlyMap<string, string> =>
-    network === null ? NO_NUMBERS : numberTrips(trips, network),
+    // **出入庫を展開してから振る**（#259）。回送は通しで時刻順に振るため、
+    // 展開したものを数に入れないと、画面と GTFS で同じ便に違う番号が付く。
+    network === null ? NO_NUMBERS : numberTrips(expandDeadheads(trips, network), network),
 );
 
 /**
@@ -283,6 +285,10 @@ const tripNumbersOf = memoizeByIdentity(
  * 便に書き込むと、1 便の時刻を変えるたびに全便が書き換わり、取り消しの単位が
  * 「1 便の移動」ではなく「全便の書き換え」になる。ここで導出すれば、番号は
  * 便が変わったときにだけ計算し直される。
+ *
+ * **展開された出入庫も採番の対象に入る。** 表に出るのは保存された便だけである
+ * ため、返る対応表には**引かれない項目が混じる**——それでよい。出入庫を数に
+ * 入れないと回送の番号が飛び、GTFS の側とも食い違う（#259）。
  */
 export function selectTripNumbers(state: AppState): ReadonlyMap<string, string> {
   return tripNumbersOf(selectTrips(state), selectNetwork(state));

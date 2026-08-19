@@ -10,7 +10,14 @@ import { assignBlockColors, blockNeighbors, neighborsOf } from '@/domain/block';
 import type { DirectionId, Handling, StopPattern, Stop, Trip } from '@/domain/model';
 import type { NetworkIndex } from '@/domain/network';
 import type { Seconds } from '@/domain/time';
-import { createPullIn, createPullOut, isAnchored, originTime, terminalTime } from '@/domain/trip';
+import {
+  createPullIn,
+  createPullOut,
+  isAnchored,
+  isPlaceable,
+  originTime,
+  terminalTime,
+} from '@/domain/trip';
 
 /** 方向タブの見出し（仕様書 §6.1.1）。 */
 export const DIRECTION_LABEL: Readonly<Record<DirectionId, string>> = {
@@ -105,10 +112,10 @@ export function buildTripLinks(
     links.set(trip.tripId, {
       previous: trip.pullOut
         ? depotCell(trip, createPullOut(trip, network), originTime, network)
-        : revenueCell(previous, network, numbers),
+        : neighborCell(previous, network, numbers),
       next: trip.pullIn
         ? depotCell(trip, createPullIn(trip, network), terminalTime, network)
-        : revenueCell(next, network, numbers),
+        : neighborCell(next, network, numbers),
     });
   }
 
@@ -138,16 +145,29 @@ function depotCell(
 /**
  * 繋がる相手の欄。
  *
- * 出すのは**営業便の便番号だけ**である。隣が回送だということは、その回送を
- * 作った便との間に自分が挟まっているということであり、運用として破綻している
- * （V-01 が拾う）。そこに時刻を出すと「繋がっている」と読めてしまう。
+ * 出すのは**利用者が置いた便の番号**である——営業便（`E1`）と、停留所間の
+ * 回送（`D1`。#259）。
+ *
+ * **隣が出入庫なら空欄にする。** 出入庫は展開されたものであり、隣に現れたと
+ * いうことは**その回送を作った便との間に自分が挟まっている**ということである。
+ * 運用として破綻しており（V-01 が拾う）、そこに番号を出すと「繋がっている」と
+ * 読めてしまう。
+ *
+ * ```
+ * A（入庫を付けていない） → B#out（B の出庫回送） → B
+ * ```
+ *
+ * **判定は「回送かどうか」ではなく「置ける便かどうか」である**（`isPlaceable`）。
+ * 停留所間の回送が置けるようになった時点で（#247）、前者では区別できなくなった。
  */
-function revenueCell(
+function neighborCell(
   trip: Trip | null,
   network: NetworkIndex,
   numbers: ReadonlyMap<string, string>,
 ): LinkCell {
-  if (trip === null || network.findPattern(trip.patternId)?.isDeadhead !== false) return NO_LINK;
+  if (trip === null) return NO_LINK;
+  const pattern = network.findPattern(trip.patternId);
+  if (pattern === undefined || !isPlaceable(pattern, network)) return NO_LINK;
   return { kind: 'trip', label: numbers.get(trip.tripId) ?? '' };
 }
 
