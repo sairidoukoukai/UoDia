@@ -26,12 +26,13 @@ jobs:
   check:
     name: 型チェック・Lint・テスト
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       # 書き出した zip と PDF は**外の実装に開かせて**確かめる（T-74・T-77）。
@@ -79,12 +80,13 @@ jobs:
   responsive:
     name: 狭幅画面
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: 依存のインストール
@@ -116,12 +118,13 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: check
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: 依存のインストール
@@ -153,6 +156,7 @@ jobs:
     if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')
     needs: check
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -193,7 +197,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - uses: dtolnay/rust-toolchain@stable
@@ -263,6 +267,7 @@ jobs:
     # 配布物の形にして残す意味は無い。
     needs: [check, responsive]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     permissions:
       contents: write
     strategy:
@@ -306,7 +311,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - uses: dtolnay/rust-toolchain@stable
