@@ -301,7 +301,7 @@ describe('パターンの変更（T-52）', () => {
     mount();
     newTrip(8, 0);
 
-    expect(optionsOf(0)).toEqual(expect.arrayContaining(['XT-M', 'XT-S', 'XM-S']));
+    expect(optionsOf(0)).toEqual(expect.arrayContaining(['DT-M', 'DT-S', 'DM-S']));
   });
 
   it('**出入庫は選べない**（出区・入区の切り替えでしか作らない。§6.1.7）', () => {
@@ -317,9 +317,9 @@ describe('パターンの変更（T-52）', () => {
   it('**選んだ停留所間の回送が便になる**（受入条件。#247）', () => {
     mount();
     newTrip(8, 0);
-    choosePattern(0, 'XT-M');
+    choosePattern(0, 'DT-M');
 
-    expect(trips()).toEqual([`XT-M:${String(fromHM(8, 0))}`]);
+    expect(trips()).toEqual([`DT-M:${String(fromHM(8, 0))}`]);
   });
 
   it('**その列のパターンが変わり、取り消すと戻る**', () => {

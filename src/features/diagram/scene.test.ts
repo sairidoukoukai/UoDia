@@ -319,12 +319,31 @@ describe('スジ', () => {
 });
 
 describe('スジに添える値（T-26）', () => {
-  it('**便番号を持つ。回送は空文字**（番号を持たない）', () => {
+  it('**便番号を持つ。展開された出入庫も持つ**（#259）', () => {
+    // ヒゲは番号を消費する。**絵の上でも名乗る**——無名だと、置かれた回送の
+    // 番号が飛ぶ理由が読めない。
     setTrips([makeTrip('t1', 'S1', [8, 0], { pullOut: true })]);
     const { trips } = selectDiagramScene(state(), theme);
 
-    expect(trips.find((trip) => !trip.isDeadhead)?.tripNumber).not.toBe('');
-    expect(trips.find((trip) => trip.isDeadhead)?.tripNumber).toBe('');
+    expect(trips.find((trip) => !trip.isDeadhead)?.tripNumber).toBe('E1');
+    expect(trips.find((trip) => trip.isDeadhead)?.tripNumber).toBe('D1');
+  });
+
+  it('**置かれた回送は番号を持つ**（#259）', () => {
+    // DM-T は箕面学舎→豊中学舎の回送。保存された便であり、車庫に接しない。
+    setTrips([makeTrip('t1', 'S1', [8, 0]), makeTrip('x1', 'DM-T', [9, 0])]);
+    const { trips } = selectDiagramScene(state(), theme);
+
+    expect(trips.find((trip) => trip.tripId === 'x1')?.tripNumber).toBe('D1');
+  });
+
+  it('**出入庫が先に走っていれば番号が飛ぶ**（#259）', () => {
+    // 8:00 発の便に出区を付けると、その回送（7:40 発）が D1 を取る。
+    // **飛びは事実である**——間に出入庫が走っている。
+    setTrips([makeTrip('t1', 'S1', [8, 0], { pullOut: true }), makeTrip('x1', 'DM-T', [9, 0])]);
+    const { trips } = selectDiagramScene(state(), theme);
+
+    expect(trips.find((trip) => trip.tripId === 'x1')?.tripNumber).toBe('D2');
   });
 
   it('**回送は元の便を指す**（`sourceTripId`。選択の単位は保存されている便）', () => {

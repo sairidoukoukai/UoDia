@@ -281,8 +281,18 @@ describe('回送スジ', () => {
     expect(draw([orphan]).segments).toEqual([]);
   });
 
-  it('番号は付けない（回送は便番号を持たない）', () => {
+  it('**番号を持たない便には付けない**（時刻が未入力の便など）', () => {
     expect(draw([pullOut()]).labels).toEqual([]);
+  });
+
+  it('**回送にも番号を付ける**（置かれた回送も、出入庫のヒゲも。#259）', () => {
+    // ヒゲも番号を消費する。**絵の上で無名だと、置かれた回送の番号が飛ぶ理由が
+    // 見えない。**
+    const [stub] = draw([pullOut({ tripNumber: 'D1' })]).labels;
+    expect(stub?.text).toBe('D1');
+
+    const [placed] = draw([pullOut({ tripId: 'x1', sourceTripId: 'x1', tripNumber: 'D2' })]).labels;
+    expect(placed?.text).toBe('D2');
   });
 
   it('**営業スジより細い**（運用で着色すると色も線種も似るため）', () => {
