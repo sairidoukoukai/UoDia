@@ -1,0 +1,27 @@
+﻿table_name,field_name,language,translation,record_id,field_value
+stops,stop_name,ja-Hrkt,とよなかがくしゃ,,豊中学舎
+stops,stop_name,en,Toyonaka-gakusha,,豊中学舎
+stops,stop_name,ja-Hrkt,みのおがくしゃ,,箕面学舎
+stops,stop_name,en,Minoh-gakusha,,箕面学舎
+stops,stop_name,ja-Hrkt,こんべんしょんセンターまえ,,コンベンションセンター前
+stops,stop_name,en,konbenshon-senta-mae,,コンベンションセンター前
+stops,stop_name,ja-Hrkt,こうがくぶまえ,,工学部前
+stops,stop_name,en,Kougakubu-mae,,工学部前
+stops,stop_name,ja-Hrkt,にんげんかがくぶまえ,,人間科学部前
+stops,stop_name,en,Ningen-kagakubu-mae,,人間科学部前
+stops,stop_name,ja-Hrkt,びせいぶつけんきゅうじょまえ,,微生物研究所前
+stops,stop_name,en,Biseibutsu-kennkyujo-mae,,微生物研究所前
+routes,route_long_name,ja-Hrkt,とよなかすいたせん,,豊中吹田線
+routes,route_long_name,en,Toyonaka <-> Suita,,豊中吹田線
+routes,route_long_name,ja-Hrkt,とよなかみのおせん,,豊中箕面線
+routes,route_long_name,en,Toyonaka <-> Minoh,,豊中箕面線
+routes,route_long_name,ja-Hrkt,さんてんかん,,三点間
+routes,route_long_name,en,Toyonaka <-> Minoh <-> Suita,,三点間
+routes,route_long_name,en,Out of Service,,車庫発吹田
+routes,route_long_name,en,Out of Service,,車庫発豊中
+routes,route_long_name,en,Out of Service,,車庫発箕面
+routes,route_long_name,en,Out of Service,,吹田発車庫
+routes,route_long_name,en,Out of Service,,豊中発車庫
+routes,route_long_name,en,Out of Service,,箕面発車庫
+agency,agency_name,ja-Hrkt,おおさかだいがく,4.12091E+12,
+agency,agency_name,en,Osaka University,4.12091E+12,
