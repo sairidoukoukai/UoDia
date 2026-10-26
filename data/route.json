@@ -187,7 +187,7 @@
       "fromStopId": "4_0",
       "toStopId": "9_0",
       "runMinutes": 20,
-      "distanceMeters": 3300
+      "distanceMeters": 6900
     },
     {
       "fromStopId": "1_0",
@@ -199,7 +199,7 @@
       "fromStopId": "2_0",
       "toStopId": "9_0",
       "runMinutes": 20,
-      "distanceMeters": 6900
+      "distanceMeters": 3300
     },
     {
       "fromStopId": "1_0",

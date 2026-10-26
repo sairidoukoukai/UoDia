@@ -36,6 +36,9 @@ describe('patternDistance', () => {
 
   it('回送も距離を持つ（**回送も走っている**）', () => {
     expect(patternDistance('DT-out', network)).toBe(5600);
+    expect(patternDistance('DS-in', network)).toBe(6900);
+    expect(patternDistance('DM-in', network)).toBe(3300);
+    expect(patternDistance('DT-in', network)).toBe(5700);
   });
 
   it('知らないパターンは分からない', () => {
