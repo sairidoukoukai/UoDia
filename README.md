@@ -9,22 +9,6 @@
 >
 > 本リポジトリに含まれるダイヤデータは設計・検討用であり、**実際の運行時刻を保証するものではありません。** 乗車の際は必ず[大学の公式時刻表](https://www.osaka-u.ac.jp/ja/access/bus)をご確認ください。
 
-## ドキュメント
-
-| 文書 | 内容 |
-| --- | --- |
-| [仕様書](docs/specification.md) | データモデル・機能仕様・非機能要件。**実装前に必読。** |
-| [仕様書 v1.1（追補）](docs/specification-v1.1.md) | v1.0 リリース後の issue（#158〜#168）に対する追補。**草案。** |
-| [実装計画書](docs/implementation-plan.md) | タスク分解（T-01〜T-42）・技術的な設計判断・リスク |
-| [実装計画書 v1.1](docs/implementation-plan-v1.1.md) | v1.1 のタスク分解（T-56〜T-69）。issue #158〜#168 に対応 |
-| [仕様書 v2（追補）](docs/specification-v2.md) | 書き出し・運行日カレンダー・GTFS 出力。issue #163・#192〜#198 に対応。**草案（未確定事項ゼロ）。** |
-| [実装計画書 v2](docs/implementation-plan-v2.md) | v2 のタスク分解（T-70〜T-83） |
-| [実装計画書 v2.1](docs/implementation-plan-v2.1.md) | v2.0.0 を配ったあとに出た指摘（#219〜#222）に対するタスク分解（T-84〜T-88） |
-| [実装計画書 v2.2](docs/implementation-plan-v2.2.md) | 運行経路を `.uodia` に取り込む（#235）タスク分解（T-89〜T-92） |
-| [実装計画書 v2.3](docs/implementation-plan-v2.3.md) | 停留所間の回送（#247）のタスク分解（T-97〜T-100） |
-| [仕様書（ポータブル版）](docs/specification-portable.md) | インストーラーを使わない配り方（T-93・T-94）。**草案。** |
-| [リファクタリング記録](docs/refactoring-log.md) | 構造だけを直した作業と、**その重複が生まれた理由** |
-
 ## 開発環境
 
 | 要件 | バージョン |
