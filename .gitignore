@@ -71,3 +71,4 @@ pnpm-debug.log*
 
 # ドキュメント
 docs/*
+!docs/gtfs_example/

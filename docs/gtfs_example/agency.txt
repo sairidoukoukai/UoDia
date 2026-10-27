@@ -1,0 +1,2 @@
+﻿agency_id,agency_name,agency_url,agency_timezone,agency_lang,agency_phone
+4120905002554,国立大学法人大阪大学,https://www.osaka-u.ac.jp/ja/access/bus,Asia/Tokyo,ja,
