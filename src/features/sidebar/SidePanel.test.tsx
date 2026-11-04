@@ -236,11 +236,23 @@ describe('運用の一覧', () => {
     return found;
   }
 
-  it('**走行距離と営業距離をどちらも出す**（#185。片方を title に隠さない）', () => {
+  it('**走行距離と営業距離、回送距離を出す**（#185。片方を title に隠さない）', () => {
     const text = distanceLine('1').textContent;
 
     expect(text).toContain('走行');
     expect(text).toContain('営業');
+    expect(text).toContain('回送');
+    expect(text).toMatch(/\d+\.\d km/);
+  });
+
+  it('**すべての系統の運行距離和・営業距離和・回送距離和の合計欄を出す**', () => {
+    const summary = container.querySelector<HTMLElement>('[aria-label="すべての系統の距離合計"]');
+    expect(summary).not.toBeNull();
+    const text = summary?.textContent ?? '';
+    expect(text).toContain('合計');
+    expect(text).toContain('運行');
+    expect(text).toContain('営業');
+    expect(text).toContain('回送');
     expect(text).toMatch(/\d+\.\d km/);
   });
 

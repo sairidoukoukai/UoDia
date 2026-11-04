@@ -11,7 +11,7 @@
  */
 
 import { useMemo, type ReactElement } from 'react';
-import { blockDistances, type Block } from '@/domain/block';
+import { blockDistances, totalDistances, type Block } from '@/domain/block';
 import { formatTime } from '@/domain/time';
 import { formatKm } from '@/domain/trip';
 import { blockColorsOf } from '@/features/timetable';
@@ -61,6 +61,17 @@ export function BlockList(): ReactElement {
         ? new Map<string, ReturnType<typeof blockDistances>[number]>()
         : new Map(blockDistances(blocks, network).map((d) => [d.blockId, d])),
     [blocks, network],
+  );
+
+  /**
+   * すべての系統の運行距離和・営業距離和・回送距離和。
+   */
+  const total = useMemo(
+    () =>
+      network === null
+        ? { total: null, revenue: null, deadhead: null }
+        : totalDistances(trips, blocks, network),
+    [trips, blocks, network],
   );
 
   const toggle = (blockId: string, show: boolean): void => {
@@ -169,11 +180,24 @@ export function BlockList(): ReactElement {
                 <span className="panel__distance">
                   <span>走行 {describe(distances.get(block.blockId)?.total)}</span>
                   <span>営業 {describe(distances.get(block.blockId)?.revenue)}</span>
+                  <span>回送 {describe(distances.get(block.blockId)?.deadhead)}</span>
                 </span>
               </li>
             );
           })}
         </ul>
+      )}
+
+      {/* すべての系統の運行距離和・営業距離和・回送距離和（候補A） */}
+      {blocks.length > 0 && (
+        <div className="panel__total-distance" aria-label="すべての系統の距離合計">
+          <span className="panel__total-title">合計</span>
+          <span className="panel__distance">
+            <span>運行 {describe(total.total)}</span>
+            <span>営業 {describe(total.revenue)}</span>
+            <span>回送 {describe(total.deadhead)}</span>
+          </span>
+        </div>
       )}
 
       {/* 運用番号が空欄の便は運用に入らない（検証の V-07）。数だけ伝える。 */}

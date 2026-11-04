@@ -740,11 +740,32 @@ body {
 .panel__distance {
   display: flex;
   flex-basis: 100%;
+  flex-wrap: wrap;
   gap: 0.75rem;
   padding-left: 2.6rem;
   color: var(--color-fg-muted);
   font-size: 0.75rem;
   font-variant-numeric: tabular-nums;
+}
+
+/* すべての系統の運行距離和・営業距離和・回送距離和の合計欄 */
+.panel__total-distance {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.5rem 0.25rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.panel__total-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-fg-muted);
+}
+
+.panel__total-distance .panel__distance {
+  padding-left: 0;
 }
 
 /* 編集中のダイヤ。どれを触っているのかが一目で分かるようにする。 */

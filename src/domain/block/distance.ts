@@ -13,6 +13,7 @@
  * ときに古い値が残る（仕様書 §5.8 と同じ方針）。
  */
 
+import type { Trip } from '@/domain/model';
 import type { NetworkIndex } from '@/domain/network';
 import { patternDistance, sumDistances } from '@/domain/trip';
 import type { Block, BlockTrips } from './derive';
@@ -24,6 +25,18 @@ export interface BlockDistance {
   readonly total: number | null;
   /** 回送を**含まない**。客を運ぶために走った距離。 */
   readonly revenue: number | null;
+  /** 回送距離。走った距離のうち客を乗せていない距離。 */
+  readonly deadhead: number | null;
+}
+
+/** すべての系統の運行距離・営業距離・回送距離の合計（メートル）。 */
+export interface TotalDistances {
+  /** 運行距離和（回送を含む総走行距離）。 */
+  readonly total: number | null;
+  /** 営業距離和（客を運ぶための距離）。 */
+  readonly revenue: number | null;
+  /** 回送距離和（回送として走った距離）。 */
+  readonly deadhead: number | null;
 }
 
 /** 便の並びから距離を足す。`deadheads` が `false` なら回送を除く。 */
@@ -37,10 +50,14 @@ function sumOf(trips: BlockTrips, network: NetworkIndex, deadheads: boolean): nu
 
 /** 運用 1 つの走行距離。 */
 export function blockDistance(block: Block, network: NetworkIndex): BlockDistance {
+  const total = sumOf(block.trips, network, true);
+  const revenue = sumOf(block.trips, network, false);
+  const deadhead = total !== null && revenue !== null ? total - revenue : null;
   return {
     blockId: block.blockId,
-    total: sumOf(block.trips, network, true),
-    revenue: sumOf(block.trips, network, false),
+    total,
+    revenue,
+    deadhead,
   };
 }
 
@@ -50,4 +67,30 @@ export function blockDistances(
   network: NetworkIndex,
 ): readonly BlockDistance[] {
   return blocks.map((block) => blockDistance(block, network));
+}
+
+/**
+ * すべての系統の運行距離和・営業距離和・回送距離和を計算する。
+ *
+ * 営業便は `trips`、回送便は展開された `blocks` から集計する。
+ * 距離が分からない区間があれば `null`。
+ */
+export function totalDistances(
+  trips: readonly Trip[],
+  blocks: readonly Block[],
+  network: NetworkIndex,
+): TotalDistances {
+  const revenueDistances = trips.map((trip) => patternDistance(trip.patternId, network));
+  const revenue = sumDistances(revenueDistances);
+
+  const deadheadDistances = blocks.flatMap((block) =>
+    block.trips
+      .filter((entry) => entry.isDeadhead)
+      .map((entry) => patternDistance(entry.trip.patternId, network)),
+  );
+  const deadhead = sumDistances(deadheadDistances);
+
+  const total = revenue === null || deadhead === null ? null : revenue + deadhead;
+
+  return { total, revenue, deadhead };
 }
