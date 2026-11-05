@@ -728,20 +728,28 @@ body {
  */
 .panel__row--stacked {
   flex-wrap: wrap;
+  row-gap: 0.15rem;
+  padding: 0.35rem 0;
+}
+
+/* 運用と運用のあいだに区切り線を引き、どの距離がどの運用に属するかを迷わせない。 */
+.panel__row--stacked + .panel__row--stacked {
+  border-top: 1px solid var(--color-border);
 }
 
 /*
- * 走行距離と営業距離（#161・#185）。
+ * 走行距離と営業距離、回送距離（#161・#185）。
  *
  * `flex-basis: 100%` で行を独り占めし、上の行から改まる。左の余白は
  * チェックボックスと色見本のぶんだけ空け、**運用番号の下に数が来る**ように
  * 見せる（px ではなく `rem` で持つ——揃えたいのは字の位置である）。
+ * 横の間隔は詰め、万一折り返しても行間が間延びしないよう縦の隙間も絞る。
  */
 .panel__distance {
   display: flex;
   flex-basis: 100%;
   flex-wrap: wrap;
-  gap: 0.75rem;
+  gap: 0.125rem 0.35rem;
   padding-left: 2.6rem;
   color: var(--color-fg-muted);
   font-size: 0.75rem;
@@ -752,9 +760,9 @@ body {
 .panel__total-distance {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-  margin-top: 0.5rem;
-  padding: 0.5rem 0.5rem 0.25rem;
+  gap: 0.2rem;
+  margin-top: 0.35rem;
+  padding: 0.4rem 0 0.15rem;
   border-top: 1px solid var(--color-border);
 }
 
