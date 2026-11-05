@@ -15,13 +15,12 @@
 
 import type { Trip } from '@/domain/model';
 import type { NetworkIndex } from '@/domain/network';
-import { patternDistance, sumDistances } from '@/domain/trip';
-import type { Block, BlockTrips } from './derive';
+import { expandDeadheads, patternDistance } from '@/domain/trip';
+import type { Block } from './derive';
 
-/** 運用 1 つの走行距離（メートル）。距離の分からない区間があれば `null`。 */
-export interface BlockDistance {
-  readonly blockId: string;
-  /** 回送を**含む**。その日にその車が走った距離。 */
+/** 走行距離の内訳（メートル）。距離の分からない区間があれば `null`。 */
+export interface TotalDistances {
+  /** 回送を**含む**。実際に走った距離。 */
   readonly total: number | null;
   /** 回送を**含まない**。客を運ぶために走った距離。 */
   readonly revenue: number | null;
@@ -29,35 +28,50 @@ export interface BlockDistance {
   readonly deadhead: number | null;
 }
 
-/** すべての系統の運行距離・営業距離・回送距離の合計（メートル）。 */
-export interface TotalDistances {
-  /** 運行距離和（回送を含む総走行距離）。 */
-  readonly total: number | null;
-  /** 営業距離和（客を運ぶための距離）。 */
-  readonly revenue: number | null;
-  /** 回送距離和（回送として走った距離）。 */
-  readonly deadhead: number | null;
+/** 運用 1 つの走行距離（メートル）。距離の分からない区間があれば `null`。 */
+export interface BlockDistance extends TotalDistances {
+  readonly blockId: string;
 }
 
-/** 便の並びから距離を足す。`deadheads` が `false` なら回送を除く。 */
-function sumOf(trips: BlockTrips, network: NetworkIndex, deadheads: boolean): number | null {
-  return sumDistances(
-    trips
-      .filter((trip) => deadheads || !trip.isDeadhead)
-      .map((trip) => patternDistance(trip.trip.patternId, network)),
-  );
+/**
+ * 展開済みの便の並びから、走行・営業・回送の距離を求める。
+ *
+ * **運用ごととダイヤ全体で同じ関数を通す。** 別々に数えると、停留所間の回送
+ * （`trips` に便として置かれる `isDeadhead`）が営業側に紛れ込んだり二重に
+ * 足されたりして、運用の和と全体の和が食い違う。
+ */
+function distancesOf(trips: readonly Trip[], network: NetworkIndex): TotalDistances {
+  let revenue = 0;
+  let deadhead = 0;
+
+  for (const trip of trips) {
+    const pattern = network.patternIndex(trip.patternId);
+    const distance = patternDistance(trip.patternId, network);
+    if (pattern === undefined || distance === null) {
+      return { total: null, revenue: null, deadhead: null };
+    }
+    if (pattern.pattern.isDeadhead) {
+      deadhead += distance;
+    } else {
+      revenue += distance;
+    }
+  }
+
+  return {
+    total: revenue + deadhead,
+    revenue,
+    deadhead,
+  };
 }
 
 /** 運用 1 つの走行距離。 */
 export function blockDistance(block: Block, network: NetworkIndex): BlockDistance {
-  const total = sumOf(block.trips, network, true);
-  const revenue = sumOf(block.trips, network, false);
-  const deadhead = total !== null && revenue !== null ? total - revenue : null;
   return {
     blockId: block.blockId,
-    total,
-    revenue,
-    deadhead,
+    ...distancesOf(
+      block.trips.map((entry) => entry.trip),
+      network,
+    ),
   };
 }
 
@@ -72,25 +86,9 @@ export function blockDistances(
 /**
  * すべての系統の運行距離和・営業距離和・回送距離和を計算する。
  *
- * 営業便は `trips`、回送便は展開された `blocks` から集計する。
+ * 出入庫回送を `expandDeadheads` で展開したうえで `distancesOf` に通す。
  * 距離が分からない区間があれば `null`。
  */
-export function totalDistances(
-  trips: readonly Trip[],
-  blocks: readonly Block[],
-  network: NetworkIndex,
-): TotalDistances {
-  const revenueDistances = trips.map((trip) => patternDistance(trip.patternId, network));
-  const revenue = sumDistances(revenueDistances);
-
-  const deadheadDistances = blocks.flatMap((block) =>
-    block.trips
-      .filter((entry) => entry.isDeadhead)
-      .map((entry) => patternDistance(entry.trip.patternId, network)),
-  );
-  const deadhead = sumDistances(deadheadDistances);
-
-  const total = revenue === null || deadhead === null ? null : revenue + deadhead;
-
-  return { total, revenue, deadhead };
+export function totalDistances(trips: readonly Trip[], network: NetworkIndex): TotalDistances {
+  return distancesOf(expandDeadheads(trips, network), network);
 }

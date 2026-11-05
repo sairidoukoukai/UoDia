@@ -121,8 +121,7 @@ describe('totalDistances', () => {
       trip('T1', 8, 40, { blockId: 'A' }),
       trip('S1', 9, 0, { blockId: 'B' }),
     ];
-    const { blocks } = deriveBlocks(trips, network);
-    const result = totalDistances(trips, blocks, network);
+    const result = totalDistances(trips, network);
 
     const expectedRevenue = 9800 + 11600 + 9800;
     const expectedDeadhead = 5600;
@@ -135,17 +134,56 @@ describe('totalDistances', () => {
     });
   });
 
-  it('運用未割り当ての便も営業距離に含まれる', () => {
+  it('**停留所間の回送（区間回送）は回送距離にだけ入り、二重に足されない**', () => {
+    // 運用 A: M2（豊中→箕面 6.4km）→ DT-M（区間回送: 豊中→箕面 6.4km）
     const trips = [
-      trip('S1', 8, 0, { blockId: 'A', pullOut: true }),
-      trip('T1', 8, 40, { blockId: '' }), // 未割り当て
+      trip('M2', 8, 0, { blockId: 'A', pullOut: true }),
+      trip('DT-M', 9, 0, { blockId: 'A', pullIn: true }),
+    ];
+    const result = totalDistances(trips, network);
+
+    // 営業便は M2（6400m）だけ。
+    // 回送便は 出区（5600m）+ DT-M（6400m）+ 箕面入区（3300m）。
+    expect(result).toEqual({
+      revenue: 6400,
+      deadhead: 5600 + 6400 + 3300,
+      total: 6400 + 5600 + 6400 + 3300,
+    });
+  });
+
+  it('**全便に運用番号が付いていれば、各運用の距離の和と全体の距離が一致する**', () => {
+    // 出入庫回送・区間回送・営業便を複数運用に混ぜる。
+    const trips = [
+      trip('S1', 8, 0, { blockId: '1', pullOut: true }),
+      trip('T1', 8, 40, { blockId: '1' }),
+      trip('DT-M', 9, 30, { blockId: '1' }),
+      trip('S2', 10, 0, { blockId: '1', pullIn: true }),
+      trip('M2', 8, 20, { blockId: '2', pullOut: true }),
+      trip('DS-T', 9, 10, { blockId: '2' }),
+      trip('S1', 10, 0, { blockId: '2', pullIn: true }),
     ];
     const { blocks } = deriveBlocks(trips, network);
-    const result = totalDistances(trips, blocks, network);
+    const byBlock = blockDistances(blocks, network);
+    const sumOfBlocks = {
+      total: byBlock.reduce((acc, b) => acc + (b.total ?? 0), 0),
+      revenue: byBlock.reduce((acc, b) => acc + (b.revenue ?? 0), 0),
+      deadhead: byBlock.reduce((acc, b) => acc + (b.deadhead ?? 0), 0),
+    };
+
+    expect(totalDistances(trips, network)).toEqual(sumOfBlocks);
+  });
+
+  it('運用未割り当ての便もそれぞれの距離に含まれる', () => {
+    const trips = [
+      trip('S1', 8, 0, { blockId: 'A', pullOut: true }),
+      trip('T1', 8, 40, { blockId: '' }), // 未割り当ての営業便
+      trip('DT-M', 9, 20, { blockId: '' }), // 未割り当ての区間回送便
+    ];
+    const result = totalDistances(trips, network);
 
     expect(result.revenue).toBe(9800 + 11600);
-    expect(result.deadhead).toBe(5600);
-    expect(result.total).toBe(9800 + 11600 + 5600);
+    expect(result.deadhead).toBe(5600 + 6400);
+    expect(result.total).toBe(9800 + 11600 + 5600 + 6400);
   });
 
   it('距離が分からない区間があれば null を返す', () => {
@@ -158,12 +196,7 @@ describe('totalDistances', () => {
     );
     if (!withoutDistances.ok) throw new Error('組み立てられません');
 
-    // 回送を含む便
-    const trips = [trip('S1', 8, 0, { pullOut: true })];
-    const { blocks } = deriveBlocks(trips, withoutDistances.network);
-    const result = totalDistances(trips, blocks, withoutDistances.network);
-
-    expect(result).toEqual({
+    expect(totalDistances([trip('S1', 8, 0)], withoutDistances.network)).toEqual({
       total: null,
       revenue: null,
       deadhead: null,

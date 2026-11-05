@@ -11,7 +11,7 @@
  */
 
 import { useMemo, type ReactElement } from 'react';
-import { blockDistances, totalDistances, type Block } from '@/domain/block';
+import { blockDistances, totalDistances, type Block, type TotalDistances } from '@/domain/block';
 import { formatTime } from '@/domain/time';
 import { formatKm } from '@/domain/trip';
 import { blockColorsOf } from '@/features/timetable';
@@ -26,6 +26,13 @@ const NO_BLOCKS: readonly Block[] = [];
 
 /** 色を 1 つも選んでいない状態。 */
 const NO_COLORS: Readonly<Record<string, string>> = Object.freeze({});
+
+/** ネットワーク未読込時の距離。 */
+const UNKNOWN_DISTANCES: TotalDistances = Object.freeze({
+  total: null,
+  revenue: null,
+  deadhead: null,
+});
 
 /** 距離を言葉にする。**分からないときは数を出さない。** */
 function describe(meters: number | null | undefined): string {
@@ -67,11 +74,8 @@ export function BlockList(): ReactElement {
    * すべての系統の運行距離和・営業距離和・回送距離和。
    */
   const total = useMemo(
-    () =>
-      network === null
-        ? { total: null, revenue: null, deadhead: null }
-        : totalDistances(trips, blocks, network),
-    [trips, blocks, network],
+    () => (network === null ? UNKNOWN_DISTANCES : totalDistances(trips, network)),
+    [trips, network],
   );
 
   const toggle = (blockId: string, show: boolean): void => {

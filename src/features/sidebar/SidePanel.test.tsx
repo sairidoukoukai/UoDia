@@ -246,14 +246,22 @@ describe('運用の一覧', () => {
   });
 
   it('**すべての系統の運行距離和・営業距離和・回送距離和の合計欄を出す**', () => {
+    // 区間回送（DT-M: 6.4km）を運用 2 に足しても、営業距離に紛れず回送距離に入る。
+    act(() => {
+      useAppStore.getState().editProject('区間回送を足す', (project) => {
+        project.services[0]?.trips.push(makeTrip('DT-M', 10, '2'));
+      });
+    });
+
+    // 運用 1: S1（9.8km）+ 出区（5.6km）→ 走行 15.4 km / 営業 9.8 km / 回送 5.6 km
+    expect(distanceLine('1').textContent).toBe('走行 15.4 km営業 9.8 km回送 5.6 km');
+    // 運用 2: T1（11.6km）+ DT-M（6.4km）→ 走行 18.0 km / 営業 11.6 km / 回送 6.4 km
+    expect(distanceLine('2').textContent).toBe('走行 18.0 km営業 11.6 km回送 6.4 km');
+
+    // 合計: 運行 33.4 km / 営業 21.4 km / 回送 12.0 km（各運用の和と一致する）
     const summary = container.querySelector<HTMLElement>('[aria-label="すべての系統の距離合計"]');
     expect(summary).not.toBeNull();
-    const text = summary?.textContent ?? '';
-    expect(text).toContain('合計');
-    expect(text).toContain('運行');
-    expect(text).toContain('営業');
-    expect(text).toContain('回送');
-    expect(text).toMatch(/\d+\.\d km/);
+    expect(summary?.textContent).toBe('合計運行 33.4 km営業 21.4 km回送 12.0 km');
   });
 
   it('**「（回送込み）」と「/」を出さない**（注記のほうが数より長いのは逆である）', () => {
